@@ -393,10 +393,14 @@ function App() {
   const [panel, setPanel] = useState(null);
 
   useEffect(() => {
-    const onHash = () => setRoute(authenticated ? cleanRoute(window.location.hash) : 'login');
+    const onHash = () => {
+      const hasToken = Boolean(localStorage.getItem('sfTorresToken'));
+      setAuthenticated(hasToken);
+      setRoute(hasToken ? cleanRoute(window.location.hash) : 'login');
+    };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
-  }, [authenticated]);
+  }, []);
 
   useEffect(() => {
     applySystemSettings(settings);
@@ -435,7 +439,7 @@ function App() {
     setAuthenticated(true);
     const requestedRoute = requestedRouteFromHash();
     const nextRoute = requestedRoute && canView(requestedRoute, user) ? requestedRoute : firstAllowedRouteFor(user);
-    window.location.hash = `#/${nextRoute}`;
+    window.history.replaceState(null, '', `#/${nextRoute}`);
     setRoute(nextRoute);
   };
 
