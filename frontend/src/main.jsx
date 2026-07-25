@@ -1,9 +1,28 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 import './system.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3333';
+
+const defaultSettings = {
+  legalName: 'ST Serviços de Logística LTDA',
+  fantasyName: 'SF TORRES',
+  cnpj: '00.000.000/0001-00',
+  stateRegistration: '04.123.456-7',
+  address: 'Av. Brigadeiro, 4500 - Manaus/AM - CEP 69000-000',
+  phone: '(92) 99267-8067',
+  email: 'sosthenes.torres@gmail.com',
+  primaryColor: '#1B3A6B',
+  accentColor: '#C8102E',
+  successColor: '#1F8A4C',
+  dangerColor: '#B3261E',
+  sidebarColor: '#0F2447',
+  sidebarDarkColor: '#0B1E3D',
+  topbarLogo: 'none',
+  primaryLogo: '',
+  secondaryLogo: ''
+};
 
 const routes = {
   dashboard: { title: 'Painel Corporativo', group: 'Principal' },
@@ -166,6 +185,10 @@ function money(value) {
   return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+function normalize(value) {
+  return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 function triggerAction(label) {
   window.dispatchEvent(new CustomEvent('sf:action', { detail: label }));
 }
@@ -179,6 +202,38 @@ function downloadCsv(filename, rows) {
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function readStoredSettings() {
+  try {
+    return { ...defaultSettings, ...JSON.parse(localStorage.getItem('sfTorresSettings') || '{}') };
+  } catch {
+    return defaultSettings;
+  }
+}
+
+function storeSettings(settings) {
+  localStorage.setItem('sfTorresSettings', JSON.stringify(settings));
+}
+
+function applySystemSettings(settings) {
+  const root = document.documentElement;
+  root.style.setProperty('--c-primary', settings.primaryColor || defaultSettings.primaryColor);
+  root.style.setProperty('--c-primary-700', settings.primaryColor || defaultSettings.primaryColor);
+  root.style.setProperty('--c-accent', settings.accentColor || defaultSettings.accentColor);
+  root.style.setProperty('--c-success', settings.successColor || defaultSettings.successColor);
+  root.style.setProperty('--c-danger', settings.dangerColor || defaultSettings.dangerColor);
+  root.style.setProperty('--c-side', settings.sidebarColor || defaultSettings.sidebarColor);
+  root.style.setProperty('--c-side-700', settings.sidebarDarkColor || defaultSettings.sidebarDarkColor);
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 function cleanRoute(hash) {
@@ -257,11 +312,27 @@ function Pill({ value }) {
 function App() {
   const [route, setRoute] = useState(() => localStorage.getItem('sfTorresToken') ? cleanRoute(window.location.hash) : 'login');
   const [toast, setToast] = useState('');
+  const [settings, setSettings] = useState(readStoredSettings);
+  const [panel, setPanel] = useState(null);
 
   useEffect(() => {
     const onHash = () => setRoute(cleanRoute(window.location.hash));
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  useEffect(() => {
+    applySystemSettings(settings);
+    storeSettings(settings);
+  }, [settings]);
+
+  useEffect(() => {
+    if (!localStorage.getItem('sfTorresToken')) return;
+    api('/api/settings/company')
+      .then((payload) => {
+        if (payload.data) setSettings((old) => ({ ...old, ...payload.data }));
+      })
+      .catch(() => {});
   }, []);
 
   const notify = (message) => {
@@ -276,26 +347,27 @@ function App() {
   }, []);
 
   if (route === 'login' || !localStorage.getItem('sfTorresToken')) {
-    return <Login />;
+    return <Login settings={settings} />;
   }
 
   return (
     <div className="app">
-      <Sidebar route={route} setRoute={setRoute} />
-      <Topbar route={route} />
+      <Sidebar route={route} setRoute={setRoute} settings={settings} />
+      <Topbar route={route} settings={settings} openPanel={setPanel} />
       <main className="main">
         <div className="page">
           <ErrorBoundary resetKey={route}>
-            <Screen route={route} notify={notify} />
+            <Screen route={route} notify={notify} settings={settings} setSettings={setSettings} />
           </ErrorBoundary>
         </div>
       </main>
+      {panel && <ActionPanel type={panel} setRoute={setRoute} onClose={() => setPanel(null)} />}
       <div className={`sf-toast ${toast ? 'show' : ''}`}>{toast}</div>
     </div>
   );
 }
 
-function Login() {
+function Login({ settings }) {
   const [email, setEmail] = useState('admin@sftorres.local');
   const [password, setPassword] = useState('admin123');
   const [message, setMessage] = useState('Acesso restrito a colaboradores autorizados. As ações são auditadas conforme LGPD.');
@@ -327,9 +399,9 @@ function Login() {
   return (
     <div className="login-shell">
       <aside className="login-aside">
-        <div className="logo-area"><LogoSM /></div>
+        <div className="logo-area"><LogoSM src={settings.secondaryLogo} /></div>
         <div className="copy">
-          <h2>Centro Operacional<br />SF TORRES</h2>
+          <h2>Centro Operacional<br />{settings.fantasyName}</h2>
           <p>Plataforma corporativa de gestão de operações de logística, limpeza e conservação. Controle ordens de serviço, equipes, equipamentos, medições e faturamento em um único ambiente.</p>
         </div>
         <div className="badges">
@@ -342,8 +414,8 @@ function Login() {
       <main className="login-main">
         <div className="login-card">
           <div className="brand-line">
-            <div className="mark"><LogoST dark /></div>
-            <div><div className="eyebrow">Centro Operacional</div><div className="brand-name">SF TORRES</div></div>
+            <div className="mark"><LogoST src={settings.primaryLogo} dark /></div>
+            <div><div className="eyebrow">Centro Operacional</div><div className="brand-name">{settings.fantasyName}</div></div>
           </div>
           <h1>Acesse sua conta</h1>
           <p className="subtitle">Use suas credenciais corporativas para entrar no ambiente operacional.</p>
@@ -361,7 +433,7 @@ function Login() {
   );
 }
 
-function Sidebar({ route, setRoute }) {
+function Sidebar({ route, setRoute, settings }) {
   const groups = [
     ['Principal', [['dashboard', 'PR', 'Principal']]],
     ['Operações', [['tower', 'TO', 'Torre Operacional'], ['dailyOps', 'OD', 'Operação Diária'], ['schedules', 'PD', 'Programação de Equipes']]],
@@ -377,7 +449,7 @@ function Sidebar({ route, setRoute }) {
   };
   return (
     <aside className="sidebar">
-      <div className="brand"><div className="brand-mark"><LogoST /></div><div className="brand-text"><strong>SF TORRES</strong><span>Centro Operacional</span></div></div>
+      <div className="brand"><div className="brand-mark"><LogoST src={settings.primaryLogo} /></div><div className="brand-text"><strong>{settings.fantasyName}</strong><span>Centro Operacional</span></div></div>
       <div className="search"><span>⌕</span><input placeholder="Buscar módulo, tela ou ação..." /></div>
       <nav className="nav">
         {groups.map(([title, items]) => (
@@ -395,25 +467,26 @@ function Sidebar({ route, setRoute }) {
   );
 }
 
-function Topbar({ route }) {
+function Topbar({ route, settings, openPanel }) {
   const def = routes[route] || routes.dailyOps;
   const user = JSON.parse(localStorage.getItem('sfTorresUser') || '{}');
   return (
     <header className="topbar">
       <div className="crumbs"><span className="crumb-icon"><Icon name="grid" /></span><span>Painel Corporativo</span><span className="sep">›</span><span>{def.group}</span><span className="sep">›</span><span className="here">{def.title}</span></div>
       <div className="topbar-actions">
-        <button className="btn-icon" title="Pesquisar (Ctrl+K)" onClick={() => triggerAction('Pesquisa')}><Icon name="search" /></button>
-        <button className="btn-icon" title="Notificações" onClick={() => triggerAction('Notificações')}><Icon name="bell" /><span className="badge-dot" /></button>
-        <button className="btn-icon" title="Mensagens" onClick={() => triggerAction('Mensagens')}><Icon name="message" /></button>
+        <button className="btn-icon" title="Pesquisar (Ctrl+K)" onClick={() => openPanel('search')}><Icon name="search" /></button>
+        <button className="btn-icon" title="Notificações" onClick={() => openPanel('notifications')}><Icon name="bell" /><span className="badge-dot" /></button>
+        <button className="btn-icon" title="Mensagens" onClick={() => openPanel('messages')}><Icon name="message" /></button>
         <span className="topbar-divider" />
-        <button className="btn-icon" title="Ajuda" onClick={() => triggerAction('Ajuda')}><Icon name="help" /></button>
+        <button className="btn-icon" title="Ajuda" onClick={() => openPanel('help')}><Icon name="help" /></button>
+        {settings.topbarLogo !== 'none' && <div className="top-logo">{settings.topbarLogo !== 'sm' && <LogoST src={settings.primaryLogo} />}{settings.topbarLogo !== 'st' && <LogoSM small src={settings.secondaryLogo} />}</div>}
         <div className="who"><div className="ava">SF</div><div className="meta"><b>{user.name}</b><span>{user.email}</span></div></div>
       </div>
     </header>
   );
 }
 
-function Screen({ route, notify }) {
+function Screen({ route, notify, settings, setSettings }) {
   if (route === 'dailyOps') return <DailyOps notify={notify} />;
   if (route === 'measurement') return <Measurement notify={notify} />;
   if (route === 'schedules') return <Schedules notify={notify} />;
@@ -424,7 +497,7 @@ function Screen({ route, notify }) {
   if (route === 'productivity') return <Productivity />;
   if (route === 'map') return <OperationalMap />;
   if (route === 'reports') return <Reports />;
-  if (route === 'settings') return <Settings notify={notify} />;
+  if (route === 'settings') return <Settings notify={notify} settings={settings} setSettings={setSettings} />;
   return <Placeholder route={route} />;
 }
 
@@ -523,14 +596,22 @@ function Users({ notify }) {
   }} notify={notify} />;
 }
 
-function Settings({ notify }) {
+function Settings({ notify, settings, setSettings }) {
+  const [form, setForm] = useState(settings);
+  useEffect(() => setForm(settings), [settings]);
+  const change = (key, value) => setForm((old) => {
+    const next = { ...old, [key]: value };
+    setSettings(next);
+    return next;
+  });
+  const jump = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   const cards = [
-    ['Empresa & Filiais', 'Razão social, CNPJ, endereço, marcas e logos.', 'building'],
-    ['Sistema', 'Identidade visual, idioma, fuso horário e formatos.', 'gear'],
-    ['Regras Operacionais', 'SLA, janelas de programação, alertas automáticos.', 'clock'],
-    ['Integrações', 'ERP, fiscal, transportadoras, mensageria.', 'link'],
-    ['Segurança & Auditoria', 'Senhas, 2FA, sessão, log de auditoria.', 'shield'],
-    ['Notificações', 'Canais, gatilhos e destinatários por evento.', 'bell']
+    ['Empresa & Filiais', 'Razão social, CNPJ, endereço, marcas e logos.', 'building', 'empresa'],
+    ['Sistema', 'Identidade visual, idioma, fuso horário e formatos.', 'gear', 'sistema'],
+    ['Regras Operacionais', 'SLA, janelas de programação, alertas automáticos.', 'clock', 'regras'],
+    ['Integrações', 'ERP, fiscal, transportadoras, mensageria.', 'link', 'integracoes'],
+    ['Segurança & Auditoria', 'Senhas, 2FA, sessão, log de auditoria.', 'shield', 'seguranca'],
+    ['Notificações', 'Canais, gatilhos e destinatários por evento.', 'bell', 'notificacoes']
   ];
   const integrations = [
     ['ERP - SAP B1', 'REST', <span className="mono">https://erp.sftorres.com.br/api/v1</span>, '24/07/2026 09:30', <Pill value="Ativo" />, <><button className="btn btn-sm" onClick={() => triggerAction('Teste ERP')}>Testar</button> <button className="btn btn-sm" onClick={() => triggerAction('Editar ERP')}>Editar</button></>],
@@ -540,38 +621,39 @@ function Settings({ notify }) {
     ['SMTP - envio de relatório', 'SMTP', <span className="mono">smtp.sftorres.com.br:587</span>, '23/07/2026 18:01', <Pill value="Ativo" />, <><button className="btn btn-sm" onClick={() => triggerAction('Teste SMTP')}>Testar</button> <button className="btn btn-sm" onClick={() => triggerAction('Editar SMTP')}>Editar</button></>]
   ];
   const saveSettings = async () => {
-    const fields = [...document.querySelectorAll('[data-settings-form] .form-field')].reduce((acc, field) => {
-      const label = field.querySelector('label')?.textContent?.trim();
-      const input = field.querySelector('input, textarea, select');
-      if (label && input) acc[label] = input.type === 'checkbox' ? input.checked : input.value;
-      return acc;
-    }, {});
-    await api('/api/settings/company', { method: 'PUT', body: JSON.stringify(fields) });
+    await api('/api/settings/company', { method: 'PUT', body: JSON.stringify(form) });
+    setSettings(form);
     notify('Configurações salvas no banco');
   };
+  const restoreDefaults = async () => {
+    setForm(defaultSettings);
+    setSettings(defaultSettings);
+    await api('/api/settings/company', { method: 'PUT', body: JSON.stringify(defaultSettings) });
+    notify('Padrões restaurados');
+  };
   return <>
-    <PageHead title="Configurações" subtitle="Parâmetros gerais da empresa, do sistema, integrações e políticas operacionais." ghostAction="Restaurar padrões" action="Salvar alterações" onAction={saveSettings} />
+    <PageHead title="Configurações" subtitle="Parâmetros gerais da empresa, do sistema, integrações e políticas operacionais." ghostAction="Restaurar padrões" onGhostAction={restoreDefaults} action="Salvar alterações" onAction={saveSettings} />
     <div data-settings-form>
-    <div className="section-list settings-jump">{cards.map(([name, text, icon]) => <div className="section-card" key={name} onClick={() => triggerAction(name)}><div className="ico"><Icon name={icon} /></div><div><h4>{name}</h4><p>{text}</p></div></div>)}</div>
-    <Panel title="Empresa & Filiais" padded actions={<span className="soft">Identidade institucional usada em relatórios e PDF</span>}>
+    <div className="section-list settings-jump">{cards.map(([name, text, icon, id]) => <div className="section-card" key={name} onClick={() => jump(id)}><div className="ico"><Icon name={icon} /></div><div><h4>{name}</h4><p>{text}</p></div></div>)}</div>
+    <div id="empresa"><Panel title="Empresa & Filiais" padded actions={<span className="soft">Identidade institucional usada em relatórios e PDF</span>}>
       <div className="form-grid">
-        <Field label="Razão social" value="ST Serviços de Logística LTDA" />
-        <Field label="Nome fantasia" value="SF TORRES" />
-        <Field label="CNPJ" value="00.000.000/0001-00" />
-        <Field label="Inscrição estadual" value="04.123.456-7" />
-        <Field label="Endereço" value="Av. Brigadeiro, 4500 - Manaus/AM - CEP 69000-000" full />
-        <Field label="Telefone principal" value="(92) 99267-8067" />
-        <Field label="E-mail corporativo" value="sosthenes.torres@gmail.com" />
-        <LogoUpload title="Logo principal exibida no sidebar" name="assets/logo-st.svg" desc='Marca "ST Serviços de Logística" (principal do sistema)' logo={<LogoST />} />
-        <LogoUpload title="Logo secundária (login/institucional)" name="assets/logo-sm.svg" desc='Marca "SM Torres - Treinamentos" (exibida no login)' logo={<LogoSM small />} />
-        <div className="form-field full"><label>Marca exibida na barra superior</label><div className="radio-row"><label><input type="radio" name="navbar-logo" defaultChecked /> Não exibir (texto)</label><label><input type="radio" name="navbar-logo" /> Logo ST</label><label><input type="radio" name="navbar-logo" /> Logo SM</label><label><input type="radio" name="navbar-logo" /> Ambas lado a lado</label></div></div>
+        <Field label="Razão social" value={form.legalName} onChange={(value) => change('legalName', value)} />
+        <Field label="Nome fantasia" value={form.fantasyName} onChange={(value) => change('fantasyName', value)} />
+        <Field label="CNPJ" value={form.cnpj} onChange={(value) => change('cnpj', value)} />
+        <Field label="Inscrição estadual" value={form.stateRegistration} onChange={(value) => change('stateRegistration', value)} />
+        <Field label="Endereço" value={form.address} onChange={(value) => change('address', value)} full />
+        <Field label="Telefone principal" value={form.phone} onChange={(value) => change('phone', value)} />
+        <Field label="E-mail corporativo" value={form.email} onChange={(value) => change('email', value)} />
+        <LogoUpload title="Logo principal exibida no sidebar" name="assets/logo-st.svg" desc='Marca principal do sistema' value={form.primaryLogo} onChange={(value) => change('primaryLogo', value)} fallback={<LogoST />} />
+        <LogoUpload title="Logo secundária (login/institucional)" name="assets/logo-sm.svg" desc='Marca exibida no login' value={form.secondaryLogo} onChange={(value) => change('secondaryLogo', value)} fallback={<LogoSM small />} />
+        <div className="form-field full"><label>Marca exibida na barra superior</label><div className="radio-row">{[['none', 'Não exibir (texto)'], ['st', 'Logo ST'], ['sm', 'Logo SM'], ['both', 'Ambas lado a lado']].map(([value, label]) => <label key={value}><input type="radio" name="navbar-logo" checked={form.topbarLogo === value} onChange={() => change('topbarLogo', value)} /> {label}</label>)}</div></div>
       </div>
-    </Panel>
-    <Panel title="Sistema" padded><div className="form-grid"><Field label="Identificador interno" value="SF-TORRES-PROD" /><Field label="Ambiente" value="Produção" /><Field label="Idioma" value="Português (Brasil)" /><Field label="Fuso horário" value="America/Manaus (-04:00)" /><Field label="Moeda" value="BRL - Real Brasileiro" /><Field label="Formato de data" value="DD/MM/AAAA" /><Field label="Densidade da interface" value="Compacta (recomendada)" /><Field label="Tema" value="Azul institucional (atual)" /><div className="form-field full"><label>Identidade visual</label><div className="color-row"><ColorToken label="Primária" value="#1B3A6B" /><ColorToken label="Destaque" value="#C8102E" /><ColorToken label="Sucesso" value="#1F8A4C" /><ColorToken label="Erro" value="#B3261E" /></div></div></div></Panel>
-    <Panel title="Regras Operacionais" padded><div className="form-grid"><Field label="SLA para aprovação de OS (horas)" value="4" type="number" /><Field label="SLA de conclusão de OS (horas)" value="24" type="number" /><Field label="Início da janela de programação" value="06:00" type="time" /><Field label="Fim da janela de programação" value="22:00" type="time" /><SwitchField label="Bloquear OS sem equipamento vinculado" text="Habilitado" /><SwitchField label="Notificar torre ao detectar paralisação > 30 min" text="Habilitado" /><Field label="Mensagem padrão em footer de relatórios" value="ST Serviços de Logística LTDA · CNPJ 00.000.000/0001-00 · Documento gerado em 24/07/2026 · Uso interno." full /></div></Panel>
-    <Panel title="Integrações"><DataTable columns={['Integração', 'Tipo', 'Endpoint', 'Última sincronização', 'Status', 'Ações']} rows={integrations} /></Panel>
-    <Panel title="Segurança & Auditoria" padded><div className="form-grid"><Field label="Política de senha" value="Padrão (mín. 8, 1 maiúscula, 1 número)" /><Field label="Expiração de senha (dias)" value="90" type="number" /><Field label="Tempo máximo de sessão (min)" value="120" type="number" /><Field label="Tentativas antes de bloqueio" value="5" type="number" /><SwitchField label="Autenticação em duas etapas (2FA)" text="Habilitado para administradores" /><SwitchField label="Log de auditoria detalhado" text="Registra toda ação em OS" /><Field label="IPs liberados para acesso administrativo" value="192.168.0.0/24&#10;10.0.0.0/8" full /></div></Panel>
-    <Panel title="Notificações"><DataTable columns={['Evento', 'E-mail', 'Sistema', 'WhatsApp', 'Destinatários']} rows={[['Nova OS criada', <Switch />, <Switch />, <Switch off />, 'Líder de turno, Torre'], ['OS concluída', <Switch />, <Switch />, <Switch />, 'Cliente, Operações'], ['Ocorrência crítica', <Switch />, <Switch />, <Switch />, 'Diretoria, Torre'], ['Medição fechada', <Switch />, <Switch off />, <Switch off />, 'Financeiro']]} /></Panel>
+    </Panel></div>
+    <div id="sistema"><Panel title="Sistema" padded><div className="form-grid"><Field label="Identificador interno" value="SF-TORRES-PROD" /><Field label="Ambiente" value="Produção" /><Field label="Idioma" value="Português (Brasil)" /><Field label="Fuso horário" value="America/Manaus (-04:00)" /><Field label="Moeda" value="BRL - Real Brasileiro" /><Field label="Formato de data" value="DD/MM/AAAA" /><Field label="Densidade da interface" value="Compacta (recomendada)" /><Field label="Tema" value="Personalizado" /><div className="form-field full"><label>Identidade visual</label><div className="color-row"><ColorToken label="Primária" value={form.primaryColor} onChange={(value) => change('primaryColor', value)} /><ColorToken label="Destaque" value={form.accentColor} onChange={(value) => change('accentColor', value)} /><ColorToken label="Sucesso" value={form.successColor} onChange={(value) => change('successColor', value)} /><ColorToken label="Erro" value={form.dangerColor} onChange={(value) => change('dangerColor', value)} /><ColorToken label="Sidebar" value={form.sidebarColor} onChange={(value) => change('sidebarColor', value)} /></div></div></div></Panel></div>
+    <div id="regras"><Panel title="Regras Operacionais" padded><div className="form-grid"><Field label="SLA para aprovação de OS (horas)" value={form.approvalSla || '4'} type="number" onChange={(value) => change('approvalSla', value)} /><Field label="SLA de conclusão de OS (horas)" value={form.completionSla || '24'} type="number" onChange={(value) => change('completionSla', value)} /><Field label="Início da janela de programação" value={form.scheduleStart || '06:00'} type="time" onChange={(value) => change('scheduleStart', value)} /><Field label="Fim da janela de programação" value={form.scheduleEnd || '22:00'} type="time" onChange={(value) => change('scheduleEnd', value)} /><SwitchField label="Bloquear OS sem equipamento vinculado" text="Habilitado" checked={form.blockOrderWithoutEquipment ?? true} onChange={(value) => change('blockOrderWithoutEquipment', value)} /><SwitchField label="Notificar torre ao detectar paralisação > 30 min" text="Habilitado" checked={form.notifyStops ?? true} onChange={(value) => change('notifyStops', value)} /><Field label="Mensagem padrão em footer de relatórios" value={form.reportFooter || `${form.legalName} · CNPJ ${form.cnpj} · Uso interno.`} full onChange={(value) => change('reportFooter', value)} /></div></Panel></div>
+    <div id="integracoes"><Panel title="Integrações"><DataTable columns={['Integração', 'Tipo', 'Endpoint', 'Última sincronização', 'Status', 'Ações']} rows={integrations} /></Panel></div>
+    <div id="seguranca"><Panel title="Segurança & Auditoria" padded><div className="form-grid"><Field label="Política de senha" value={form.passwordPolicy || 'Padrão (mín. 8, 1 maiúscula, 1 número)'} onChange={(value) => change('passwordPolicy', value)} /><Field label="Expiração de senha (dias)" value={form.passwordExpiration || '90'} type="number" onChange={(value) => change('passwordExpiration', value)} /><Field label="Tempo máximo de sessão (min)" value={form.sessionTimeout || '120'} type="number" onChange={(value) => change('sessionTimeout', value)} /><Field label="Tentativas antes de bloqueio" value={form.maxAttempts || '5'} type="number" onChange={(value) => change('maxAttempts', value)} /><SwitchField label="Autenticação em duas etapas (2FA)" text="Habilitado para administradores" checked={form.twoFactor ?? true} onChange={(value) => change('twoFactor', value)} /><SwitchField label="Log de auditoria detalhado" text="Registra toda ação em OS" checked={form.auditLog ?? true} onChange={(value) => change('auditLog', value)} /><Field label="IPs liberados para acesso administrativo" value={form.allowedIps || '192.168.0.0/24&#10;10.0.0.0/8'} full onChange={(value) => change('allowedIps', value)} /></div></Panel></div>
+    <div id="notificacoes"><Panel title="Notificações"><DataTable columns={['Evento', 'E-mail', 'Sistema', 'WhatsApp', 'Destinatários']} rows={[['Nova OS criada', <Switch checked={form.notifyNewOrderEmail ?? true} onChange={(value) => change('notifyNewOrderEmail', value)} />, <Switch checked={form.notifyNewOrderSystem ?? true} onChange={(value) => change('notifyNewOrderSystem', value)} />, <Switch checked={form.notifyNewOrderWhatsapp ?? false} onChange={(value) => change('notifyNewOrderWhatsapp', value)} />, 'Líder de turno, Torre'], ['OS concluída', <Switch checked={form.notifyDoneEmail ?? true} onChange={(value) => change('notifyDoneEmail', value)} />, <Switch checked={form.notifyDoneSystem ?? true} onChange={(value) => change('notifyDoneSystem', value)} />, <Switch checked={form.notifyDoneWhatsapp ?? true} onChange={(value) => change('notifyDoneWhatsapp', value)} />, 'Cliente, Operações'], ['Ocorrência crítica', <Switch checked={form.notifyCriticalEmail ?? true} onChange={(value) => change('notifyCriticalEmail', value)} />, <Switch checked={form.notifyCriticalSystem ?? true} onChange={(value) => change('notifyCriticalSystem', value)} />, <Switch checked={form.notifyCriticalWhatsapp ?? true} onChange={(value) => change('notifyCriticalWhatsapp', value)} />, 'Diretoria, Torre'], ['Medição fechada', <Switch checked={form.notifyMeasurementEmail ?? true} onChange={(value) => change('notifyMeasurementEmail', value)} />, <Switch checked={form.notifyMeasurementSystem ?? false} onChange={(value) => change('notifyMeasurementSystem', value)} />, <Switch checked={form.notifyMeasurementWhatsapp ?? false} onChange={(value) => change('notifyMeasurementWhatsapp', value)} />, 'Financeiro']]} /></Panel></div>
     </div>
   </>;
 }
@@ -693,6 +775,34 @@ function Placeholder({ route }) {
   return <><PageHead title={def.title} subtitle="Módulo estruturado dentro do app. A próxima etapa é ligar as regras específicas desse fluxo." /><div className="panel"><div className="panel-body">Este módulo já está dentro do sistema React. Os cadastros principais e a operação diária estão conectados ao backend.</div></div></>;
 }
 
+function ActionPanel({ type, setRoute, onClose }) {
+  const [q, setQ] = useState('');
+  const routeEntries = Object.entries(routes).filter(([, item]) => normalize(item.title + item.group).includes(normalize(q)));
+  const openRoute = (key) => {
+    window.location.hash = `#/${key}`;
+    setRoute(key);
+    onClose();
+  };
+  const content = {
+    search: <>
+      <div className="form-field"><label>Pesquisar módulo</label><input value={q} onChange={(e) => setQ(e.target.value)} autoFocus placeholder="Digite cliente, OS, usuário, relatório..." /></div>
+      <div className="section-list compact-list">{routeEntries.map(([key, item]) => <div className="section-card" key={key} onClick={() => openRoute(key)}><div className="ico"><Icon name="grid" /></div><div><h4>{item.title}</h4><p>{item.group}</p></div></div>)}</div>
+    </>,
+    notifications: <ul className="activity"><li><Pill value="OS" /><div><b>OS aguardando aprovação</b><span>Use Operação Diária para revisar e aprovar.</span></div></li><li><Pill value="MED" /><div><b>Medições pendentes</b><span>2 medições aguardando fechamento financeiro.</span></div></li><li><Pill value="CFG" /><div><b>Configurações atualizadas</b><span>Alterações de marca e política ficam registradas no banco.</span></div></li></ul>,
+    messages: <ul className="activity"><li><Pill value="Torre" /><div><b>Equipe de campo solicitou correção</b><span>Abra Operação Diária para tratar ocorrência.</span></div></li><li><Pill value="Financeiro" /><div><b>Relatório mensal disponível</b><span>Gere CSV em Relatórios ou Medição.</span></div></li></ul>,
+    help: <div className="panel-body"><p><b>Fluxos principais:</b></p><p className="soft">Cadastros gravam no banco. Configurações aplicam marca/cores e salvam no Postgres. Relatórios exportam CSV. Operação diária cria OS e registra ocorrências.</p><p className="soft">Use o menu lateral ou a pesquisa para trocar de tela sem recarregar.</p></div>
+  };
+  const titles = { search: 'Pesquisa', notifications: 'Notificações', messages: 'Mensagens', help: 'Ajuda' };
+  return (
+    <div className="modal-backdrop">
+      <div className="modal action-modal">
+        <div className="modal-head"><h3>{titles[type]}</h3><button className="btn btn-sm" onClick={onClose}>Fechar</button></div>
+        <div className="modal-body">{content[type]}</div>
+      </div>
+    </div>
+  );
+}
+
 function Toolbar({ fields, count }) {
   return <div className="toolbar">{fields.map(([label, value, type]) => <div className="filter" key={label}><label>{label}</label>{type === 'select' ? <select>{value.map((option) => <option key={option}>{option}</option>)}</select> : <input type="text" placeholder={value} />}</div>)}<span className="spacer" /><span className="soft">{count} registros</span></div>;
 }
@@ -724,32 +834,40 @@ function MapPoint({ x, y, w, h, title, status, color }) {
   return <g><rect x={x} y={y} width={w} height={h} fill={color} opacity=".16" stroke={color} strokeWidth="2" /><text x={cx} y={y + h / 2 + 5} textAnchor="middle" fontSize="13" fontWeight="700" fill="#0F2447">{title}</text><circle cx={cx} cy={y + 40} r="9" fill={color} stroke="#FFFFFF" strokeWidth="2" /><text x={cx} y={y + 62} textAnchor="middle" fontSize="10" fill={color}>{status}</text></g>;
 }
 
-function Field({ label, value, type = 'text', full }) {
+function Field({ label, value, type = 'text', full, onChange }) {
   if (String(value).includes('&#10;')) {
-    return <div className={`form-field ${full ? 'full' : ''}`}><label>{label}</label><textarea defaultValue={value.replaceAll('&#10;', '\n')} /></div>;
+    return <div className={`form-field ${full ? 'full' : ''}`}><label>{label}</label><textarea value={value.replaceAll('&#10;', '\n')} onChange={(e) => onChange?.(e.target.value)} /></div>;
   }
-  return <div className={`form-field ${full ? 'full' : ''}`}><label>{label}</label><input type={type} defaultValue={value} /></div>;
+  return <div className={`form-field ${full ? 'full' : ''}`}><label>{label}</label><input type={type} value={value} onChange={(e) => onChange?.(e.target.value)} readOnly={!onChange} /></div>;
 }
 
-function LogoUpload({ title, name, desc, logo }) {
-  return <div className="form-field"><label>{title}</label><div className="logo-upload"><div className="logo-preview">{logo}</div><div className="logo-copy"><b>{name}</b><span>{desc}</span></div><button className="btn btn-sm" onClick={() => triggerAction('Troca de logo')}>Trocar arquivo</button></div></div>;
+function LogoUpload({ title, name, desc, value, onChange, fallback }) {
+  const inputRef = useRef(null);
+  const chooseFile = () => inputRef.current?.click();
+  const updateFile = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    onChange(await fileToDataUrl(file));
+  };
+  return <div className="form-field"><label>{title}</label><div className="logo-upload"><div className="logo-preview">{value ? <img src={value} alt={title} /> : fallback}</div><div className="logo-copy"><b>{name}</b><span>{desc}</span></div><input ref={inputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={updateFile} /><button type="button" className="btn btn-sm" onClick={chooseFile}>Trocar arquivo</button>{value && <button type="button" className="btn btn-sm" onClick={() => onChange('')}>Remover</button>}</div></div>;
 }
 
-function ColorToken({ label, value }) {
-  return <label className="color-token"><span style={{ background: value }} />{label}: <input type="color" defaultValue={value} /></label>;
+function ColorToken({ label, value, onChange }) {
+  return <label className="color-token"><span style={{ background: value }} />{label}: <input type="color" value={value} onChange={(event) => onChange(event.target.value)} /></label>;
 }
 
-function Switch({ off = false }) {
-  return <label className="switch"><input type="checkbox" defaultChecked={!off} /><span className="slider" /></label>;
+function Switch({ off = false, checked, onChange }) {
+  const isChecked = checked ?? !off;
+  return <label className="switch"><input type="checkbox" checked={isChecked} onChange={(event) => onChange?.(event.target.checked)} readOnly={!onChange} /><span className="slider" /></label>;
 }
 
-function SwitchField({ label, text }) {
-  return <div className="form-field"><label>{label}</label><div className="row"><Switch /> <span className="soft">{text}</span></div></div>;
+function SwitchField({ label, text, checked, onChange }) {
+  return <div className="form-field"><label>{label}</label><div className="row"><Switch checked={checked} onChange={onChange} /> <span className="soft">{text}</span></div></div>;
 }
 
-function PageHead({ title, subtitle, action, ghostAction, ghostActions, onAction }) {
+function PageHead({ title, subtitle, action, ghostAction, ghostActions, onAction, onGhostAction }) {
   const ghosts = ghostActions || (ghostAction ? [ghostAction] : []);
-  return <div className="page-head"><div><h1>{title}</h1><p className="subtitle">{subtitle}</p></div>{(action || ghosts.length > 0) && <div className="head-actions">{ghosts.map((label) => <button key={label} className="btn btn-ghost" onClick={() => triggerAction(label)}>{label}</button>)}{action && <button className="btn btn-primary" onClick={onAction || (() => triggerAction(action))}>{action}</button>}</div>}</div>;
+  return <div className="page-head"><div><h1>{title}</h1><p className="subtitle">{subtitle}</p></div>{(action || ghosts.length > 0) && <div className="head-actions">{ghosts.map((label) => <button key={label} className="btn btn-ghost" onClick={onGhostAction || (() => triggerAction(label))}>{label}</button>)}{action && <button className="btn btn-primary" onClick={onAction || (() => triggerAction(action))}>{action}</button>}</div>}</div>;
 }
 
 function Kpi({ icon = 'grid', label, value, delta, success, warning, danger }) {
@@ -786,11 +904,13 @@ function Icon({ name }) {
   return <svg {...common}>{icons[name] || icons.grid}</svg>;
 }
 
-function LogoST() {
+function LogoST({ src }) {
+  if (src) return <img src={src} alt="Logo ST" className="custom-logo custom-logo-st" />;
   return <svg viewBox="0 0 56 56" width="28" height="28"><circle cx="28" cy="14" r="8" fill="#0F2447" /><path d="M14 38 Q28 22 42 38 L37 46 Q28 36 19 46 Z" fill="#0F2447" /><text x="14" y="44" fontFamily="Segoe UI,Arial,sans-serif" fontWeight="800" fontSize="18" fill="#FFFFFF">ST</text></svg>;
 }
 
-function LogoSM({ small = false }) {
+function LogoSM({ small = false, src }) {
+  if (src) return <img src={src} alt="Logo SM" className={`custom-logo ${small ? 'custom-logo-sm-small' : 'custom-logo-sm'}`} />;
   return <svg viewBox="0 0 260 130" width={small ? 120 : 220} height={small ? 60 : 110}><path d="M40 95 Q130 5 230 80" stroke="#C8102E" strokeWidth="6" fill="none" /><path d="M40 110 Q130 30 230 100" stroke="#1A2E6D" strokeWidth="6" fill="none" /><text x="48" y="90" fontFamily="Segoe UI,Arial,sans-serif" fontWeight="900" fontSize="86" fill="#1A2E6D" stroke="#FFFFFF" strokeWidth="2">SM</text><text x="58" y="118" fontFamily="Segoe UI,Arial,sans-serif" fontWeight="900" fontSize="30" fill="#C8102E">TORRES</text></svg>;
 }
 

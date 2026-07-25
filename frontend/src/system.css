@@ -26,6 +26,7 @@
 .panel + .panel{margin-top:12px}
 .logo-upload{background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:var(--radius-sm);padding:10px;display:flex;gap:12px;align-items:center}
 .logo-preview{background:#FFFFFF;border:1px solid var(--c-border);padding:6px 10px;border-radius:var(--radius-sm);display:grid;place-items:center;min-width:68px}
+.logo-preview img{max-width:120px;max-height:56px;object-fit:contain}
 .logo-copy{flex:1;min-width:0}
 .logo-copy b{display:block;font-size:var(--fs-13)}
 .logo-copy span{display:block;font-size:11.5px;color:var(--c-text-soft)}
@@ -35,6 +36,15 @@
 .color-token{display:flex;align-items:center;gap:6px;background:var(--c-surface-2);padding:8px 12px;border:1px solid var(--c-border);border-radius:var(--radius-sm);font-size:var(--fs-13);text-transform:none;letter-spacing:0;color:var(--c-text)}
 .color-token span{width:18px;height:18px;border-radius:50%;display:inline-block}
 .color-token input{width:34px;height:24px;padding:0;border:none;background:transparent}
+.custom-logo{display:block;object-fit:contain}
+.custom-logo-st{width:28px;height:28px}
+.custom-logo-sm{width:220px;height:110px}
+.custom-logo-sm-small{width:120px;height:60px}
+.top-logo{display:flex;align-items:center;gap:8px;max-height:34px}
+.top-logo .custom-logo,.top-logo svg{max-width:76px;max-height:28px;width:auto;height:auto}
+.action-modal{max-width:680px}
+.compact-list{grid-template-columns:repeat(2,1fr);margin-top:12px}
+.compact-list .section-card{padding:10px}
 @media (max-width:1100px){
   .dash-grid,.triple-grid,.two-grid,.map-grid{grid-template-columns:1fr}
 }
