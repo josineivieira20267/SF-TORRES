@@ -34,6 +34,7 @@ router.post('/', async (req, res, next) => {
       email: req.body.email,
       role: req.body.role || 'Operacional',
       status: req.body.status || 'Ativo',
+      permissions: req.body.permissions || null,
       passwordHash
     };
 
@@ -58,8 +59,9 @@ router.put('/:id', async (req, res, next) => {
     const data = { ...req.body };
     if (data.password) {
       data.passwordHash = bcrypt.hashSync(data.password, 10);
-      delete data.password;
     }
+    delete data.password;
+    if (data.permissions === undefined) delete data.permissions;
 
     if (hasDatabaseUrl) {
       const user = await prisma.user.update({ where: { id: req.params.id }, data });

@@ -42,6 +42,37 @@ const routes = {
   settings: { title: 'Configurações', group: 'Administração' }
 };
 
+const routeKeys = Object.keys(routes);
+const defaultAdminPermissions = Object.fromEntries(routeKeys.map((key) => [key, 'edit']));
+
+function currentUser() {
+  try {
+    return JSON.parse(localStorage.getItem('sfTorresUser') || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function permissionFor(route, user = currentUser()) {
+  if (user.role === 'Administrador') return 'edit';
+  const permissions = user.permissions || defaultUserPermissions(user.role);
+  return permissions?.[route] || 'none';
+}
+
+function canView(route, user = currentUser()) {
+  return permissionFor(route, user) !== 'none';
+}
+
+function canEdit(route, user = currentUser()) {
+  return permissionFor(route, user) === 'edit';
+}
+
+function defaultUserPermissions(role = 'Operacional') {
+  if (role === 'Administrador') return { ...defaultAdminPermissions };
+  if (normalize(role).includes('lider')) return { schedules: 'edit' };
+  return { dashboard: 'view', dailyOps: 'view' };
+}
+
 const crudConfigs = {
   clients: {
     title: 'Clientes',
@@ -238,7 +269,12 @@ function fileToDataUrl(file) {
 
 function cleanRoute(hash) {
   const route = String(hash || '').replace(/^#\/?/, '') || 'dailyOps';
-  return routes[route] ? route : 'dailyOps';
+  if (!routes[route]) return firstAllowedRoute();
+  return canView(route) ? route : firstAllowedRoute();
+}
+
+function firstAllowedRoute() {
+  return routeKeys.find((key) => canView(key)) || 'login';
 }
 
 class ErrorBoundary extends React.Component {
@@ -389,7 +425,7 @@ function Login({ settings }) {
       });
       localStorage.setItem('sfTorresToken', payload.data.token);
       localStorage.setItem('sfTorresUser', JSON.stringify(payload.data.user));
-      window.location.hash = '#/dailyOps';
+      window.location.hash = `#/${firstAllowedRoute()}`;
     } catch (error) {
       setMessage(error.message);
       setLoading(false);
@@ -442,8 +478,9 @@ function Sidebar({ route, setRoute, settings }) {
     ['Cadastros', [['clients', 'CL', 'Clientes'], ['services', 'SV', 'Serviços'], ['equipment', 'EQ', 'Equipamentos'], ['locations', 'LC', 'Locações & Áreas']]],
     ['Administração', [['users', 'AD', 'Usuários & Perfis'], ['settings', 'CF', 'Configurações']]]
   ];
-  const user = JSON.parse(localStorage.getItem('sfTorresUser') || '{}');
+  const user = currentUser();
   const go = (key) => {
+    if (!canView(key, user)) return;
     window.location.hash = `#/${key}`;
     setRoute(key);
   };
@@ -452,12 +489,16 @@ function Sidebar({ route, setRoute, settings }) {
       <div className="brand"><div className="brand-mark"><LogoST src={settings.primaryLogo} /></div><div className="brand-text"><strong>{settings.fantasyName}</strong><span>Centro Operacional</span></div></div>
       <div className="search"><span>⌕</span><input placeholder="Buscar módulo, tela ou ação..." /></div>
       <nav className="nav">
-        {groups.map(([title, items]) => (
-          <div className="nav-group" key={title}>
-            <div className="nav-title">{title}</div>
-            {items.map(([key, code, label]) => <div key={key} className={`nav-item ${route === key ? 'active' : ''}`} onClick={() => go(key)}><span className="num">{code}</span>{label}</div>)}
-          </div>
-        ))}
+        {groups.map(([title, items]) => {
+          const visibleItems = items.filter(([key]) => canView(key, user));
+          if (!visibleItems.length) return null;
+          return (
+            <div className="nav-group" key={title}>
+              <div className="nav-title">{title}</div>
+              {visibleItems.map(([key, code, label]) => <div key={key} className={`nav-item ${route === key ? 'active' : ''}`} onClick={() => go(key)}><span className="num">{code}</span>{label}</div>)}
+            </div>
+          );
+        })}
       </nav>
       <div className="user-card">
         <div className="avatar">SF</div><div className="info"><b>{user.name || 'Administrador SF'}</b><span>{user.email || '@sftorres'}</span></div>
@@ -487,18 +528,24 @@ function Topbar({ route, settings, openPanel }) {
 }
 
 function Screen({ route, notify, settings, setSettings }) {
-  if (route === 'dailyOps') return <DailyOps notify={notify} />;
-  if (route === 'measurement') return <Measurement notify={notify} />;
-  if (route === 'schedules') return <Schedules notify={notify} />;
-  if (route === 'users') return <Users notify={notify} />;
-  if (crudConfigs[route]) return <CrudScreen config={crudConfigs[route]} notify={notify} />;
+  const editable = canEdit(route);
+  if (!canView(route)) return <AccessDenied />;
+  if (route === 'dailyOps') return <DailyOps notify={notify} editable={editable} />;
+  if (route === 'measurement') return <Measurement notify={notify} editable={editable} />;
+  if (route === 'schedules') return <Schedules notify={notify} editable={editable} />;
+  if (route === 'users') return <Users notify={notify} editable={editable} />;
+  if (crudConfigs[route]) return <CrudScreen config={crudConfigs[route]} notify={notify} editable={editable} />;
   if (route === 'dashboard') return <Dashboard />;
   if (route === 'tower') return <Tower />;
   if (route === 'productivity') return <Productivity />;
   if (route === 'map') return <OperationalMap />;
   if (route === 'reports') return <Reports />;
-  if (route === 'settings') return <Settings notify={notify} settings={settings} setSettings={setSettings} />;
+  if (route === 'settings') return <Settings notify={notify} settings={settings} setSettings={setSettings} editable={editable} />;
   return <Placeholder route={route} />;
+}
+
+function AccessDenied() {
+  return <Panel title="Acesso restrito" padded><p>Seu usuario nao tem permissao para abrir esta tela.</p><p className="soft">Peça ao administrador para liberar acesso de visualizacao ou edicao em Usuarios & Perfis.</p></Panel>;
 }
 
 function Dashboard() {
@@ -558,23 +605,50 @@ function Tower() {
   return <><PageHead title="Torre Operacional" subtitle="Painel em tempo real das operações em andamento e fila de execução." ghostAction="Tempo real" onGhostAction={() => setStatusFilter((value) => value === 'Todos' ? 'Fila' : 'Todos')} action="Atualizar" onAction={load} /><div className="kpi-grid"><Kpi icon="pulse" label="Operações ativas" value={active} delta="em campo agora" /><Kpi icon="clock" label="Na fila" value={queue} delta="próximas 24h" warning /><Kpi icon="check" label="Concluídas" value={done} delta="ordens no sistema" success /><Kpi icon="alert" label="Alertas" value={alertCount} delta="atenção da torre" danger /></div><Panel title="Fila de execução" actions={<><button className="btn btn-sm" onClick={() => setStatusFilter((value) => value === 'Todos' ? 'Fila' : 'Todos')}>{statusFilter === 'Todos' ? 'Ver fila' : 'Ver todas'}</button><button className="btn btn-sm btn-primary" onClick={assignTeam}>Acionar equipe</button></>}><DataTable columns={['OS', 'Cliente', 'Local', 'Equipe', 'Início', 'Término', 'Status']} rows={rows} /></Panel></>;
 }
 
-function Schedules({ notify }) {
-  const days = ['Seg 20', 'Ter 21', 'Qua 22', 'Qui 23', 'Sex 24', 'Sáb 25', 'Dom 26'];
-  const fields = [['employee', 'Operador'], ['role', 'Função'], ['weekStart', 'Semana', 'date'], ['base', 'Base'], ['monday', 'Segunda'], ['tuesday', 'Terça'], ['wednesday', 'Quarta'], ['thursday', 'Quinta'], ['friday', 'Sexta'], ['saturday', 'Sábado'], ['sunday', 'Domingo'], ['status', 'Status', 'select', ['Programada', 'Pendente', 'Cancelada']]];
+function Schedules({ notify, editable = true }) {
+  const user = currentUser();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [modal, setModal] = useState(null);
-  const load = () => { setLoading(true); api('/api/schedules').then((p) => setItems(p.data)).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
+  const [filters, setFilters] = useState({ q: '', status: 'Todos' });
+  const load = () => { setLoading(true); api('/api/workOrders').then((p) => setItems(p.data)).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
   useEffect(load, []);
-  const save = async (data) => {
-    await api(modal?.id ? `/api/schedules/${modal.id}` : '/api/schedules', { method: modal?.id ? 'PUT' : 'POST', body: JSON.stringify(data) });
-    setModal(null);
-    notify('Escala salva');
+  const belongsToLeader = (order) => {
+    if (user.role === 'Administrador') return true;
+    const haystack = normalize(`${order.responsible} ${order.carrier}`);
+    return haystack.includes(normalize(user.name)) || haystack.includes(normalize(user.email));
+  };
+  const visibleOrders = items.filter((item) => {
+    const queryOk = normalize(`${item.number} ${item.client} ${item.service} ${item.equipment} ${item.location} ${item.responsible}`).includes(normalize(filters.q));
+    const statusOk = filters.status === 'Todos' || normalize(item.status) === normalize(filters.status);
+    return belongsToLeader(item) && queryOk && statusOk;
+  });
+  const bindToMe = async (order) => {
+    if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
+    const name = user.name || 'Lider';
+    const email = user.email || '';
+    await api(`/api/workOrders/${order.id}`, { method: 'PUT', body: JSON.stringify({ ...order, responsible: `${name}${email ? ` (${email})` : ''}`, status: order.status === 'Rascunho' ? 'Enviada' : order.status, progress: Math.max(Number(order.progress || 0), 5) }) });
+    notify('OS vinculada ao lider logado');
     load();
   };
-  const shift = (value) => value ? <Pill value={value} /> : '-';
-  const rows = loading ? [['Carregando dados do banco...', '', '', '', '', '', '', '', '']] : items.map((item) => [item.employee, item.role, shift(item.monday), shift(item.tuesday), shift(item.wednesday), shift(item.thursday), shift(item.friday), shift(item.saturday), shift(item.sunday)]);
-  return <><PageHead title="Programação de Equipes" subtitle="Planejamento semanal de alocação de operadores, líderes e equipamentos por turno." ghostAction="Imprimir escala" action="Nova escala" onAction={() => setModal({ weekStart: '2026-07-20', base: 'Manaus / AM' })} /><div className="toolbar"><div className="filter"><label>Semana</label><input type="date" defaultValue="2026-07-20" /></div><div className="filter"><label>Base</label><select><option>Manaus / AM</option><option>Itacoatiara / AM</option></select></div><div className="filter"><label>Turno</label><select><option>Todos</option><option>Manhã</option><option>Tarde</option><option>Noite</option></select></div><span className="spacer" /><button className="btn btn-sm" onClick={() => notify('Semana anterior carregada')}><Icon name="refresh" /> Semana anterior</button><button className="btn btn-sm" onClick={() => notify('Semana seguinte carregada')}>Semana seguinte</button></div><Panel title="Escala · 20 a 26 de julho de 2026" actions={<><Pill value={`${items.length} programadas`} /> <Pill value="02 pendentes" /></>}><DataTable columns={['Operador', 'Função', ...days]} rows={rows} /></Panel>{modal && <Editor title={modal.id ? 'Editar escala' : 'Nova escala'} fields={fields} initial={modal} onCancel={() => setModal(null)} onSave={save} />}</>;
+  const exportRows = () => downloadCsv('programacao-os-lider.csv', [['OS', 'Cliente', 'Servico', 'Equipamento', 'Local', 'Lider', 'Status', 'Data'], ...visibleOrders.map((item) => [item.number, item.client, item.service, item.equipment, item.location, item.responsible, item.status, item.date])]);
+  const rows = loading ? [['Carregando OS do banco...', '', '', '', '', '', '', '']] : visibleOrders.map((item) => [<span className="mono">{item.number}</span>, item.client, item.service || '-', item.equipment || '-', item.location || '-', item.responsible || '-', <Pill value={item.status} />, editable ? <button className="btn btn-sm btn-primary" onClick={() => bindToMe(item)}>Vincular a mim</button> : <span className="soft">Somente leitura</span>]);
+  return (
+    <>
+      <PageHead title="Programação de Equipes" subtitle="Fila de OS criadas pela administração para o líder vincular e acompanhar pelo próprio usuário." ghostAction="Exportar OS" onGhostAction={exportRows} action="Atualizar" onAction={load} />
+      <div className="toolbar">
+        <div className="filter"><label>Buscar</label><input type="text" value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="OS, cliente, equipamento..." /></div>
+        <div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Rascunho</option><option>Enviada</option><option>Aprovada</option><option>Em execucao</option><option>Concluida</option><option>Cancelada</option></select></div>
+        <span className="spacer" /><span className="soft">{visibleOrders.length} OS para este usuario</span>
+      </div>
+      <div className="kpi-grid">
+        <Kpi icon="file" label="OS recebidas" value={visibleOrders.length} delta="vinculadas ao lider" />
+        <Kpi icon="clock" label="Pendentes" value={visibleOrders.filter((item) => ['Rascunho', 'Enviada'].includes(item.status)).length} delta="aguardando programacao" warning />
+        <Kpi icon="home" label="Em campo" value={visibleOrders.filter((item) => item.status === 'Em execucao').length} delta="em execucao" />
+        <Kpi icon="check" label="Concluidas" value={visibleOrders.filter((item) => item.status === 'Concluida').length} delta="finalizadas" success />
+      </div>
+      <Panel title="OS direcionadas ao lider" actions={<Pill value={user.name || user.email || 'usuario'} />}><DataTable columns={['OS', 'Cliente', 'Servico', 'Equipamento', 'Local', 'Responsavel', 'Status', 'Acao']} rows={rows} /></Panel>
+    </>
+  );
 }
 
 function Productivity() {
@@ -644,7 +718,7 @@ function Reports() {
   return <><PageHead title="Relatórios" subtitle="Modelos de relatórios prontos e exportação em PDF, XLSX e CSV." ghostAction="Configurar modelos" onGhostAction={() => setConfig(true)} action="Gerar relatório" onAction={() => generate()} /><div className="section-list">{cards.map(([title, text, endpoint], index) => <div className={`section-card ${selected[0] === title ? 'selected-card' : ''}`} key={title} onClick={() => setSelected([title, text, endpoint])} onDoubleClick={() => generate([title, text, endpoint])}><div className="ico"><Icon name={['file', 'clock', 'money', 'box', 'users', 'monitor'][index]} /></div><div><h4>{title}</h4><p>{text}</p></div></div>)}</div>{config && <Editor title="Configurar modelo de relatório" fields={[['name', 'Modelo'], ['format', 'Formato', 'select', ['CSV', 'XLSX', 'PDF']], ['period', 'Período', 'select', ['Hoje', 'Esta semana', 'Este mês', 'Personalizado']]]} initial={{ name: selected[0], format: 'CSV', period: 'Este mês' }} onCancel={() => setConfig(false)} onSave={(data) => { localStorage.setItem('sfTorresReportConfig', JSON.stringify(data)); setConfig(false); triggerAction('Modelo de relatório salvo'); }} />}</>;
 }
 
-function Users({ notify }) {
+function Users({ notify, editable = true }) {
   return <CrudScreen config={{
     title: 'Usuários & Perfis',
     subtitle: 'Gestão de usuários do sistema, perfis de acesso e permissões por módulo.',
@@ -660,11 +734,11 @@ function Users({ notify }) {
       { label: 'Último acesso', render: () => '24/07/2026 09:42' },
       { label: 'Status', render: (i) => <Pill value={i.status} /> }
     ],
-    fields: [['name', 'Nome'], ['email', 'E-mail'], ['password', 'Senha'], ['role', 'Perfil', 'select', ['Administrador', 'Operacional', 'Financeiro']], ['status', 'Status', 'select', ['Ativo', 'Inativo']]]
-  }} notify={notify} />;
+    fields: [['name', 'Nome'], ['email', 'E-mail'], ['password', 'Senha'], ['role', 'Perfil', 'select', ['Administrador', 'Líder', 'Operacional', 'Financeiro']], ['status', 'Status', 'select', ['Ativo', 'Inativo']], ['permissions', 'Permissões por tela', 'permissions']]
+  }} notify={notify} editable={editable} />;
 }
 
-function Settings({ notify, settings, setSettings }) {
+function Settings({ notify, settings, setSettings, editable = true }) {
   const [form, setForm] = useState(settings);
   useEffect(() => setForm(settings), [settings]);
   const change = (key, value) => setForm((old) => {
@@ -697,11 +771,13 @@ function Settings({ notify, settings, setSettings }) {
   const nowText = () => new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   const integrationRows = integrationItems.map((item, index) => [item.name, item.type, <span className="mono">{item.endpoint}</span>, item.lastSync, <Pill value={item.status} />, <><button className="btn btn-sm" onClick={() => { updateIntegration(index, { lastSync: nowText(), status: 'Ativo' }); notify(`${item.name} testada`); }}>Testar</button> <button className="btn btn-sm" onClick={() => setIntegrationEditor({ ...item, index })}>Editar</button> {item.status !== 'Ativo' && <button className="btn btn-sm btn-primary" onClick={() => { updateIntegration(index, { status: 'Ativo', lastSync: nowText() }); notify(`${item.name} conectada`); }}>Conectar</button>}</>]);
   const saveSettings = async () => {
+    if (!editable) return notify('Seu usuario tem acesso somente para visualizar configuracoes');
     await api('/api/settings/company', { method: 'PUT', body: JSON.stringify(form) });
     setSettings(form);
     notify('Configurações salvas no banco');
   };
   const restoreDefaults = async () => {
+    if (!editable) return notify('Seu usuario tem acesso somente para visualizar configuracoes');
     setForm(defaultSettings);
     setSettings(defaultSettings);
     await api('/api/settings/company', { method: 'PUT', body: JSON.stringify(defaultSettings) });
@@ -735,7 +811,7 @@ function Settings({ notify, settings, setSettings }) {
   </>;
 }
 
-function DailyOps({ notify }) {
+function DailyOps({ notify, editable = true }) {
   const [items, setItems] = useState([]);
   const [clients, setClients] = useState([]);
   const [equipment, setEquipment] = useState([]);
@@ -799,21 +875,25 @@ function DailyOps({ notify }) {
     if (filteredItems.length && !filteredItems.some((item) => item.id === selectedId)) setSelectedId(filteredItems[0].id);
   }, [filters, items]);
   const save = async (data) => {
+    if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     await api(modal?.id ? `/api/workOrders/${modal.id}` : '/api/workOrders', { method: modal?.id ? 'PUT' : 'POST', body: JSON.stringify(data) });
     setModal(null); notify('OS salva'); load();
   };
   const remove = async () => {
+    if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     if (!selected || !confirm('Apagar esta OS?')) return;
     await api(`/api/workOrders/${selected.id}`, { method: 'DELETE' });
     notify('OS apagada'); setSelectedId(''); load();
   };
   const exportFiltered = () => downloadCsv('operacao-diaria.csv', [['OS', 'Cliente', 'Equipamento', 'Status', 'Data', 'Serviço', 'Equipe'], ...filteredItems.map((item) => [item.number, item.client, item.equipment, item.status, item.date, item.service, item.carrier])]);
   const requestCorrection = async () => {
+    if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     if (!selected) return;
     await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ workOrder: selected.number, type: 'Correção', description: 'Solicitação de correção aberta pela Operação Diária', status: 'Aberta' }) });
     notify('Correção registrada no banco');
   };
   const registerOccurrence = async () => {
+    if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     if (!selected) return;
     await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ workOrder: selected.number, type: 'Operacional', description: 'Ocorrência lançada pela tela de operação diária', status: 'Aberta' }) });
     notify('Ocorrência registrada no banco');
@@ -855,7 +935,7 @@ function DailyOps({ notify }) {
   );
 }
 
-function Measurement({ notify }) {
+function Measurement({ notify, editable = true }) {
   const [pendingOnly, setPendingOnly] = useState(false);
   return <>
     <CrudScreen
@@ -863,15 +943,16 @@ function Measurement({ notify }) {
         ...crudConfigs.measurement,
         endpoint: `/api/measurements${pendingOnly ? '?status=Pendente' : ''}`,
         noToolbar: true,
-        panelActions: ({ items, load }) => <><button className="btn btn-sm" onClick={() => setPendingOnly((value) => !value)}>{pendingOnly ? 'Ver todas' : 'Filtrar pendentes'}</button><button className="btn btn-sm btn-primary" onClick={async () => { const pending = items.find((item) => item.status === 'Pendente') || items[0]; if (!pending) return notify('Nenhuma medição para fechar'); await api(`/api/measurements/${pending.id}`, { method: 'PUT', body: JSON.stringify({ ...pending, status: 'Fechada' }) }); notify('Medição fechada no banco'); load(); }}>Fechar medição</button></>
+        panelActions: ({ items, load }) => <><button className="btn btn-sm" onClick={() => setPendingOnly((value) => !value)}>{pendingOnly ? 'Ver todas' : 'Filtrar pendentes'}</button><button className="btn btn-sm btn-primary" onClick={async () => { if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela'); const pending = items.find((item) => item.status === 'Pendente') || items[0]; if (!pending) return notify('Nenhuma medição para fechar'); await api(`/api/measurements/${pending.id}`, { method: 'PUT', body: JSON.stringify({ ...pending, status: 'Fechada' }) }); notify('Medição fechada no banco'); load(); }}>Fechar medição</button></>
       }}
       notify={notify}
+      editable={editable}
       beforeTable={<div className="kpi-grid"><Kpi icon="money" label="Faturado (mês)" value="R$ 184.250" delta="+12% MoM" success /><Kpi icon="clock" label="A faturar" value="R$ 42.180" delta="4 medições" /><Kpi icon="alert" label="Pendentes" value="02" delta="aguardando cliente" warning /><Kpi icon="check" label="Medições fechadas" value="38" delta="no mês" /></div>}
     />
   </>;
 }
 
-function CrudScreen({ config, notify, beforeTable }) {
+function CrudScreen({ config, notify, beforeTable, editable = true }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
@@ -892,21 +973,23 @@ function CrudScreen({ config, notify, beforeTable }) {
     return list.filter((item) => normalize(item[key]) === normalize(value));
   }, items);
   const save = async (data) => {
+    if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     await api(modal?.id ? `${config.endpoint}/${modal.id}` : config.endpoint, { method: modal?.id ? 'PUT' : 'POST', body: JSON.stringify(data) });
     setModal(null); notify('Registro salvo'); load();
   };
   const remove = async (item) => {
+    if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     if (!confirm('Apagar este registro?')) return;
     await api(`${config.endpoint}/${item.id}`, { method: 'DELETE' });
     notify('Registro apagado'); load();
   };
   return (
     <>
-      <PageHead title={config.title} subtitle={config.subtitle} ghostAction={config.ghostLabel} action={config.newLabel} onAction={() => setModal({})} />
+      <PageHead title={config.title} subtitle={config.subtitle} ghostAction={config.ghostLabel} action={editable ? config.newLabel : null} onAction={() => setModal({})} />
       {config.toolbar && <Toolbar fields={config.toolbar} count={displayItems.length} values={toolbarFilters} onChange={setToolbarFilters} />}
       {!config.noToolbar && !config.toolbar && <div className="toolbar"><div className="filter"><label>Buscar</label><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar..." /></div><span className="spacer" /><span className="soft">{displayItems.length} registros</span></div>}
       {beforeTable}
-      <div className="panel" style={{ overflow: 'hidden' }}><div className="panel-head"><h3>{panelTitle(config, displayItems.length)}</h3>{config.panelActions && <div className="actions">{typeof config.panelActions === 'function' ? config.panelActions({ items: displayItems, load }) : config.panelActions}</div>}</div><div className="panel-body" style={{ padding: 0 }}><table className="dtbl"><thead><tr>{config.columns.map((c) => <th key={c.label} className={c.right ? 'right' : ''}>{c.label}</th>)}<th /></tr></thead><tbody>{loading ? <tr><td colSpan={config.columns.length + 1}>Carregando dados do banco...</td></tr> : displayItems.map((item) => <tr key={item.id}>{config.columns.map((c) => <td key={c.label} className={`${c.mono ? 'mono' : ''} ${c.right ? 'right' : ''}`}>{c.render ? c.render(item) : item[c.key]}</td>)}<td className="right"><button className="btn btn-sm" onClick={() => setModal(item)}>Editar</button> <button className="btn btn-sm btn-danger" onClick={() => remove(item)}>Apagar</button></td></tr>)}</tbody></table></div></div>
+      <div className="panel" style={{ overflow: 'hidden' }}><div className="panel-head"><h3>{panelTitle(config, displayItems.length)}</h3>{config.panelActions && <div className="actions">{typeof config.panelActions === 'function' ? config.panelActions({ items: displayItems, load }) : config.panelActions}</div>}</div><div className="panel-body" style={{ padding: 0 }}><table className="dtbl"><thead><tr>{config.columns.map((c) => <th key={c.label} className={c.right ? 'right' : ''}>{c.label}</th>)}<th /></tr></thead><tbody>{loading ? <tr><td colSpan={config.columns.length + 1}>Carregando dados do banco...</td></tr> : displayItems.map((item) => <tr key={item.id}>{config.columns.map((c) => <td key={c.label} className={`${c.mono ? 'mono' : ''} ${c.right ? 'right' : ''}`}>{c.render ? c.render(item) : item[c.key]}</td>)}<td className="right">{editable ? <><button className="btn btn-sm" onClick={() => setModal(item)}>Editar</button> <button className="btn btn-sm btn-danger" onClick={() => remove(item)}>Apagar</button></> : <span className="soft">Somente leitura</span>}</td></tr>)}</tbody></table></div></div>
       {modal && <Editor title={modal.id ? `Editar ${config.title}` : config.newLabel} fields={config.fields} initial={modal} onCancel={() => setModal(null)} onSave={save} />}
     </>
   );
@@ -919,17 +1002,36 @@ function panelTitle(config, count) {
 }
 
 function Editor({ title, fields, initial, onCancel, onSave }) {
-  const [form, setForm] = useState(() => Object.fromEntries(fields.map(([name]) => [name, initial?.[name] ?? ''])));
+  const [form, setForm] = useState(() => Object.fromEntries(fields.map(([name, , type]) => [name, type === 'permissions' ? (initial?.[name] || defaultUserPermissions(initial?.role)) : initial?.[name] ?? ''])));
   const change = (name, value, type) => setForm((old) => ({ ...old, [name]: type === 'number' ? Number(value || 0) : value }));
   return (
     <div className="modal-backdrop">
       <div className="modal">
         <div className="modal-head"><h3>{title}</h3><button className="btn btn-sm" onClick={onCancel}>Fechar</button></div>
         <form className="modal-body" onSubmit={(e) => { e.preventDefault(); onSave(form); }}>
-          <div className="form-grid">{fields.map(([name, label, type = 'text', options]) => <div className="form-field" key={name}><label>{label}</label>{type === 'select' ? <select value={form[name]} onChange={(e) => change(name, e.target.value, type)}>{options.map((o) => <option key={o || '-'} value={o}>{o || '-'}</option>)}</select> : <input type={type} value={form[name]} onChange={(e) => change(name, e.target.value, type)} />}</div>)}</div>
+          <div className="form-grid">{fields.map(([name, label, type = 'text', options]) => type === 'permissions' ? <PermissionMatrix key={name} label={label} value={form[name]} onChange={(value) => change(name, value, type)} /> : <div className="form-field" key={name}><label>{label}</label>{type === 'select' ? <select value={form[name]} onChange={(e) => change(name, e.target.value, type)}>{options.map((o) => <option key={o || '-'} value={o}>{o || '-'}</option>)}</select> : <input type={type} value={form[name]} onChange={(e) => change(name, e.target.value, type)} />}</div>)}</div>
           <div className="modal-actions"><button type="button" className="btn" onClick={onCancel}>Cancelar</button><button className="btn btn-primary">Salvar</button></div>
         </form>
       </div>
+    </div>
+  );
+}
+
+function PermissionMatrix({ label, value = {}, onChange }) {
+  const setPermission = (route, permission) => onChange({ ...value, [route]: permission });
+  return (
+    <div className="permissions-grid">
+      <div className="permissions-head">{label}</div>
+      {Object.entries(routes).map(([key, item]) => (
+        <div className="permissions-row" key={key}>
+          <div><b>{item.title}</b><span>{item.group}</span></div>
+          <select value={value?.[key] || 'none'} onChange={(event) => setPermission(key, event.target.value)}>
+            <option value="none">Sem acesso</option>
+            <option value="view">Visualizar</option>
+            <option value="edit">Editar</option>
+          </select>
+        </div>
+      ))}
     </div>
   );
 }
@@ -941,7 +1043,7 @@ function Placeholder({ route }) {
 
 function ActionPanel({ type, setRoute, onClose }) {
   const [q, setQ] = useState('');
-  const routeEntries = Object.entries(routes).filter(([, item]) => normalize(item.title + item.group).includes(normalize(q)));
+  const routeEntries = Object.entries(routes).filter(([key, item]) => canView(key) && normalize(item.title + item.group).includes(normalize(q)));
   const openRoute = (key) => {
     window.location.hash = `#/${key}`;
     setRoute(key);

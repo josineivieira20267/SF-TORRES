@@ -7,15 +7,22 @@ const prisma = new PrismaClient({
 });
 
 async function main() {
+  const adminPermissions = {
+    dashboard: 'edit', tower: 'edit', dailyOps: 'edit', schedules: 'edit', productivity: 'edit',
+    employees: 'edit', map: 'edit', measurement: 'edit', reports: 'edit', clients: 'edit',
+    services: 'edit', equipment: 'edit', locations: 'edit', users: 'edit', settings: 'edit'
+  };
+
   await prisma.user.upsert({
     where: { email: 'admin@sftorres.local' },
-    update: {},
+    update: { permissions: adminPermissions },
     create: {
       id: 'usr_admin',
       name: 'Administrador SF',
       email: 'admin@sftorres.local',
       role: 'Administrador',
       status: 'Ativo',
+      permissions: adminPermissions,
       passwordHash: bcrypt.hashSync('admin123', 10)
     }
   });
