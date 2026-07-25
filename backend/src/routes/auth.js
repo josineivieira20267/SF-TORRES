@@ -21,9 +21,10 @@ router.post('/login', async (req, res, next) => {
       return res.status(400).json({ error: { message: 'Dados de login invalidos', details: parsed.error.flatten() } });
     }
 
+    const email = parsed.data.email.trim().toLowerCase();
     const user = hasDatabaseUrl
-      ? await prisma.user.findUnique({ where: { email: parsed.data.email.toLowerCase() } })
-      : (await readDb()).users.find((item) => item.email.toLowerCase() === parsed.data.email.toLowerCase());
+      ? await prisma.user.findUnique({ where: { email } })
+      : (await readDb()).users.find((item) => item.email.toLowerCase() === email);
     if (!user || !bcrypt.compareSync(parsed.data.password, user.passwordHash)) {
       return res.status(401).json({ error: { message: 'E-mail ou senha invalidos' } });
     }

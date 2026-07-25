@@ -11,6 +11,8 @@ const publicUser = (user) => {
   return safe;
 };
 
+const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
+
 router.use(requireAuth);
 
 router.get('/', async (req, res, next) => {
@@ -30,8 +32,8 @@ router.post('/', async (req, res, next) => {
   try {
     const passwordHash = bcrypt.hashSync(req.body.password || '123456', 10);
     const data = {
-      name: req.body.name,
-      email: req.body.email,
+      name: String(req.body.name || '').trim(),
+      email: normalizeEmail(req.body.email),
       role: req.body.role || 'Operacional',
       status: req.body.status || 'Ativo',
       permissions: req.body.permissions || null,
@@ -57,6 +59,8 @@ router.post('/', async (req, res, next) => {
 router.put('/:id', async (req, res, next) => {
   try {
     const data = { ...req.body };
+    if (data.name !== undefined) data.name = String(data.name || '').trim();
+    if (data.email !== undefined) data.email = normalizeEmail(data.email);
     if (data.password) {
       data.passwordHash = bcrypt.hashSync(data.password, 10);
     }
