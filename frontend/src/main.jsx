@@ -608,10 +608,18 @@ function Tower() {
 function Schedules({ notify, editable = true }) {
   const user = currentUser();
   const [items, setItems] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [equipment, setEquipment] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ q: '', status: 'Todos' });
+  const [attendanceModal, setAttendanceModal] = useState(null);
+  const [operationModal, setOperationModal] = useState(null);
   const load = () => { setLoading(true); api('/api/workOrders').then((p) => setItems(p.data)).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
   useEffect(load, []);
+  useEffect(() => {
+    api('/api/employees').then((payload) => setEmployees(payload.data || [])).catch(() => {});
+    api('/api/equipment').then((payload) => setEquipment(payload.data || [])).catch(() => {});
+  }, []);
   const belongsToLeader = (order) => {
     if (user.role === 'Administrador') return true;
     const haystack = normalize(`${order.responsible} ${order.carrier}`);
@@ -630,8 +638,20 @@ function Schedules({ notify, editable = true }) {
     notify('OS vinculada ao lider logado');
     load();
   };
+  const updateOrder = async (order, patch, message) => {
+    if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
+    await api(`/api/workOrders/${order.id}`, { method: 'PUT', body: JSON.stringify({ ...order, ...patch }) });
+    notify(message);
+    setAttendanceModal(null);
+    setOperationModal(null);
+    load();
+  };
+  const markStart = (order) => updateOrder(order, { operationStart: new Date().toLocaleString('pt-BR'), status: 'Em execucao', progress: Math.max(Number(order.progress || 0), 10) }, 'Inicio da operacao marcado');
+  const markEnd = (order) => updateOrder(order, { operationEnd: new Date().toLocaleString('pt-BR'), status: 'Concluida', progress: 100 }, 'Fim da operacao marcado');
   const exportRows = () => downloadCsv('programacao-os-lider.csv', [['OS', 'Cliente', 'Servico', 'Equipamento', 'Local', 'Lider', 'Status', 'Data'], ...visibleOrders.map((item) => [item.number, item.client, item.service, item.equipment, item.location, item.responsible, item.status, item.date])]);
-  const rows = loading ? [['Carregando OS do banco...', '', '', '', '', '', '', '']] : visibleOrders.map((item) => [<span className="mono">{item.number}</span>, item.client, item.service || '-', item.equipment || '-', item.location || '-', item.responsible || '-', <Pill value={item.status} />, editable ? <button className="btn btn-sm btn-primary" onClick={() => bindToMe(item)}>Vincular a mim</button> : <span className="soft">Somente leitura</span>]);
+  const employeeOptions = employees.map((item) => item.name).filter(Boolean);
+  const equipmentOptions = ['', ...equipment.map((item) => item.code || item.model || item.type).filter(Boolean)];
+  const rows = loading ? [['Carregando OS do banco...', '', '', '', '', '', '', '']] : visibleOrders.map((item) => [<span className="mono">{item.number}</span>, item.client, item.service || '-', item.product || '-', Array.isArray(item.teamMembers) && item.teamMembers.length ? item.teamMembers.join(', ') : '-', <Pill value={item.status} />, <span className="soft">{item.operationStart || '-'}</span>, editable ? <div className="inline-actions"><button className="btn btn-sm" onClick={() => bindToMe(item)}>Vincular</button><button className="btn btn-sm" onClick={() => setAttendanceModal(item)}>Chamada</button><button className="btn btn-sm" onClick={() => setOperationModal(item)}>Editar</button><button className="btn btn-sm btn-success" onClick={() => markStart(item)}>Iniciar</button><button className="btn btn-sm btn-primary" onClick={() => markEnd(item)}>Finalizar</button></div> : <span className="soft">Somente leitura</span>]);
   return (
     <>
       <PageHead title="Programação de Equipes" subtitle="Fila de OS criadas pela administração para o líder vincular e acompanhar pelo próprio usuário." ghostAction="Exportar OS" onGhostAction={exportRows} action="Atualizar" onAction={load} />
@@ -646,7 +666,9 @@ function Schedules({ notify, editable = true }) {
         <Kpi icon="home" label="Em campo" value={visibleOrders.filter((item) => item.status === 'Em execucao').length} delta="em execucao" />
         <Kpi icon="check" label="Concluidas" value={visibleOrders.filter((item) => item.status === 'Concluida').length} delta="finalizadas" success />
       </div>
-      <Panel title="OS direcionadas ao lider" actions={<Pill value={user.name || user.email || 'usuario'} />}><DataTable columns={['OS', 'Cliente', 'Servico', 'Equipamento', 'Local', 'Responsavel', 'Status', 'Acao']} rows={rows} /></Panel>
+      <Panel title="OS direcionadas ao lider" actions={<Pill value={user.name || user.email || 'usuario'} />}><DataTable columns={['OS', 'Cliente', 'Servico', 'Produto', 'Integrantes', 'Status', 'Inicio', 'Acao']} rows={rows} /></Panel>
+      {attendanceModal && <AttendanceModal order={attendanceModal} onCancel={() => setAttendanceModal(null)} onSave={(attendance) => updateOrder(attendanceModal, { attendance }, 'Chamada salva na OS')} />}
+      {operationModal && <Editor title="Editar operacao da OS" fields={[['carrier', 'Transportador'], ['location', 'Local'], ['product', 'Produto'], ['equipment', 'Equipamento', 'select', equipmentOptions], ['teamMembers', 'Incluir integrantes da equipe', 'employees', employeeOptions], ['teamNote', 'Justificativa para incluir integrante', 'textarea'], ['progress', 'Percentual', 'number']]} initial={operationModal} onCancel={() => setOperationModal(null)} onSave={(data) => updateOrder(operationModal, data, 'Dados operacionais atualizados')} />}
     </>
   );
 }
@@ -817,6 +839,7 @@ function DailyOps({ notify, editable = true }) {
   const [equipment, setEquipment] = useState([]);
   const [services, setServices] = useState([]);
   const [leaders, setLeaders] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState('');
   const [modal, setModal] = useState(null);
@@ -834,6 +857,10 @@ function DailyOps({ notify, editable = true }) {
     ['service', 'Serviço', 'select', ['', ...optionValues(services, 'description', 'code')]],
     ['location', 'Local'],
     ['responsible', 'Responsável', 'select', ['', ...optionValues(leaders, 'name')]],
+    ['teamMembers', 'Integrantes da equipe', 'employees', optionValues(employees, 'name')],
+    ['product', 'Produto'],
+    ['operationStart', 'Início da operação', 'datetime-local'],
+    ['operationEnd', 'Fim da operação', 'datetime-local'],
     ['progress', 'Percentual', 'number'],
     ['priority', 'Prioridade', 'select', ['Baixa', 'Normal', 'Alta', 'Crítica']]
   ];
@@ -867,9 +894,11 @@ function DailyOps({ notify, editable = true }) {
     api('/api/clients').then((payload) => setClients(payload.data)).catch(() => {});
     api('/api/equipment').then((payload) => setEquipment(payload.data)).catch(() => {});
     api('/api/services').then((payload) => setServices(payload.data)).catch(() => {});
-    api('/api/employees').then((payload) => setLeaders((payload.data || []).filter((item) => normalize(item.role).includes('lider')))).catch(() => {
-      api('/api/employees').then((payload) => setLeaders(payload.data.filter((item) => normalize(item.role).includes('lider')))).catch(() => {});
-    });
+    api('/api/employees').then((payload) => {
+      const list = payload.data || [];
+      setEmployees(list);
+      setLeaders(list.filter((item) => normalize(item.role).includes('lider')));
+    }).catch(() => {});
   }, []);
   useEffect(() => {
     if (filteredItems.length && !filteredItems.some((item) => item.id === selectedId)) setSelectedId(filteredItems[0].id);
@@ -900,10 +929,10 @@ function DailyOps({ notify, editable = true }) {
   };
   const detailContent = () => {
     if (!selected) return null;
-    if (activeTab === 'Equipe') return [['Equipe', selected.carrier || 'Sem equipe definida'], ['Responsável', selected.responsible || '-'], ['Prioridade', selected.priority || '-'], ['Percentual', `${selected.progress || 0}%`]];
-    if (activeTab === 'Horários') return [['Data prevista', date(selected.date)], ['Início', selected.startTime || '-'], ['Término', selected.endTime || '-'], ['Janela', selected.window || '06:00 - 22:00']];
+    if (activeTab === 'Equipe') return [['Equipe', Array.isArray(selected.teamMembers) && selected.teamMembers.length ? selected.teamMembers.join(', ') : 'Sem integrantes definidos'], ['Responsável', selected.responsible || '-'], ['Chamada', selected.attendance ? Object.entries(selected.attendance).map(([name, status]) => `${name}: ${status}`).join(' | ') : '-'], ['Justificativa', selected.teamNote || '-']];
+    if (activeTab === 'Horários') return [['Data prevista', date(selected.date)], ['Início da operação', selected.operationStart || '-'], ['Fim da operação', selected.operationEnd || '-'], ['Janela', selected.window || '06:00 - 22:00']];
     if (activeTab === 'Ocorrências') return [['Status operacional', selected.status], ['Último registro', 'Ocorrências salvas no histórico do banco'], ['Ação rápida', 'Use Lançar ocorrência ou Solicitar correção']];
-    return [['Data', date(selected.date)], ['Transportador', selected.carrier], ['Serviço', selected.service], ['Equipamento', selected.equipment || '-'], ['Posto', selected.location || 'ARCONDICIONADO - 0 un.'], ['Responsável', selected.responsible], ['Percentual', `${selected.progress || 0}%`], ['Prioridade', selected.priority]];
+    return [['Data', date(selected.date)], ['Transportador', selected.carrier], ['Serviço', selected.service], ['Produto', selected.product || '-'], ['Equipamento', selected.equipment || '-'], ['Posto', selected.location || 'ARCONDICIONADO - 0 un.'], ['Responsável', selected.responsible], ['Percentual', `${selected.progress || 0}%`], ['Prioridade', selected.priority]];
   };
   return (
     <>
@@ -1002,14 +1031,18 @@ function panelTitle(config, count) {
 }
 
 function Editor({ title, fields, initial, onCancel, onSave }) {
-  const [form, setForm] = useState(() => Object.fromEntries(fields.map(([name, , type]) => [name, type === 'permissions' ? (initial?.[name] || defaultUserPermissions(initial?.role)) : initial?.[name] ?? ''])));
+  const [form, setForm] = useState(() => Object.fromEntries(fields.map(([name, , type]) => [name, ['permissions', 'employees'].includes(type) ? (initial?.[name] || (type === 'permissions' ? defaultUserPermissions(initial?.role) : [])) : initial?.[name] ?? ''])));
   const change = (name, value, type) => setForm((old) => ({ ...old, [name]: type === 'number' ? Number(value || 0) : value }));
   return (
     <div className="modal-backdrop">
       <div className="modal">
         <div className="modal-head"><h3>{title}</h3><button className="btn btn-sm" onClick={onCancel}>Fechar</button></div>
         <form className="modal-body" onSubmit={(e) => { e.preventDefault(); onSave(form); }}>
-          <div className="form-grid">{fields.map(([name, label, type = 'text', options]) => type === 'permissions' ? <PermissionMatrix key={name} label={label} value={form[name]} onChange={(value) => change(name, value, type)} /> : <div className="form-field" key={name}><label>{label}</label>{type === 'select' ? <select value={form[name]} onChange={(e) => change(name, e.target.value, type)}>{options.map((o) => <option key={o || '-'} value={o}>{o || '-'}</option>)}</select> : <input type={type} value={form[name]} onChange={(e) => change(name, e.target.value, type)} />}</div>)}</div>
+          <div className="form-grid">{fields.map(([name, label, type = 'text', options]) => {
+            if (type === 'permissions') return <PermissionMatrix key={name} label={label} value={form[name]} onChange={(value) => change(name, value, type)} />;
+            if (type === 'employees') return <EmployeePicker key={name} label={label} options={options || []} value={form[name]} onChange={(value) => change(name, value, type)} />;
+            return <div className="form-field" key={name}><label>{label}</label>{type === 'select' ? <select value={form[name]} onChange={(e) => change(name, e.target.value, type)}>{options.map((o) => <option key={o || '-'} value={o}>{o || '-'}</option>)}</select> : type === 'textarea' ? <textarea value={form[name]} onChange={(e) => change(name, e.target.value, type)} /> : <input type={type} value={form[name]} onChange={(e) => change(name, e.target.value, type)} />}</div>;
+          })}</div>
           <div className="modal-actions"><button type="button" className="btn" onClick={onCancel}>Cancelar</button><button className="btn btn-primary">Salvar</button></div>
         </form>
       </div>
@@ -1032,6 +1065,41 @@ function PermissionMatrix({ label, value = {}, onChange }) {
           </select>
         </div>
       ))}
+    </div>
+  );
+}
+
+function EmployeePicker({ label, options = [], value = [], onChange }) {
+  const selected = Array.isArray(value) ? value : [];
+  const toggle = (name) => onChange(selected.includes(name) ? selected.filter((item) => item !== name) : [...selected, name]);
+  return (
+    <div className="permissions-grid">
+      <div className="permissions-head">{label}</div>
+      <div className="employee-picker">
+        {options.map((name) => <label key={name}><input type="checkbox" checked={selected.includes(name)} onChange={() => toggle(name)} /> {name}</label>)}
+        {!options.length && <span className="soft">Cadastre funcionarios para montar a equipe.</span>}
+      </div>
+    </div>
+  );
+}
+
+function AttendanceModal({ order, onCancel, onSave }) {
+  const members = Array.isArray(order.teamMembers) ? order.teamMembers : [];
+  const [attendance, setAttendance] = useState(() => Object.fromEntries(members.map((name) => [name, order.attendance?.[name] || 'Presente'])));
+  const change = (name, status) => setAttendance((old) => ({ ...old, [name]: status }));
+  return (
+    <div className="modal-backdrop">
+      <div className="modal">
+        <div className="modal-head"><h3>Chamada da equipe</h3><button className="btn btn-sm" onClick={onCancel}>Fechar</button></div>
+        <form className="modal-body" onSubmit={(event) => { event.preventDefault(); onSave(attendance); }}>
+          <div className="permissions-grid">
+            <div className="permissions-head">OS {order.number} - presença</div>
+            {members.map((name) => <div className="permissions-row" key={name}><div><b>{name}</b><span>Integrante da equipe</span></div><select value={attendance[name] || 'Presente'} onChange={(event) => change(name, event.target.value)}><option>Presente</option><option>Falta</option></select></div>)}
+            {!members.length && <div className="employee-picker"><span className="soft">Esta OS ainda nao tem integrantes definidos.</span></div>}
+          </div>
+          <div className="modal-actions"><button type="button" className="btn" onClick={onCancel}>Cancelar</button><button className="btn btn-primary">Salvar chamada</button></div>
+        </form>
+      </div>
     </div>
   );
 }

@@ -94,6 +94,12 @@ model WorkOrder {
   service     String?
   location    String?
   responsible String?
+  product     String?
+  teamMembers Json?
+  attendance  Json?
+  teamNote    String?
+  operationStart String?
+  operationEnd   String?
   progress    Float  @default(0)
   priority    String @default("Normal")
   createdAt   DateTime @default(now())

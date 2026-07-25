@@ -54,6 +54,9 @@
 .permissions-row b{display:block;font-size:13px}
 .permissions-row span{display:block;margin-top:2px;font-size:11.5px;color:var(--c-text-soft)}
 .permissions-row select{height:30px;border:1px solid var(--c-border);border-radius:var(--radius-sm);padding:0 8px;background:#FFFFFF;color:var(--c-text)}
+.employee-picker{padding:10px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.employee-picker label{font-size:13px;color:var(--c-text);text-transform:none;letter-spacing:0;display:flex;align-items:center;gap:6px}
+.inline-actions{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
 @media (max-width:1100px){
   .dash-grid,.triple-grid,.two-grid,.map-grid{grid-template-columns:1fr}
 }
