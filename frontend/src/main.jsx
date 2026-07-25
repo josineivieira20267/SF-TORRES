@@ -681,13 +681,21 @@ function Settings({ notify, settings, setSettings }) {
     ['Segurança & Auditoria', 'Senhas, 2FA, sessão, log de auditoria.', 'shield', 'seguranca'],
     ['Notificações', 'Canais, gatilhos e destinatários por evento.', 'bell', 'notificacoes']
   ];
-  const integrations = [
-    ['ERP - SAP B1', 'REST', <span className="mono">https://erp.sftorres.com.br/api/v1</span>, '24/07/2026 09:30', <Pill value="Ativo" />, <><button className="btn btn-sm" onClick={() => triggerAction('Teste ERP')}>Testar</button> <button className="btn btn-sm" onClick={() => triggerAction('Editar ERP')}>Editar</button></>],
-    ['Nota Fiscal eletrônica', 'SOAP', <span className="mono">https://nfe.sefaz.am.gov.br/ws</span>, '24/07/2026 09:25', <Pill value="Ativo" />, <><button className="btn btn-sm" onClick={() => triggerAction('Teste NF-e')}>Testar</button> <button className="btn btn-sm" onClick={() => triggerAction('Editar NF-e')}>Editar</button></>],
-    ['Rastreamento transportadora - Aliança', 'Webhook', <span className="mono">https://track.alianca.com.br/hook</span>, '24/07/2026 09:42', <Pill value="Ativo" />, <><button className="btn btn-sm" onClick={() => triggerAction('Teste rastreamento')}>Testar</button> <button className="btn btn-sm" onClick={() => triggerAction('Editar rastreamento')}>Editar</button></>],
-    ['WhatsApp Business', 'Official API', <span className="mono">https://graph.facebook.com/v18.0</span>, '-', <Pill value="Pendente" />, <button className="btn btn-sm btn-primary" onClick={() => triggerAction('Conexão WhatsApp')}>Conectar</button>],
-    ['SMTP - envio de relatório', 'SMTP', <span className="mono">smtp.sftorres.com.br:587</span>, '23/07/2026 18:01', <Pill value="Ativo" />, <><button className="btn btn-sm" onClick={() => triggerAction('Teste SMTP')}>Testar</button> <button className="btn btn-sm" onClick={() => triggerAction('Editar SMTP')}>Editar</button></>]
+  const defaultIntegrations = [
+    { name: 'ERP - SAP B1', type: 'REST', endpoint: 'https://erp.sftorres.com.br/api/v1', lastSync: '24/07/2026 09:30', status: 'Ativo' },
+    { name: 'Nota Fiscal eletrônica', type: 'SOAP', endpoint: 'https://nfe.sefaz.am.gov.br/ws', lastSync: '24/07/2026 09:25', status: 'Ativo' },
+    { name: 'Rastreamento transportadora - Aliança', type: 'Webhook', endpoint: 'https://track.alianca.com.br/hook', lastSync: '24/07/2026 09:42', status: 'Ativo' },
+    { name: 'WhatsApp Business', type: 'Official API', endpoint: 'https://graph.facebook.com/v18.0', lastSync: '-', status: 'Pendente' },
+    { name: 'SMTP - envio de relatório', type: 'SMTP', endpoint: 'smtp.sftorres.com.br:587', lastSync: '23/07/2026 18:01', status: 'Ativo' }
   ];
+  const [integrationEditor, setIntegrationEditor] = useState(null);
+  const integrationItems = form.integrations || defaultIntegrations;
+  const updateIntegration = (index, patch) => {
+    const next = integrationItems.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item);
+    change('integrations', next);
+  };
+  const nowText = () => new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const integrationRows = integrationItems.map((item, index) => [item.name, item.type, <span className="mono">{item.endpoint}</span>, item.lastSync, <Pill value={item.status} />, <><button className="btn btn-sm" onClick={() => { updateIntegration(index, { lastSync: nowText(), status: 'Ativo' }); notify(`${item.name} testada`); }}>Testar</button> <button className="btn btn-sm" onClick={() => setIntegrationEditor({ ...item, index })}>Editar</button> {item.status !== 'Ativo' && <button className="btn btn-sm btn-primary" onClick={() => { updateIntegration(index, { status: 'Ativo', lastSync: nowText() }); notify(`${item.name} conectada`); }}>Conectar</button>}</>]);
   const saveSettings = async () => {
     await api('/api/settings/company', { method: 'PUT', body: JSON.stringify(form) });
     setSettings(form);
@@ -719,10 +727,11 @@ function Settings({ notify, settings, setSettings }) {
     </Panel></div>
     <div id="sistema"><Panel title="Sistema" padded><div className="form-grid"><Field label="Identificador interno" value="SF-TORRES-PROD" /><Field label="Ambiente" value="Produção" /><Field label="Idioma" value="Português (Brasil)" /><Field label="Fuso horário" value="America/Manaus (-04:00)" /><Field label="Moeda" value="BRL - Real Brasileiro" /><Field label="Formato de data" value="DD/MM/AAAA" /><Field label="Densidade da interface" value="Compacta (recomendada)" /><Field label="Tema" value="Personalizado" /><div className="form-field full"><label>Identidade visual</label><div className="color-row"><ColorToken label="Primária" value={form.primaryColor} onChange={(value) => change('primaryColor', value)} /><ColorToken label="Destaque" value={form.accentColor} onChange={(value) => change('accentColor', value)} /><ColorToken label="Sucesso" value={form.successColor} onChange={(value) => change('successColor', value)} /><ColorToken label="Erro" value={form.dangerColor} onChange={(value) => change('dangerColor', value)} /><ColorToken label="Sidebar" value={form.sidebarColor} onChange={(value) => change('sidebarColor', value)} /></div></div></div></Panel></div>
     <div id="regras"><Panel title="Regras Operacionais" padded><div className="form-grid"><Field label="SLA para aprovação de OS (horas)" value={form.approvalSla || '4'} type="number" onChange={(value) => change('approvalSla', value)} /><Field label="SLA de conclusão de OS (horas)" value={form.completionSla || '24'} type="number" onChange={(value) => change('completionSla', value)} /><Field label="Início da janela de programação" value={form.scheduleStart || '06:00'} type="time" onChange={(value) => change('scheduleStart', value)} /><Field label="Fim da janela de programação" value={form.scheduleEnd || '22:00'} type="time" onChange={(value) => change('scheduleEnd', value)} /><SwitchField label="Bloquear OS sem equipamento vinculado" text="Habilitado" checked={form.blockOrderWithoutEquipment ?? true} onChange={(value) => change('blockOrderWithoutEquipment', value)} /><SwitchField label="Notificar torre ao detectar paralisação > 30 min" text="Habilitado" checked={form.notifyStops ?? true} onChange={(value) => change('notifyStops', value)} /><Field label="Mensagem padrão em footer de relatórios" value={form.reportFooter || `${form.legalName} · CNPJ ${form.cnpj} · Uso interno.`} full onChange={(value) => change('reportFooter', value)} /></div></Panel></div>
-    <div id="integracoes"><Panel title="Integrações"><DataTable columns={['Integração', 'Tipo', 'Endpoint', 'Última sincronização', 'Status', 'Ações']} rows={integrations} /></Panel></div>
+    <div id="integracoes"><Panel title="Integrações"><DataTable columns={['Integração', 'Tipo', 'Endpoint', 'Última sincronização', 'Status', 'Ações']} rows={integrationRows} /></Panel></div>
     <div id="seguranca"><Panel title="Segurança & Auditoria" padded><div className="form-grid"><Field label="Política de senha" value={form.passwordPolicy || 'Padrão (mín. 8, 1 maiúscula, 1 número)'} onChange={(value) => change('passwordPolicy', value)} /><Field label="Expiração de senha (dias)" value={form.passwordExpiration || '90'} type="number" onChange={(value) => change('passwordExpiration', value)} /><Field label="Tempo máximo de sessão (min)" value={form.sessionTimeout || '120'} type="number" onChange={(value) => change('sessionTimeout', value)} /><Field label="Tentativas antes de bloqueio" value={form.maxAttempts || '5'} type="number" onChange={(value) => change('maxAttempts', value)} /><SwitchField label="Autenticação em duas etapas (2FA)" text="Habilitado para administradores" checked={form.twoFactor ?? true} onChange={(value) => change('twoFactor', value)} /><SwitchField label="Log de auditoria detalhado" text="Registra toda ação em OS" checked={form.auditLog ?? true} onChange={(value) => change('auditLog', value)} /><Field label="IPs liberados para acesso administrativo" value={form.allowedIps || '192.168.0.0/24&#10;10.0.0.0/8'} full onChange={(value) => change('allowedIps', value)} /></div></Panel></div>
     <div id="notificacoes"><Panel title="Notificações"><DataTable columns={['Evento', 'E-mail', 'Sistema', 'WhatsApp', 'Destinatários']} rows={[['Nova OS criada', <Switch checked={form.notifyNewOrderEmail ?? true} onChange={(value) => change('notifyNewOrderEmail', value)} />, <Switch checked={form.notifyNewOrderSystem ?? true} onChange={(value) => change('notifyNewOrderSystem', value)} />, <Switch checked={form.notifyNewOrderWhatsapp ?? false} onChange={(value) => change('notifyNewOrderWhatsapp', value)} />, 'Líder de turno, Torre'], ['OS concluída', <Switch checked={form.notifyDoneEmail ?? true} onChange={(value) => change('notifyDoneEmail', value)} />, <Switch checked={form.notifyDoneSystem ?? true} onChange={(value) => change('notifyDoneSystem', value)} />, <Switch checked={form.notifyDoneWhatsapp ?? true} onChange={(value) => change('notifyDoneWhatsapp', value)} />, 'Cliente, Operações'], ['Ocorrência crítica', <Switch checked={form.notifyCriticalEmail ?? true} onChange={(value) => change('notifyCriticalEmail', value)} />, <Switch checked={form.notifyCriticalSystem ?? true} onChange={(value) => change('notifyCriticalSystem', value)} />, <Switch checked={form.notifyCriticalWhatsapp ?? true} onChange={(value) => change('notifyCriticalWhatsapp', value)} />, 'Diretoria, Torre'], ['Medição fechada', <Switch checked={form.notifyMeasurementEmail ?? true} onChange={(value) => change('notifyMeasurementEmail', value)} />, <Switch checked={form.notifyMeasurementSystem ?? false} onChange={(value) => change('notifyMeasurementSystem', value)} />, <Switch checked={form.notifyMeasurementWhatsapp ?? false} onChange={(value) => change('notifyMeasurementWhatsapp', value)} />, 'Financeiro']]} /></Panel></div>
     </div>
+    {integrationEditor && <Editor title="Editar integração" fields={[['name', 'Integração'], ['type', 'Tipo'], ['endpoint', 'Endpoint'], ['status', 'Status', 'select', ['Ativo', 'Pendente', 'Inativo']]]} initial={integrationEditor} onCancel={() => setIntegrationEditor(null)} onSave={(data) => { updateIntegration(integrationEditor.index, { ...data, lastSync: integrationEditor.lastSync }); setIntegrationEditor(null); notify('Integração atualizada'); }} />}
   </>;
 }
 
@@ -732,10 +741,38 @@ function DailyOps({ notify }) {
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState('');
   const [modal, setModal] = useState(null);
-  const selected = items.find((i) => i.id === selectedId) || items[0];
-  const counts = useMemo(() => items.reduce((acc, item) => ({ ...acc, [item.status]: (acc[item.status] || 0) + 1 }), {}), [items]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('Dados');
+  const [filters, setFilters] = useState({ q: '', status: 'Todos', client: 'Todos', period: 'Este mês', table: '' });
+  const clientOptions = ['Todos', ...Array.from(new Set(items.map((item) => item.client).filter(Boolean)))];
+  const matchesPeriod = (item) => {
+    const raw = String(item.date || '').slice(0, 10);
+    if (!raw || filters.period === 'Personalizado') return true;
+    const itemDate = new Date(`${raw}T00:00:00`);
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    if (filters.period === 'Hoje') return itemDate.toDateString() === start.toDateString();
+    if (filters.period === 'Esta semana') {
+      const weekStart = new Date(start);
+      weekStart.setDate(start.getDate() - start.getDay());
+      return itemDate >= weekStart;
+    }
+    return itemDate.getMonth() === today.getMonth() && itemDate.getFullYear() === today.getFullYear();
+  };
+  const filteredItems = items.filter((item) => {
+    const text = normalize(`${item.number} ${item.client} ${item.equipment} ${item.service} ${item.carrier} ${item.location}`);
+    const query = normalize(`${filters.q} ${filters.table}`);
+    const statusOk = filters.status === 'Todos' || normalize(item.status) === normalize(filters.status);
+    const clientOk = filters.client === 'Todos' || item.client === filters.client;
+    return text.includes(query.trim()) && statusOk && clientOk && matchesPeriod(item);
+  });
+  const selected = filteredItems.find((i) => i.id === selectedId) || filteredItems[0];
+  const counts = useMemo(() => filteredItems.reduce((acc, item) => ({ ...acc, [item.status]: (acc[item.status] || 0) + 1 }), {}), [filteredItems]);
   const load = () => { setLoading(true); api('/api/workOrders').then((p) => { setItems(p.data); setSelectedId((old) => old || p.data[0]?.id || ''); }).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
   useEffect(load, []);
+  useEffect(() => {
+    if (filteredItems.length && !filteredItems.some((item) => item.id === selectedId)) setSelectedId(filteredItems[0].id);
+  }, [filters, items]);
   const save = async (data) => {
     await api(modal?.id ? `/api/workOrders/${modal.id}` : '/api/workOrders', { method: modal?.id ? 'PUT' : 'POST', body: JSON.stringify(data) });
     setModal(null); notify('OS salva'); load();
@@ -745,16 +782,34 @@ function DailyOps({ notify }) {
     await api(`/api/workOrders/${selected.id}`, { method: 'DELETE' });
     notify('OS apagada'); setSelectedId(''); load();
   };
+  const exportFiltered = () => downloadCsv('operacao-diaria.csv', [['OS', 'Cliente', 'Equipamento', 'Status', 'Data', 'Serviço', 'Equipe'], ...filteredItems.map((item) => [item.number, item.client, item.equipment, item.status, item.date, item.service, item.carrier])]);
+  const requestCorrection = async () => {
+    if (!selected) return;
+    await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ workOrder: selected.number, type: 'Correção', description: 'Solicitação de correção aberta pela Operação Diária', status: 'Aberta' }) });
+    notify('Correção registrada no banco');
+  };
+  const registerOccurrence = async () => {
+    if (!selected) return;
+    await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ workOrder: selected.number, type: 'Operacional', description: 'Ocorrência lançada pela tela de operação diária', status: 'Aberta' }) });
+    notify('Ocorrência registrada no banco');
+  };
+  const detailContent = () => {
+    if (!selected) return null;
+    if (activeTab === 'Equipe') return [['Equipe', selected.carrier || 'Sem equipe definida'], ['Responsável', selected.responsible || '-'], ['Prioridade', selected.priority || '-'], ['Percentual', `${selected.progress || 0}%`]];
+    if (activeTab === 'Horários') return [['Data prevista', date(selected.date)], ['Início', selected.startTime || '-'], ['Término', selected.endTime || '-'], ['Janela', selected.window || '06:00 - 22:00']];
+    if (activeTab === 'Ocorrências') return [['Status operacional', selected.status], ['Último registro', 'Ocorrências salvas no histórico do banco'], ['Ação rápida', 'Use Lançar ocorrência ou Solicitar correção']];
+    return [['Data', date(selected.date)], ['Transportador', selected.carrier], ['Serviço', selected.service], ['Equipamento', selected.equipment || '-'], ['Posto', selected.location || 'ARCONDICIONADO - 0 un.'], ['Responsável', selected.responsible], ['Percentual', `${selected.progress || 0}%`], ['Prioridade', selected.priority]];
+  };
   return (
     <>
-      <PageHead title="Operação Diária" subtitle="Gestão detalhada das OS com filtros, confirmação de equipe, horários e ocorrências." ghostActions={['Histórico', 'Exportar planilha']} action="Nova OS" onAction={() => setModal({})} />
+      <PageHead title="Operação Diária" subtitle="Gestão detalhada das OS com filtros, confirmação de equipe, horários e ocorrências." ghostActions={['Histórico', 'Exportar planilha']} onGhostAction={(label) => label === 'Histórico' ? setHistoryOpen(true) : exportFiltered()} action="Nova OS" onAction={() => setModal({})} />
       <div className="toolbar">
-        <div className="filter"><label>Buscar</label><input type="text" placeholder="OS, cliente, equipamento..." /></div>
-        <div className="filter"><label>Status</label><select><option>Todos</option><option>Rascunho</option><option>Enviada</option><option>Aprovada</option><option>Em execução</option><option>Concluída</option><option>Cancelada</option></select></div>
-        <div className="filter"><label>Cliente</label><select><option>Todos</option><option>SEMP TCL</option><option>ADF</option></select></div>
-        <div className="filter"><label>Período</label><select><option>Hoje</option><option>Esta semana</option><option>Este mês</option><option>Personalizado</option></select></div>
+        <div className="filter"><label>Buscar</label><input type="text" value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="OS, cliente, equipamento..." /></div>
+        <div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Rascunho</option><option>Enviada</option><option>Aprovada</option><option>Em execucao</option><option>Concluida</option><option>Cancelada</option></select></div>
+        <div className="filter"><label>Cliente</label><select value={filters.client} onChange={(event) => setFilters((old) => ({ ...old, client: event.target.value }))}>{clientOptions.map((client) => <option key={client}>{client}</option>)}</select></div>
+        <div className="filter"><label>Período</label><select value={filters.period} onChange={(event) => setFilters((old) => ({ ...old, period: event.target.value }))}><option>Hoje</option><option>Esta semana</option><option>Este mês</option><option>Personalizado</option></select></div>
         <span className="spacer" />
-        <span className="soft">{items.length} resultados</span>
+        <span className="soft">{filteredItems.length} resultados</span>
       </div>
       <div className="kpi-grid">
         <Kpi icon="check" label="Aprovadas" value={counts.Aprovada || 0} delta="prontas para execução" success />
@@ -764,12 +819,13 @@ function DailyOps({ notify }) {
       </div>
       <div className="detail">
         <div className="pane" style={{ overflow: 'hidden' }}>
-          <div className="table-tools"><input className="search-input" placeholder="Filtrar resultados..." /><span className="spacer" /><span className="soft">Ordenar: <b>Data ↓</b></span></div>
-          <div className="table-scroll"><table className="dtbl"><thead><tr><th>OS</th><th>Cliente</th><th>Equipamento</th><th>Status</th><th className="right">Data</th></tr></thead><tbody>{loading ? <tr><td colSpan="5">Carregando dados do banco...</td></tr> : items.map((i) => <tr key={i.id} className={selected?.id === i.id ? 'selected' : ''} onClick={() => setSelectedId(i.id)}><td className="mono">{i.number}</td><td>{i.client}</td><td className="mono">{i.equipment || '-'}</td><td><Pill value={i.status} /></td><td className="right">{date(i.date)}</td></tr>)}</tbody></table></div>
+          <div className="table-tools"><input className="search-input" value={filters.table} onChange={(event) => setFilters((old) => ({ ...old, table: event.target.value }))} placeholder="Filtrar resultados..." /><span className="spacer" /><button className="btn btn-sm" onClick={() => setItems((old) => [...old].sort((a, b) => String(b.date).localeCompare(String(a.date))))}>Ordenar: Data ↓</button></div>
+          <div className="table-scroll"><table className="dtbl"><thead><tr><th>OS</th><th>Cliente</th><th>Equipamento</th><th>Status</th><th className="right">Data</th></tr></thead><tbody>{loading ? <tr><td colSpan="5">Carregando dados do banco...</td></tr> : filteredItems.map((i) => <tr key={i.id} className={selected?.id === i.id ? 'selected' : ''} onClick={() => setSelectedId(i.id)}><td className="mono">{i.number}</td><td>{i.client}</td><td className="mono">{i.equipment || '-'}</td><td><Pill value={i.status} /></td><td className="right">{date(i.date)}</td></tr>)}</tbody></table></div>
         </div>
-        <div className="pane">{selected && <><div className="pane-head"><div><div className="eyebrow">Ordem de Serviço</div><div className="mono-title">OS {selected.number} · {selected.client}</div></div><div className="meta"><Pill value={selected.status} /></div></div><div className="tabs"><div className="tab active">Dados</div><div className="tab">Equipe</div><div className="tab">Horários</div><div className="tab">Ocorrências</div></div><div className="pane-body">{[['Data', date(selected.date)], ['Transportador', selected.carrier], ['Serviço', selected.service], ['Equipamento', selected.equipment || '-'], ['Posto', 'ARCONDICIONADO - 0 un.'], ['Responsável', selected.responsible], ['Percentual', `${selected.progress || 0}%`], ['Prioridade', selected.priority]].map(([k, v]) => <div className="field-row" key={k}><b>{k}</b><span>{v}</span></div>)}</div><div className="action-strip"><button className="btn" onClick={() => setModal(selected)}>Editar OS</button><button className="btn" onClick={() => triggerAction('Correção solicitada')}>Solicitar correção</button><button className="btn btn-success" onClick={async () => { await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ workOrder: selected.number, type: 'Operacional', description: 'Ocorrência lançada pela tela de operação diária', status: 'Aberta' }) }); notify('Ocorrência registrada no banco'); }}>Lançar ocorrência</button><button className="btn btn-danger push" onClick={remove}>Apagar</button></div></>}</div>
+        <div className="pane">{selected && <><div className="pane-head"><div><div className="eyebrow">Ordem de Serviço</div><div className="mono-title">OS {selected.number} · {selected.client}</div></div><div className="meta"><Pill value={selected.status} /></div></div><div className="tabs">{['Dados', 'Equipe', 'Horários', 'Ocorrências'].map((tab) => <div key={tab} className={`tab ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>{tab}</div>)}</div><div className="pane-body">{detailContent().map(([k, v]) => <div className="field-row" key={k}><b>{k}</b><span>{v}</span></div>)}</div><div className="action-strip"><button className="btn" onClick={() => setModal(selected)}>Editar OS</button><button className="btn" onClick={requestCorrection}>Solicitar correção</button><button className="btn btn-success" onClick={registerOccurrence}>Lançar ocorrência</button><button className="btn btn-danger push" onClick={remove}>Apagar</button></div></>}</div>
       </div>
       {modal && <Editor title={modal.id ? 'Editar OS' : 'Nova OS'} fields={fields} initial={modal} onCancel={() => setModal(null)} onSave={save} />}
+      {historyOpen && <div className="modal-backdrop"><div className="modal"><div className="modal-head"><h3>Histórico da operação</h3><button className="btn btn-sm" onClick={() => setHistoryOpen(false)}>Fechar</button></div><div className="modal-body"><DataTable columns={['OS', 'Cliente', 'Status', 'Data']} rows={items.map((item) => [item.number, item.client, <Pill value={item.status} />, date(item.date)])} /></div></div></div>}
     </>
   );
 }
@@ -794,9 +850,22 @@ function CrudScreen({ config, notify, beforeTable }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
+  const [toolbarFilters, setToolbarFilters] = useState({});
   const [modal, setModal] = useState(null);
-  const load = () => { setLoading(true); api(`${config.endpoint}${q ? `?q=${encodeURIComponent(q)}` : ''}`).then((p) => setItems(p.data)).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
+  const load = () => {
+    const separator = config.endpoint.includes('?') ? '&' : '?';
+    setLoading(true);
+    api(`${config.endpoint}${q ? `${separator}q=${encodeURIComponent(q)}` : ''}`).then((p) => setItems(p.data)).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false));
+  };
   useEffect(load, [q, config.endpoint]);
+  const fieldMap = { Função: 'role', Equipe: 'team', Status: 'status', Tipo: 'type' };
+  const displayItems = (config.toolbar || []).reduce((list, [label]) => {
+    const value = toolbarFilters[label];
+    const key = fieldMap[label];
+    if (!value || value === 'Todos' || value === 'Todas') return list;
+    if (!key) return list.filter((item) => normalize(Object.values(item).join(' ')).includes(normalize(value)));
+    return list.filter((item) => normalize(item[key]) === normalize(value));
+  }, items);
   const save = async (data) => {
     await api(modal?.id ? `${config.endpoint}/${modal.id}` : config.endpoint, { method: modal?.id ? 'PUT' : 'POST', body: JSON.stringify(data) });
     setModal(null); notify('Registro salvo'); load();
@@ -809,10 +878,10 @@ function CrudScreen({ config, notify, beforeTable }) {
   return (
     <>
       <PageHead title={config.title} subtitle={config.subtitle} ghostAction={config.ghostLabel} action={config.newLabel} onAction={() => setModal({})} />
-      {config.toolbar && <Toolbar fields={config.toolbar} count={items.length} />}
-      {!config.noToolbar && !config.toolbar && <div className="toolbar"><div className="filter"><label>Buscar</label><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar..." /></div><span className="spacer" /><span className="soft">{items.length} registros</span></div>}
+      {config.toolbar && <Toolbar fields={config.toolbar} count={displayItems.length} values={toolbarFilters} onChange={setToolbarFilters} />}
+      {!config.noToolbar && !config.toolbar && <div className="toolbar"><div className="filter"><label>Buscar</label><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar..." /></div><span className="spacer" /><span className="soft">{displayItems.length} registros</span></div>}
       {beforeTable}
-      <div className="panel" style={{ overflow: 'hidden' }}><div className="panel-head"><h3>{panelTitle(config, items.length)}</h3>{config.panelActions && <div className="actions">{typeof config.panelActions === 'function' ? config.panelActions({ items, load }) : config.panelActions}</div>}</div><div className="panel-body" style={{ padding: 0 }}><table className="dtbl"><thead><tr>{config.columns.map((c) => <th key={c.label} className={c.right ? 'right' : ''}>{c.label}</th>)}<th /></tr></thead><tbody>{loading ? <tr><td colSpan={config.columns.length + 1}>Carregando dados do banco...</td></tr> : items.map((item) => <tr key={item.id}>{config.columns.map((c) => <td key={c.label} className={`${c.mono ? 'mono' : ''} ${c.right ? 'right' : ''}`}>{c.render ? c.render(item) : item[c.key]}</td>)}<td className="right"><button className="btn btn-sm" onClick={() => setModal(item)}>Editar</button> <button className="btn btn-sm btn-danger" onClick={() => remove(item)}>Apagar</button></td></tr>)}</tbody></table></div></div>
+      <div className="panel" style={{ overflow: 'hidden' }}><div className="panel-head"><h3>{panelTitle(config, displayItems.length)}</h3>{config.panelActions && <div className="actions">{typeof config.panelActions === 'function' ? config.panelActions({ items: displayItems, load }) : config.panelActions}</div>}</div><div className="panel-body" style={{ padding: 0 }}><table className="dtbl"><thead><tr>{config.columns.map((c) => <th key={c.label} className={c.right ? 'right' : ''}>{c.label}</th>)}<th /></tr></thead><tbody>{loading ? <tr><td colSpan={config.columns.length + 1}>Carregando dados do banco...</td></tr> : displayItems.map((item) => <tr key={item.id}>{config.columns.map((c) => <td key={c.label} className={`${c.mono ? 'mono' : ''} ${c.right ? 'right' : ''}`}>{c.render ? c.render(item) : item[c.key]}</td>)}<td className="right"><button className="btn btn-sm" onClick={() => setModal(item)}>Editar</button> <button className="btn btn-sm btn-danger" onClick={() => remove(item)}>Apagar</button></td></tr>)}</tbody></table></div></div>
       {modal && <Editor title={modal.id ? `Editar ${config.title}` : config.newLabel} fields={config.fields} initial={modal} onCancel={() => setModal(null)} onSave={save} />}
     </>
   );
@@ -873,8 +942,8 @@ function ActionPanel({ type, setRoute, onClose }) {
   );
 }
 
-function Toolbar({ fields, count }) {
-  return <div className="toolbar">{fields.map(([label, value, type]) => <div className="filter" key={label}><label>{label}</label>{type === 'select' ? <select>{value.map((option) => <option key={option}>{option}</option>)}</select> : <input type="text" placeholder={value} />}</div>)}<span className="spacer" /><span className="soft">{count} registros</span></div>;
+function Toolbar({ fields, count, values = {}, onChange }) {
+  return <div className="toolbar">{fields.map(([label, value, type]) => <div className="filter" key={label}><label>{label}</label>{type === 'select' ? <select value={values[label] || value[0]} onChange={(event) => onChange?.((old) => ({ ...old, [label]: event.target.value }))}>{value.map((option) => <option key={option}>{option}</option>)}</select> : <input type="text" value={values[label] || ''} onChange={(event) => onChange?.((old) => ({ ...old, [label]: event.target.value }))} placeholder={value} />}</div>)}<span className="spacer" /><span className="soft">{count} registros</span></div>;
 }
 
 function Panel({ title, actions, children, padded = false }) {
@@ -937,7 +1006,7 @@ function SwitchField({ label, text, checked, onChange }) {
 
 function PageHead({ title, subtitle, action, ghostAction, ghostActions, onAction, onGhostAction }) {
   const ghosts = ghostActions || (ghostAction ? [ghostAction] : []);
-  return <div className="page-head"><div><h1>{title}</h1><p className="subtitle">{subtitle}</p></div>{(action || ghosts.length > 0) && <div className="head-actions">{ghosts.map((label) => <button key={label} className="btn btn-ghost" onClick={onGhostAction || (() => triggerAction(label))}>{label}</button>)}{action && <button className="btn btn-primary" onClick={onAction || (() => triggerAction(action))}>{action}</button>}</div>}</div>;
+  return <div className="page-head"><div><h1>{title}</h1><p className="subtitle">{subtitle}</p></div>{(action || ghosts.length > 0) && <div className="head-actions">{ghosts.map((label) => <button key={label} className="btn btn-ghost" onClick={() => onGhostAction ? onGhostAction(label) : triggerAction(label)}>{label}</button>)}{action && <button className="btn btn-primary" onClick={onAction || (() => triggerAction(action))}>{action}</button>}</div>}</div>;
 }
 
 function Kpi({ icon = 'grid', label, value, delta, success, warning, danger }) {
