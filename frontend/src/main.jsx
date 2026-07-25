@@ -366,28 +366,21 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error) {
-    console.error(error);
-    const recoverKey = `sf:recover:${this.props.resetKey}`;
-    if (!sessionStorage.getItem(recoverKey)) {
-      sessionStorage.setItem(recoverKey, '1');
-      window.setTimeout(() => window.location.reload(), 250);
-      return;
-    }
-    if (this.state.retries < 2) {
-      window.setTimeout(() => {
-        this.setState((state) => ({ error: null, retries: state.retries + 1 }));
-      }, 250);
-    }
+    console.error('Falha recuperada na tela:', error);
+    if (this.state.retries >= 3) return;
+    window.setTimeout(() => {
+      this.setState((state) => ({ error: null, retries: state.retries + 1 }));
+    }, 300);
   }
 
   render() {
     if (!this.state.error) return this.props.children;
-    if (this.state.retries < 2) {
+    if (this.state.retries < 3) {
       return (
         <div className="panel">
           <div className="panel-body">
-            <h3>Abrindo tela...</h3>
-            <p className="soft">Preparando o módulo automaticamente. Se a API estiver acordando, isso pode levar alguns segundos.</p>
+            <h3>Carregando painel...</h3>
+            <p className="soft">Sincronizando os dados desta tela.</p>
           </div>
         </div>
       );
@@ -395,9 +388,9 @@ class ErrorBoundary extends React.Component {
     return (
       <div className="panel">
         <div className="panel-body">
-          <h3>Não foi possível abrir esta tela agora.</h3>
-          <p className="soft">O sistema se recuperou do erro. Tente abrir o módulo novamente ou atualize a página.</p>
-          <button className="btn btn-primary" onClick={() => window.location.reload()}>Atualizar tela</button>
+          <h3>Atualizar painel</h3>
+          <p className="soft">A tela precisa sincronizar novamente os dados mais recentes.</p>
+          <button className="btn btn-primary" onClick={() => this.setState({ error: null, retries: 0 })}>Tentar novamente</button>
         </div>
       </div>
     );
