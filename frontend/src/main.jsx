@@ -736,14 +736,31 @@ function Settings({ notify, settings, setSettings }) {
 }
 
 function DailyOps({ notify }) {
-  const fields = [['number', 'Número da OS'], ['client', 'Cliente'], ['equipment', 'Equipamento'], ['status', 'Status', 'select', ['Rascunho', 'Enviada', 'Aprovada', 'Em execucao', 'Concluida', 'Cancelada']], ['date', 'Data', 'date'], ['carrier', 'Transportador'], ['service', 'Serviço'], ['location', 'Local'], ['responsible', 'Responsável'], ['progress', 'Percentual', 'number'], ['priority', 'Prioridade', 'select', ['Baixa', 'Normal', 'Alta', 'Crítica']]];
   const [items, setItems] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [equipment, setEquipment] = useState([]);
+  const [services, setServices] = useState([]);
+  const [leaders, setLeaders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState('');
   const [modal, setModal] = useState(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('Dados');
   const [filters, setFilters] = useState({ q: '', status: 'Todos', client: 'Todos', period: 'Este mês', table: '' });
+  const optionValues = (list, ...keys) => list.map((item) => keys.map((key) => item[key]).find(Boolean)).filter(Boolean);
+  const fields = [
+    ['number', 'Número da OS'],
+    ['client', 'Cliente', 'select', ['', ...optionValues(clients, 'name', 'legalName')]],
+    ['equipment', 'Equipamento', 'select', ['', ...optionValues(equipment, 'code', 'model', 'type')]],
+    ['status', 'Status', 'select', ['Rascunho', 'Enviada', 'Aprovada', 'Em execucao', 'Concluida', 'Cancelada']],
+    ['date', 'Data', 'date'],
+    ['carrier', 'Transportador'],
+    ['service', 'Serviço', 'select', ['', ...optionValues(services, 'description', 'code')]],
+    ['location', 'Local'],
+    ['responsible', 'Responsável', 'select', ['', ...optionValues(leaders, 'name')]],
+    ['progress', 'Percentual', 'number'],
+    ['priority', 'Prioridade', 'select', ['Baixa', 'Normal', 'Alta', 'Crítica']]
+  ];
   const clientOptions = ['Todos', ...Array.from(new Set(items.map((item) => item.client).filter(Boolean)))];
   const matchesPeriod = (item) => {
     const raw = String(item.date || '').slice(0, 10);
@@ -770,6 +787,14 @@ function DailyOps({ notify }) {
   const counts = useMemo(() => filteredItems.reduce((acc, item) => ({ ...acc, [item.status]: (acc[item.status] || 0) + 1 }), {}), [filteredItems]);
   const load = () => { setLoading(true); api('/api/workOrders').then((p) => { setItems(p.data); setSelectedId((old) => old || p.data[0]?.id || ''); }).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
   useEffect(load, []);
+  useEffect(() => {
+    api('/api/clients').then((payload) => setClients(payload.data)).catch(() => {});
+    api('/api/equipment').then((payload) => setEquipment(payload.data)).catch(() => {});
+    api('/api/services').then((payload) => setServices(payload.data)).catch(() => {});
+    api('/api/employees?role=Líder de turno').then((payload) => setLeaders((payload.data || []).filter((item) => normalize(item.role).includes('lider')))).catch(() => {
+      api('/api/employees').then((payload) => setLeaders(payload.data.filter((item) => normalize(item.role).includes('lider')))).catch(() => {});
+    });
+  }, []);
   useEffect(() => {
     if (filteredItems.length && !filteredItems.some((item) => item.id === selectedId)) setSelectedId(filteredItems[0].id);
   }, [filters, items]);
@@ -901,7 +926,7 @@ function Editor({ title, fields, initial, onCancel, onSave }) {
       <div className="modal">
         <div className="modal-head"><h3>{title}</h3><button className="btn btn-sm" onClick={onCancel}>Fechar</button></div>
         <form className="modal-body" onSubmit={(e) => { e.preventDefault(); onSave(form); }}>
-          <div className="form-grid">{fields.map(([name, label, type = 'text', options]) => <div className="form-field" key={name}><label>{label}</label>{type === 'select' ? <select value={form[name]} onChange={(e) => change(name, e.target.value, type)}>{options.map((o) => <option key={o}>{o}</option>)}</select> : <input type={type} value={form[name]} onChange={(e) => change(name, e.target.value, type)} />}</div>)}</div>
+          <div className="form-grid">{fields.map(([name, label, type = 'text', options]) => <div className="form-field" key={name}><label>{label}</label>{type === 'select' ? <select value={form[name]} onChange={(e) => change(name, e.target.value, type)}>{options.map((o) => <option key={o || '-'} value={o}>{o || '-'}</option>)}</select> : <input type={type} value={form[name]} onChange={(e) => change(name, e.target.value, type)} />}</div>)}</div>
           <div className="modal-actions"><button type="button" className="btn" onClick={onCancel}>Cancelar</button><button className="btn btn-primary">Salvar</button></div>
         </form>
       </div>
