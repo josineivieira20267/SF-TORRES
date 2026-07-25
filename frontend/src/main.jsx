@@ -305,7 +305,16 @@ function cleanRoute(hash) {
 
 function firstAllowedRoute() {
   if (!localStorage.getItem('sfTorresToken')) return 'login';
-  return routeKeys.find((key) => canView(key)) || 'login';
+  return firstAllowedRouteFor(currentUser());
+}
+
+function firstAllowedRouteFor(user) {
+  return routeKeys.find((key) => canView(key, user)) || 'login';
+}
+
+function requestedRouteFromHash() {
+  const route = String(window.location.hash || '').replace(/^#\/?/, '');
+  return routes[route] ? route : '';
 }
 
 class ErrorBoundary extends React.Component {
@@ -424,7 +433,8 @@ function App() {
 
   const goAfterLogin = (user) => {
     setAuthenticated(true);
-    const nextRoute = routeKeys.find((key) => canView(key, user)) || firstAllowedRoute();
+    const requestedRoute = requestedRouteFromHash();
+    const nextRoute = requestedRoute && canView(requestedRoute, user) ? requestedRoute : firstAllowedRouteFor(user);
     window.location.hash = `#/${nextRoute}`;
     setRoute(nextRoute);
   };
