@@ -1,0 +1,290 @@
+<!-- Configurações (módulo Administração) — completo, organizado por seções -->
+<div class="page-head">
+  <div>
+    <h1>Configurações</h1>
+    <p class="subtitle">Parâmetros gerais da empresa, do sistema, integrações e políticas operacionais.</p>
+  </div>
+  <div class="head-actions">
+    <button class="btn btn-ghost">Restaurar padrões</button>
+    <button class="btn btn-primary">Salvar alterações</button>
+  </div>
+</div>
+
+<!-- Acesso rápido por seção -->
+<div class="section-list" style="margin-bottom:14px">
+  <div class="section-card" data-go="sec-empresa">
+    <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg></div>
+    <div><h4>Empresa &amp; Filiais</h4><p>Razão social, CNPJ, endereço, marcas e logos.</p></div>
+  </div>
+  <div class="section-card" data-go="sec-sistema">
+    <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+    <div><h4>Sistema</h4><p>Identidade visual, idioma, fuso horário e formatos.</p></div>
+  </div>
+  <div class="section-card" data-go="sec-operacional">
+    <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+    <div><h4>Regras Operacionais</h4><p>SLA, janelas de programação, alertas automáticos.</p></div>
+  </div>
+  <div class="section-card" data-go="sec-integracoes">
+    <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
+    <div><h4>Integrações</h4><p>ERP, fiscal, transportadoras, mensageria.</p></div>
+  </div>
+  <div class="section-card" data-go="sec-seguranca">
+    <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+    <div><h4>Segurança &amp; Auditoria</h4><p>Senhas, 2FA, sessão, log de auditoria.</p></div>
+  </div>
+  <div class="section-card" data-go="sec-notif">
+    <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+    <div><h4>Notificações</h4><p>Canais, gatilhos e destinatários por evento.</p></div>
+  </div>
+</div>
+
+<!-- Bloco 1: Empresa & Filiais -->
+<div class="panel" id="sec-empresa" style="margin-bottom:12px">
+  <div class="panel-head">
+    <h3>Empresa &amp; Filiais</h3>
+    <span style="font-size:11.5px;color:var(--c-text-soft);margin-left:auto">Identidade institucional usada em relatórios e PDF</span>
+  </div>
+  <div class="panel-body">
+    <div class="form-grid">
+      <div class="form-field"><label>Razão social</label><input type="text" value="ST Serviços de Logística LTDA"></div>
+      <div class="form-field"><label>Nome fantasia</label><input type="text" value="SF TORRES"></div>
+      <div class="form-field"><label>CNPJ</label><input type="text" value="00.000.000/0001-00"></div>
+      <div class="form-field"><label>Inscrição estadual</label><input type="text" value="04.123.456-7"></div>
+      <div class="form-field full"><label>Endereço</label><input type="text" value="Av. Brigadeiro, 4500 — Manaus/AM — CEP 69000-000"></div>
+      <div class="form-field"><label>Telefone principal</label><input type="text" value="(92) 99267-8067"></div>
+      <div class="form-field"><label>E-mail corporativo</label><input type="email" value="sosthenes.torres@gmail.com"></div>
+      <div class="form-field">
+        <label>Logo principal exibida no sidebar</label>
+        <div class="row" style="background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:var(--radius-sm);padding:10px;gap:12px;align-items:center">
+          <div style="background:#FFFFFF;border:1px solid var(--c-border);padding:6px 10px;border-radius:var(--radius-sm)">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 56" width="46" height="46">
+              <circle cx="28" cy="14" r="8" fill="#0F2447"/>
+              <path d="M14 38 Q28 22 42 38 L37 46 Q28 36 19 46 Z" fill="#0F2447"/>
+              <text x="14" y="44" font-family="Segoe UI,Arial,sans-serif" font-weight="800" font-size="18" fill="#FFFFFF" dominant-baseline="middle">ST</text>
+            </svg>
+          </div>
+          <div style="flex:1">
+            <div style="font-size:var(--fs-13)"><b>assets/logo-st.svg</b></div>
+            <div style="font-size:11.5px;color:var(--c-text-soft)">Marca "ST Serviços de Logística" (principal do sistema)</div>
+          </div>
+          <button class="btn btn-sm">Trocar arquivo</button>
+        </div>
+      </div>
+      <div class="form-field">
+        <label>Logo secundária (login/institucional)</label>
+        <div class="row" style="background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:var(--radius-sm);padding:10px;gap:12px;align-items:center">
+          <div style="background:#FFFFFF;border:1px solid var(--c-border);padding:6px 10px;border-radius:var(--radius-sm)">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 130" width="120" height="60">
+              <path d="M40 95 Q130 5 230 80" stroke="#C8102E" stroke-width="6" fill="none"/>
+              <path d="M40 110 Q130 30 230 100" stroke="#1A2E6D" stroke-width="6" fill="none"/>
+              <text x="48" y="90" font-family="Segoe UI,Arial,sans-serif" font-weight="900" font-size="86" fill="#0F2447" stroke="#FFFFFF" stroke-width="2">SM</text>
+              <text x="58" y="118" font-family="Segoe UI,Arial,sans-serif" font-weight="900" font-size="30" fill="#C8102E">TORRES</text>
+            </svg>
+          </div>
+          <div style="flex:1">
+            <div style="font-size:var(--fs-13)"><b>assets/logo-sm.svg</b></div>
+            <div style="font-size:11.5px;color:var(--c-text-soft)">Marca "SM Torres — Treinamentos" (exibida no login)</div>
+          </div>
+          <button class="btn btn-sm">Trocar arquivo</button>
+        </div>
+      </div>
+      <div class="form-field full">
+        <label>Marca exibida na barra superior (ao lado do usuário)</label>
+        <div class="row" style="gap:18px;flex-wrap:wrap">
+          <label class="row" style="gap:6px"><input type="radio" name="navbar-logo" checked> Não exibir (texto)</label>
+          <label class="row" style="gap:6px"><input type="radio" name="navbar-logo"> Logo ST (principal)</label>
+          <label class="row" style="gap:6px"><input type="radio" name="navbar-logo"> Logo SM (secundária)</label>
+          <label class="row" style="gap:6px"><input type="radio" name="navbar-logo"> Ambas lado a lado</label>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bloco 2: Sistema -->
+<div class="panel" id="sec-sistema" style="margin-bottom:12px">
+  <div class="panel-head"><h3>Sistema</h3></div>
+  <div class="panel-body">
+    <div class="form-grid">
+      <div class="form-field"><label>Identificador interno</label><input type="text" value="SF-TORRES-PROD"></div>
+      <div class="form-field"><label>Ambiente</label>
+        <select><option>Produção</option><option>Homologação</option><option>Treinamento</option></select>
+      </div>
+      <div class="form-field"><label>Idioma</label>
+        <select><option>Português (Brasil)</option><option>Inglês (EUA)</option><option>Espanhol</option></select>
+      </div>
+      <div class="form-field"><label>Fuso horário</label>
+        <select><option>America/Manaus (−04:00)</option><option>America/Sao_Paulo (−03:00)</option><option>America/Belem (−03:00)</option></select>
+      </div>
+      <div class="form-field"><label>Moeda</label><input type="text" value="BRL — Real Brasileiro"></div>
+      <div class="form-field"><label>Formato de data</label>
+        <select><option>DD/MM/AAAA</option><option>AAAA-MM-DD</option><option>MM/DD/AAAA</option></select>
+      </div>
+      <div class="form-field"><label>Densidade da interface</label>
+        <select><option>Compacta (recomendada)</option><option>Confortável</option><option>Espaçosa</option></select>
+      </div>
+      <div class="form-field"><label>Tema</label>
+        <select><option>Azul institucional (atual)</option><option>Cinza corporativo</option><option>Escuro</option></select>
+      </div>
+      <div class="form-field full">
+        <label>Identidade visual</label>
+        <div class="row" style="gap:18px;flex-wrap:wrap">
+          <label class="row" style="background:var(--c-surface-2);padding:8px 12px;border:1px solid var(--c-border);border-radius:var(--radius-sm)">
+            <span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:#1B3A6B;margin-right:6px"></span>
+            Primária: <input type="color" value="#1B3A6B">
+          </label>
+          <label class="row" style="background:var(--c-surface-2);padding:8px 12px;border:1px solid var(--c-border);border-radius:var(--radius-sm)">
+            <span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:#C8102E;margin-right:6px"></span>
+            Destaque: <input type="color" value="#C8102E">
+          </label>
+          <label class="row" style="background:var(--c-surface-2);padding:8px 12px;border:1px solid var(--c-border);border-radius:var(--radius-sm)">
+            <span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:#1F8A4C;margin-right:6px"></span>
+            Sucesso: <input type="color" value="#1F8A4C">
+          </label>
+          <label class="row" style="background:var(--c-surface-2);padding:8px 12px;border:1px solid var(--c-border);border-radius:var(--radius-sm)">
+            <span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:#B3261E;margin-right:6px"></span>
+            Erro: <input type="color" value="#B3261E">
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bloco 3: Regras operacionais -->
+<div class="panel" id="sec-operacional" style="margin-bottom:12px">
+  <div class="panel-head"><h3>Regras Operacionais</h3></div>
+  <div class="panel-body">
+    <div class="form-grid">
+      <div class="form-field"><label>SLA para aprovação de OS (horas)</label><input type="number" value="4"></div>
+      <div class="form-field"><label>SLA de conclusão de OS (horas)</label><input type="number" value="24"></div>
+      <div class="form-field"><label>Início da janela de programação</label><input type="time" value="06:00"></div>
+      <div class="form-field"><label>Fim da janela de programação</label><input type="time" value="22:00"></div>
+      <div class="form-field">
+        <label>Bloquear OS sem equipamento vinculado</label>
+        <div class="row"><label class="switch"><input type="checkbox" checked><span class="slider"></span></label> <span style="font-size:12px;color:var(--c-text-muted)">Habilitado</span></div>
+      </div>
+      <div class="form-field">
+        <label>Notificar torre ao detectar paralisação > 30 min</label>
+        <div class="row"><label class="switch"><input type="checkbox" checked><span class="slider"></span></label> <span style="font-size:12px;color:var(--c-text-muted)">Habilitado</span></div>
+      </div>
+      <div class="form-field full"><label>Mensagem padrão em footer de relatórios</label><textarea>ST Serviços de Logística LTDA · CNPJ 00.000.000/0001-00 · Documento gerado em 24/07/2026 · Uso interno.</textarea></div>
+    </div>
+  </div>
+</div>
+
+<!-- Bloco 4: Integrações -->
+<div class="panel" id="sec-integracoes" style="margin-bottom:12px">
+  <div class="panel-head"><h3>Integrações</h3></div>
+  <div class="panel-body" style="padding:0">
+    <table class="dtbl">
+      <thead>
+        <tr><th>Integração</th><th>Tipo</th><th>Endpoint</th><th>Última sincronização</th><th>Status</th><th class="right">Ações</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>ERP — SAP B1</td><td>REST</td><td class="mono">https://erp.sftorres.com.br/api/v1</td><td>24/07/2026 09:30</td>
+          <td><span class="pill pill-success pill-dot">Ativo</span></td>
+          <td class="right"><button class="btn btn-sm">Testar</button> <button class="btn btn-sm">Editar</button></td>
+        </tr>
+        <tr>
+          <td>Nota Fiscal eletrônica</td><td>SOAP</td><td class="mono">https://nfe.sefaz.am.gov.br/ws</td><td>24/07/2026 09:25</td>
+          <td><span class="pill pill-success pill-dot">Ativo</span></td>
+          <td class="right"><button class="btn btn-sm">Testar</button> <button class="btn btn-sm">Editar</button></td>
+        </tr>
+        <tr>
+          <td>Rastreamento transportadora — Aliança</td><td>Webhook</td><td class="mono">https://track.alianca.com.br/hook</td><td>24/07/2026 09:42</td>
+          <td><span class="pill pill-success pill-dot">Ativo</span></td>
+          <td class="right"><button class="btn btn-sm">Testar</button> <button class="btn btn-sm">Editar</button></td>
+        </tr>
+        <tr>
+          <td>WhatsApp Business</td><td>Official API</td><td class="mono">https://graph.facebook.com/v18.0</td><td>—</td>
+          <td><span class="pill pill-warning pill-dot">Pendente</span></td>
+          <td class="right"><button class="btn btn-sm btn-primary">Conectar</button></td>
+        </tr>
+        <tr>
+          <td>SMTP — envio de relatório</td><td>SMTP</td><td class="mono">smtp.sftorres.com.br:587</td><td>23/07/2026 18:01</td>
+          <td><span class="pill pill-success pill-dot">Ativo</span></td>
+          <td class="right"><button class="btn btn-sm">Testar</button> <button class="btn btn-sm">Editar</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Bloco 5: Segurança -->
+<div class="panel" id="sec-seguranca" style="margin-bottom:12px">
+  <div class="panel-head"><h3>Segurança &amp; Auditoria</h3></div>
+  <div class="panel-body">
+    <div class="form-grid">
+      <div class="form-field"><label>Política de senha</label>
+        <select><option>Padrão (mín. 8, 1 maiúscula, 1 número)</option><option>Forte (mín. 12, símbolos)</option><option>Personalizada</option></select>
+      </div>
+      <div class="form-field"><label>Expiração de senha (dias)</label><input type="number" value="90"></div>
+      <div class="form-field"><label>Tempo máximo de sessão (min)</label><input type="number" value="120"></div>
+      <div class="form-field"><label>Tentativas antes de bloqueio</label><input type="number" value="5"></div>
+      <div class="form-field">
+        <label>Autenticação em duas etapas (2FA)</label>
+        <div class="row"><label class="switch"><input type="checkbox" checked><span class="slider"></span></label> <span style="font-size:12px;color:var(--c-text-muted)">Habilitado para administradores</span></div>
+      </div>
+      <div class="form-field">
+        <label>Log de auditoria detalhado</label>
+        <div class="row"><label class="switch"><input type="checkbox" checked><span class="slider"></span></label> <span style="font-size:12px;color:var(--c-text-muted)">Registra toda ação em OS</span></div>
+      </div>
+      <div class="form-field full"><label>IPs liberados para acesso administrativo</label><textarea>192.168.0.0/24
+10.0.0.0/8</textarea><span class="hint">Um CIDR por linha. Vazio = qualquer IP.</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- Bloco 6: Notificações -->
+<div class="panel" id="sec-notif">
+  <div class="panel-head"><h3>Notificações</h3></div>
+  <div class="panel-body" style="padding:0">
+    <table class="dtbl">
+      <thead>
+        <tr><th>Evento</th><th>E-mail</th><th>Sistema</th><th>WhatsApp</th><th>Destinatários</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Nova OS criada</td>
+          <td><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></td>
+          <td><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></td>
+          <td><label class="switch"><input type="checkbox"><span class="slider"></span></label></td>
+          <td>Líder de turno, Torre</td>
+        </tr>
+        <tr>
+          <td>OS concluída</td>
+          <td><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></td>
+          <td><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></td>
+          <td><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></td>
+          <td>Cliente, Operações</td>
+        </tr>
+        <tr>
+          <td>Ocorrência crítica</td>
+          <td><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></td>
+          <td><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></td>
+          <td><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></td>
+          <td>Diretoria, Torre</td>
+        </tr>
+        <tr>
+          <td>Medição fechada</td>
+          <td><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></td>
+          <td><label class="switch"><input type="checkbox"><span class="slider"></span></label></td>
+          <td><label class="switch"><input type="checkbox"><span class="slider"></span></label></td>
+          <td>Financeiro</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  // Pequena interatividade para Configurações: scroll suave ao clicar nos cards
+  document.querySelectorAll('[data-go]').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const target = document.getElementById(el.dataset.go);
+      if(target) target.scrollIntoView({behavior:'smooth', block:'start'});
+    });
+  });
+</script>

@@ -1,0 +1,226 @@
+<!-- Página: Painel Corporativo -->
+<div class="page-head">
+  <div>
+    <h1>Painel Corporativo</h1>
+    <p class="subtitle">Visão consolidada das operações, produtividade e faturamento.</p>
+  </div>
+  <div class="head-actions">
+    <button class="btn btn-ghost">Exportar</button>
+    <button class="btn btn-primary">Atualizar agora</button>
+  </div>
+</div>
+
+<!-- KPIs principais -->
+<div class="kpi-grid">
+  <div class="kpi">
+    <div class="ico">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+        <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+      </svg>
+    </div>
+    <div>
+      <div class="label">Módulos ativos</div>
+      <div class="value">10</div>
+      <div class="delta">+1 desde o último ciclo</div>
+    </div>
+  </div>
+  <div class="kpi kpi-success">
+    <div class="ico">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+    </div>
+    <div>
+      <div class="label">Clientes ativos</div>
+      <div class="value">2</div>
+      <div class="delta">SEMP TCL · ADF</div>
+    </div>
+  </div>
+  <div class="kpi kpi-warning">
+    <div class="ico">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
+      </svg>
+    </div>
+    <div>
+      <div class="label">Serviços contratados</div>
+      <div class="value">4</div>
+      <div class="delta">Tipos cadastrados</div>
+    </div>
+  </div>
+  <div class="kpi">
+    <div class="ico">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/>
+      </svg>
+    </div>
+    <div>
+      <div class="label">Lideranças em operação</div>
+      <div class="value">2</div>
+      <div class="delta">Usuários líderes</div>
+    </div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:12px">
+  <!-- Ordens de serviço recentes -->
+  <div class="panel">
+    <div class="panel-head">
+      <h3>Ordens de serviço recentes</h3>
+      <div class="actions">
+        <button class="btn btn-sm">Filtrar</button>
+        <button class="btn btn-sm btn-primary">Nova OS</button>
+      </div>
+    </div>
+    <div class="table-wrap" style="border:none;border-radius:0">
+      <div class="table-scroll" style="max-height:none">
+        <table class="dtbl">
+          <thead>
+            <tr>
+              <th>OS</th><th>Cliente</th><th>Serviço</th><th>Equipamento</th>
+              <th>Equipe</th><th>Status</th><th class="right">Prev.</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="mono">0007-159</td>
+              <td>SEMP TCL</td>
+              <td>Containerização</td>
+              <td class="mono">HAMU2997067</td>
+              <td>Aliança · Desova</td>
+              <td><span class="pill pill-success pill-dot">Aprovada</span></td>
+              <td class="right">23/07</td>
+            </tr>
+            <tr>
+              <td class="mono">0007-160</td>
+              <td>SEMP TCL</td>
+              <td>Containerização</td>
+              <td>—</td>
+              <td>—</td>
+              <td><span class="pill pill-success pill-dot">Aprovada</span></td>
+              <td class="right">22/07</td>
+            </tr>
+            <tr>
+              <td class="mono">0007-158d</td>
+              <td>SEMP TCL</td>
+              <td>Containerização</td>
+              <td>—</td>
+              <td>—</td>
+              <td><span class="pill pill-warning pill-dot">Enviada</span></td>
+              <td class="right">22/07</td>
+            </tr>
+            <tr>
+              <td class="mono">0007-157</td>
+              <td>ADF</td>
+              <td>Movimentação</td>
+              <td class="mono">MSKU7738422</td>
+              <td>TransNorte · 3 op.</td>
+              <td><span class="pill pill-info pill-dot">Em execução</span></td>
+              <td class="right">21/07</td>
+            </tr>
+            <tr>
+              <td class="mono">0007-156</td>
+              <td>SEMP TCL</td>
+              <td>Containerização</td>
+              <td>—</td>
+              <td>—</td>
+              <td><span class="pill pill-neutral pill-dot">Rascunho</span></td>
+              <td class="right">20/07</td>
+            </tr>
+            <tr>
+              <td class="mono">0007-155</td>
+              <td>ADF</td>
+              <td>Carga/Descarga</td>
+              <td>—</td>
+              <td>—</td>
+              <td><span class="pill pill-danger pill-dot">Cancelada</span></td>
+              <td class="right">19/07</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Atividades / Timeline -->
+  <div class="panel">
+    <div class="panel-head">
+      <h3>Atividades recentes</h3>
+      <span class="meta" style="margin-left:auto;font-size:11.5px;color:var(--c-text-soft)">Últimas 24h</span>
+    </div>
+    <div class="panel-body" style="padding:6px 14px">
+      <ul style="list-style:none;padding:0;margin:0">
+        <li style="display:flex;gap:10px;padding:10px 0;border-bottom:1px dotted var(--c-border)">
+          <span class="pill pill-info pill-dot" style="align-self:flex-start">OS</span>
+          <div>
+            <div style="font-size:var(--fs-13)"><b>OS 0007-159</b> aprovada por <b>Administrador SF</b></div>
+            <div style="font-size:11.5px;color:var(--c-text-soft);margin-top:2px">há 18 min · Operação Diária</div>
+          </div>
+        </li>
+        <li style="display:flex;gap:10px;padding:10px 0;border-bottom:1px dotted var(--c-border)">
+          <span class="pill pill-success pill-dot" style="align-self:flex-start">EQ</span>
+          <div>
+            <div style="font-size:var(--fs-13)">Equipamento <b>HAMU2997067</b> vinculado à OS</div>
+            <div style="font-size:11.5px;color:var(--c-text-soft);margin-top:2px">há 1h · Cadastros</div>
+          </div>
+        </li>
+        <li style="display:flex;gap:10px;padding:10px 0;border-bottom:1px dotted var(--c-border)">
+          <span class="pill pill-warning pill-dot" style="align-self:flex-start">MS</span>
+          <div>
+            <div style="font-size:var(--fs-13)">Medição #043 fechada — R$ 18.420,00</div>
+            <div style="font-size:11.5px;color:var(--c-text-soft);margin-top:2px">há 3h · Medição &amp; Faturamento</div>
+          </div>
+        </li>
+        <li style="display:flex;gap:10px;padding:10px 0">
+          <span class="pill pill-neutral pill-dot" style="align-self:flex-start">PD</span>
+          <div>
+            <div style="font-size:var(--fs-13)">Programação semanal de equipes publicada</div>
+            <div style="font-size:11.5px;color:var(--c-text-soft);margin-top:2px">há 6h · Programação</div>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- Resumo financeiro e equipe -->
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px">
+  <div class="panel">
+    <div class="panel-head"><h3>Faturamento do mês</h3></div>
+    <div class="panel-body">
+      <div style="font-size:36px;font-weight:700;font-variant-numeric:tabular-nums">R$ 184.250</div>
+      <div style="font-size:11.5px;color:var(--c-text-soft);margin-top:4px">+12% vs. mês anterior</div>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <span class="pill pill-success pill-dot">SEMP TCL · 68%</span>
+        <span class="pill pill-info pill-dot">ADF · 32%</span>
+      </div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><h3>Equipe no campo</h3></div>
+    <div class="panel-body">
+      <div style="font-size:36px;font-weight:700">14</div>
+      <div style="font-size:11.5px;color:var(--c-text-soft);margin-top:4px">Operadores alocados hoje</div>
+      <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+        <div style="flex:1;height:6px;background:var(--c-surface-2);border-radius:3px;overflow:hidden">
+          <div style="width:78%;height:100%;background:var(--c-primary)"></div>
+        </div>
+        <span style="font-size:12px;color:var(--c-text-muted);font-variant-numeric:tabular-nums">78%</span>
+      </div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><h3>Ocorrências (semana)</h3></div>
+    <div class="panel-body">
+      <div style="font-size:36px;font-weight:700;font-variant-numeric:tabular-nums">07</div>
+      <div style="font-size:11.5px;color:var(--c-text-soft);margin-top:4px">3 resolvidas · 4 em análise</div>
+      <div style="margin-top:8px;display:flex;gap:6px">
+        <span class="pill pill-warning pill-dot">4 Abertas</span>
+        <span class="pill pill-success pill-dot">3 Fechadas</span>
+      </div>
+    </div>
+  </div>
+</div>

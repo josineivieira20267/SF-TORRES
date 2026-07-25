@@ -1,0 +1,77 @@
+<!-- Medição & Faturamento -->
+<div class="page-head">
+  <div>
+    <h1>Medição &amp; Faturamento</h1>
+    <p class="subtitle">Fechamento de medições por OS para composição de faturamento por cliente.</p>
+  </div>
+  <div class="head-actions">
+    <button class="btn btn-ghost">Exportar NF</button>
+    <button class="btn btn-primary">Nova medição</button>
+  </div>
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi kpi-success">
+    <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 1 0 0 7h5a3.5 3.5 0 1 1 0 7H6"/></svg></div>
+    <div><div class="label">Faturado (mês)</div><div class="value">R$ 184.250</div><div class="delta">+12% MoM</div></div>
+  </div>
+  <div class="kpi">
+    <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+    <div><div class="label">A faturar</div><div class="value">R$ 42.180</div><div class="delta">4 medições</div></div>
+  </div>
+  <div class="kpi kpi-warning">
+    <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div>
+    <div><div class="label">Pendentes</div><div class="value">02</div><div class="delta">aguardando cliente</div></div>
+  </div>
+  <div class="kpi">
+    <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div>
+    <div><div class="label">Medições fechadas</div><div class="value">38</div><div class="delta">no mês</div></div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head">
+    <h3>Medições do mês</h3>
+    <div class="actions">
+      <button class="btn btn-sm">Filtrar</button>
+      <button class="btn btn-sm btn-primary">Fechar medição</button>
+    </div>
+  </div>
+  <div class="panel-body" style="padding:0">
+    <table class="dtbl">
+      <thead>
+        <tr>
+          <th>#</th><th>Cliente</th><th>OS</th><th>Período</th>
+          <th class="right">Qtd.</th><th class="right">Unitário</th><th class="right">Total</th><th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="mono">#044</td><td>SEMP TCL</td><td class="mono">0007-159</td><td>23/07–24/07</td>
+          <td class="right">42</td><td class="right">R$ 348,00</td><td class="right">R$ 14.616,00</td>
+          <td><span class="pill pill-success pill-dot">Fechada</span></td>
+        </tr>
+        <tr>
+          <td class="mono">#043</td><td>SEMP TCL</td><td class="mono">0007-160</td><td>22/07–23/07</td>
+          <td class="right">53</td><td class="right">R$ 348,00</td><td class="right">R$ 18.444,00</td>
+          <td><span class="pill pill-success pill-dot">Fechada</span></td>
+        </tr>
+        <tr>
+          <td class="mono">#042</td><td>SEMP TCL</td><td class="mono">0007-158</td><td>20/07–21/07</td>
+          <td class="right">38</td><td class="right">R$ 348,00</td><td class="right">R$ 13.224,00</td>
+          <td><span class="pill pill-warning pill-dot">Pendente</span></td>
+        </tr>
+        <tr>
+          <td class="mono">#041</td><td>ADF</td><td class="mono">0007-157</td><td>21/07</td>
+          <td class="right">120</td><td class="right">R$ 92,00</td><td class="right">R$ 11.040,00</td>
+          <td><span class="pill pill-success pill-dot">Fechada</span></td>
+        </tr>
+        <tr>
+          <td class="mono">#040</td><td>ADF</td><td class="mono">0007-155</td><td>19/07</td>
+          <td class="right">110</td><td class="right">R$ 92,00</td><td class="right">R$ 10.120,00</td>
+          <td><span class="pill pill-danger pill-dot">Cancelada</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

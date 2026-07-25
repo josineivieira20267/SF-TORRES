@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 130" width="260" height="130" role="img" aria-label="SM Torres Treinamentos Empresariais">
+  <defs>
+    <linearGradient id="smBlue" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#1A2E6D"/>
+      <stop offset="1" stop-color="#0A1747"/>
+    </linearGradient>
+  </defs>
+  <!-- órbita vermelha -->
+  <path d="M40 95 Q130 5 230 80" stroke="#C8102E" stroke-width="6" fill="none"/>
+  <!-- órbita azul -->
+  <path d="M40 110 Q130 30 230 100" stroke="#1A2E6D" stroke-width="6" fill="none"/>
+  <!-- letras SM 3D -->
+  <text x="48" y="90" font-family="'Segoe UI',Arial,sans-serif" font-weight="900" font-size="86" fill="url(#smBlue)" stroke="#FFFFFF" stroke-width="2">SM</text>
+  <!-- TORRES -->
+  <text x="58" y="118" font-family="'Segoe UI',Arial,sans-serif" font-weight="900" font-size="30" fill="#C8102E">TORRES</text>
+</svg>

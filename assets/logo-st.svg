@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 100" width="220" height="100" role="img" aria-label="ST Serviços de Logística">
+  <defs>
+    <linearGradient id="arch" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#1B3A6B"/>
+      <stop offset="1" stop-color="#0F2447"/>
+    </linearGradient>
+  </defs>
+  <!-- arco superior + esfera -->
+  <circle cx="110" cy="22" r="13" fill="url(#arch)"/>
+  <path d="M55 60 Q110 30 165 60 L150 78 Q110 60 70 78 Z" fill="url(#arch)"/>
+  <!-- letras ST -->
+  <text x="60" y="78" font-family="'Segoe UI', Arial, sans-serif" font-weight="800" font-size="42" fill="#0F2447" stroke="#FFFFFF" stroke-width="2">ST</text>
+</svg>

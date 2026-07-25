@@ -1,0 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String @id @default(cuid())
+  name         String
+  email        String @unique
+  role         String
+  status       String @default("Ativo")
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Client {
+  id           String @id @default(cuid())
+  name         String
+  legalName    String?
+  cnpj         String?
+  contact      String?
+  phone        String?
+  city         String?
+  state        String?
+  contract     String?
+  monthRevenue Float  @default(0)
+  status       String @default("Ativo")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Employee {
+  id            String @id @default(cuid())
+  code          String?
+  name          String
+  cpf           String?
+  role          String?
+  team          String?
+  admissionDate String?
+  status        String @default("Ativo")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Service {
+  id          String @id @default(cuid())
+  code        String?
+  description String
+  unit        String?
+  price       Float  @default(0)
+  category    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Equipment {
+  id              String @id @default(cuid())
+  code            String
+  type            String?
+  model           String?
+  capacity        String?
+  lastMaintenance String?
+  status          String @default("Disponivel")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Location {
+  id          String @id @default(cuid())
+  code        String?
+  description String
+  client      String?
+  address     String?
+  areaM2      Float  @default(0)
+  status      String @default("Operacional")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model WorkOrder {
+  id          String @id @default(cuid())
+  number      String
+  client      String
+  equipment   String?
+  status      String @default("Rascunho")
+  date        String?
+  carrier     String?
+  service     String?
+  location    String?
+  responsible String?
+  progress    Float  @default(0)
+  priority    String @default("Normal")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Measurement {
+  id        String @id @default(cuid())
+  number    String
+  client    String
+  workOrder String?
+  period    String?
+  quantity  Float  @default(0)
+  unitPrice Float  @default(0)
+  total     Float  @default(0)
+  status    String @default("Pendente")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Occurrence {
+  id          String @id @default(cuid())
+  workOrder   String?
+  type        String?
+  description String
+  status      String @default("Em analise")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Setting {
+  id        String @id @default(cuid())
+  key       String @unique
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String @id @default(cuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  payload   Json?
+  createdAt DateTime @default(now())
+}

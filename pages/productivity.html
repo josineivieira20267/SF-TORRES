@@ -1,0 +1,67 @@
+<!-- Produtividade -->
+<div class="page-head">
+  <div>
+    <h1>Produtividade</h1>
+    <p class="subtitle">Indicadores operacionais por equipe, cliente, equipamento e turno.</p>
+  </div>
+  <div class="head-actions">
+    <button class="btn btn-ghost">Comparar períodos</button>
+    <button class="btn btn-primary">Exportar relatório</button>
+  </div>
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi kpi-success">
+    <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 6-6"/></svg></div>
+    <div><div class="label">Toneladas / hora</div><div class="value">8,4</div><div class="delta">meta: 7,5</div></div>
+  </div>
+  <div class="kpi">
+    <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+    <div><div class="label">Tempo médio OS</div><div class="value">04:32</div><div class="delta">Meta: 5h</div></div>
+  </div>
+  <div class="kpi kpi-warning">
+    <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div>
+    <div><div class="label">Índice de paradas</div><div class="value">3,8%</div><div class="delta">−1,1 p.p.</div></div>
+  </div>
+  <div class="kpi">
+    <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
+    <div><div class="label">OS concluídas</div><div class="value">328</div><div class="delta">mês corrente</div></div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:12px">
+  <div class="panel">
+    <div class="panel-head"><h3>Produtividade por equipe (últimos 7 dias)</h3></div>
+    <div class="panel-body">
+      <table class="dtbl">
+        <thead>
+          <tr><th>Equipe</th><th>Líder</th><th class="right">OS</th><th class="right">Ton.</th><th class="right">t/h</th><th class="right">Efic.</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Aliança — Desova</td><td>Joana Almeida</td><td class="right">48</td><td class="right">402,1</td><td class="right">9,1</td><td class="right"><span class="pill pill-success pill-dot">112%</span></td></tr>
+          <tr><td>Aliança — Carga</td><td>Marcelo Souza</td><td class="right">36</td><td class="right">298,4</td><td class="right">8,2</td><td class="right"><span class="pill pill-success pill-dot">101%</span></td></tr>
+          <tr><td>TransNorte 3 op.</td><td>Beatriz Lima</td><td class="right">22</td><td class="right">162,0</td><td class="right">7,6</td><td class="right"><span class="pill pill-info pill-dot">94%</span></td></tr>
+          <tr><td>Mov. Sul</td><td>Ronaldo Pena</td><td class="right">14</td><td class="right">98,2</td><td class="right">6,8</td><td class="right"><span class="pill pill-warning pill-dot">84%</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h3>Resumo por cliente</h3></div>
+    <div class="panel-body">
+      <table class="dtbl">
+        <thead><tr><th>Cliente</th><th class="right">OS</th><th class="right">Fat. (R$)</th></tr></thead>
+        <tbody>
+          <tr><td>SEMP TCL</td><td class="right">218</td><td class="right">125.430,00</td></tr>
+          <tr><td>ADF</td><td class="right">110</td><td class="right">58.820,00</td></tr>
+        </tbody>
+        <tfoot>
+          <tr style="background:#F2F5FA">
+            <td><b>Total</b></td><td class="right"><b>328</b></td><td class="right"><b>184.250,00</b></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+</div>

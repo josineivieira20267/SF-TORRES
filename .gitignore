@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+npm-debug.log*
+frontend/vite.out.log
+frontend/vite.err.log
+backend/.env
+backend/src/generated/

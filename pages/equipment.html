@@ -1,0 +1,33 @@
+<!-- Equipamentos -->
+<div class="page-head">
+  <div>
+    <h1>Equipamentos</h1>
+    <p class="subtitle">Cadastro de containers, veículos e equipamentos operacionais com status.</p>
+  </div>
+  <div class="head-actions">
+    <button class="btn btn-ghost">Vincular OS</button>
+    <button class="btn btn-primary">Novo equipamento</button>
+  </div>
+</div>
+
+<div class="toolbar">
+  <div class="filter"><label>Tipo</label><select><option>Todos</option><option>Container 40'</option><option>Container 20'</option><option>Caminhão</option></select></div>
+  <div class="filter"><label>Status</label><select><option>Todos</option><option>Disponível</option><option>Em uso</option><option>Manutenção</option></select></div>
+  <span class="spacer"></span>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h3>Equipamentos cadastrados</h3></div>
+  <div class="panel-body" style="padding:0">
+    <table class="dtbl">
+      <thead>
+        <tr><th>Código</th><th>Tipo</th><th>Marca / Modelo</th><th>Capacidade</th><th>Última manutenção</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="mono">HAMU2997067</td><td>Container 40'</td><td>Hamburg Süd · Dry</td><td>67 m³</td><td>12/06/2026</td><td><span class="pill pill-info pill-dot">Em uso</span></td></tr>
+        <tr><td class="mono">MSKU7738422</td><td>Container 20'</td><td>Maersk · Reefer</td><td>28 m³</td><td>—</td><td><span class="pill pill-success pill-dot">Disponível</span></td></tr>
+        <tr><td class="mono">CAV-014</td><td>Caminhão</td><td>Mercedes Atego 1719</td><td>9 ton</td><td>02/07/2026</td><td><span class="pill pill-warning pill-dot">Manutenção</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>

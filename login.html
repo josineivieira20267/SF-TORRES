@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SF TORRES — Acesso ao sistema</title>
+  <link rel="icon" type="image/svg+xml" href="assets/symbol-st.svg">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="login-shell">
+
+    <!-- Lado institucional -->
+    <aside class="login-aside">
+      <div class="logo-area">
+        <!-- Logo SM Torres (a do "TREINAMENTOS EMPRESARIAIS") -->
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 130" width="220" height="110">
+          <defs>
+            <linearGradient id="bsm" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" stop-color="#1A2E6D"/>
+              <stop offset="1" stop-color="#0A1747"/>
+            </linearGradient>
+          </defs>
+          <path d="M40 95 Q130 5 230 80" stroke="#C8102E" stroke-width="6" fill="none"/>
+          <path d="M40 110 Q130 30 230 100" stroke="#1A2E6D" stroke-width="6" fill="none"/>
+          <text x="48" y="90" font-family="Segoe UI,Arial,sans-serif" font-weight="900"
+                font-size="86" fill="url(#bsm)" stroke="#FFFFFF" stroke-width="2">SM</text>
+          <text x="58" y="118" font-family="Segoe UI,Arial,sans-serif" font-weight="900"
+                font-size="30" fill="#C8102E">TORRES</text>
+        </svg>
+      </div>
+
+      <div class="copy">
+        <h2>Centro Operacional<br>SF TORRES</h2>
+        <p>Plataforma corporativa de gestão de operações de logística, limpeza e conservação.
+          Controle ordens de serviço, equipes, equipamentos, medições e faturamento em um único ambiente.</p>
+      </div>
+
+      <div class="badges">
+        <div class="b"><b>100%</b><span>Operacional</span></div>
+        <div class="b"><b>4</b><span>Módulos ativos</span></div>
+        <div class="b"><b>2</b><span>Clientes</span></div>
+      </div>
+
+      <footer>© 2026 SF TORRES · ST Serviços de Logística · CNPJ 00.000.000/0001-00</footer>
+    </aside>
+
+    <!-- Lado login -->
+    <main class="login-main">
+      <div class="login-card">
+        <div class="brand-line">
+          <div class="mark">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 56" width="34" height="34">
+              <circle cx="28" cy="14" r="8" fill="#FFFFFF"/>
+              <path d="M14 38 Q28 22 42 38 L37 46 Q28 36 19 46 Z" fill="#FFFFFF"/>
+              <text x="14" y="44" font-family="Segoe UI,Arial,sans-serif" font-weight="800"
+                    font-size="18" fill="#0F2447" dominant-baseline="middle">ST</text>
+            </svg>
+          </div>
+          <div>
+            <div style="font-size:11px;letter-spacing:.4px;color:var(--c-text-soft);text-transform:uppercase">Centro Operacional</div>
+            <div style="font-size:15px;font-weight:700;color:var(--c-text);letter-spacing:.3px">SF TORRES</div>
+          </div>
+        </div>
+        <h1>Acesse sua conta</h1>
+        <p class="subtitle">Use suas credenciais corporativas para entrar no ambiente operacional.</p>
+
+        <form class="login-form" id="loginForm">
+          <div class="form-field">
+            <label for="usr">Usuário ou e-mail</label>
+            <input id="usr" type="text" placeholder="ex.: administrador@sftorres.com.br" value="admin@sftorres.local">
+          </div>
+          <div class="form-field">
+            <label for="pwd">Senha</label>
+            <input id="pwd" type="password" placeholder="••••••••" value="admin123">
+          </div>
+          <div class="form-field">
+            <label for="org">Empresa / Filial</label>
+            <select id="org">
+              <option>SF TORRES — Matriz Manaus/AM</option>
+              <option>ST Serviços de Logística — Filial</option>
+              <option>SM Torres — Treinamentos</option>
+            </select>
+          </div>
+          <div class="aux">
+            <label class="row" style="gap:6px">
+              <input type="checkbox" checked> Manter conectado
+            </label>
+            <a href="#">Esqueci minha senha</a>
+          </div>
+          <button class="btn btn-primary" type="submit" id="loginBtn">Entrar no sistema</button>
+        </form>
+
+        <div class="login-foot" id="loginMsg">
+          Acesso restrito a colaboradores autorizados. As ações são auditadas conforme LGPD.
+        </div>
+      </div>
+    </main>
+  </div>
+  <script>
+    const API_URL = 'http://127.0.0.1:3333';
+    const form = document.getElementById('loginForm');
+    const button = document.getElementById('loginBtn');
+    const message = document.getElementById('loginMsg');
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      button.disabled = true;
+      button.textContent = 'Entrando...';
+      message.textContent = 'Validando credenciais...';
+
+      try {
+        const response = await fetch(`${API_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: document.getElementById('usr').value.trim(),
+            password: document.getElementById('pwd').value
+          })
+        });
+
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error?.message || 'Falha no login');
+
+        localStorage.setItem('sfTorresToken', payload.data.token);
+        localStorage.setItem('sfTorresUser', JSON.stringify(payload.data.user));
+        location.href = 'index.html#/dailyOps';
+      } catch (error) {
+        message.textContent = error.message;
+        button.disabled = false;
+        button.textContent = 'Entrar no sistema';
+      }
+    });
+  </script>
+</body>
+</html>

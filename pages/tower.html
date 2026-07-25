@@ -1,0 +1,76 @@
+<!-- Torre Operacional -->
+<div class="page-head">
+  <div>
+    <h1>Torre Operacional</h1>
+    <p class="subtitle">Painel em tempo real das operações em andamento e fila de execução.</p>
+  </div>
+  <div class="head-actions">
+    <button class="btn btn-ghost">Tempo real</button>
+    <button class="btn btn-primary">Atualizar</button>
+  </div>
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi">
+    <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+    <div><div class="label">Operações ativas</div><div class="value">04</div><div class="delta">em campo agora</div></div>
+  </div>
+  <div class="kpi kpi-warning">
+    <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+    <div><div class="label">Na fila</div><div class="value">07</div><div class="delta">próximas 24h</div></div>
+  </div>
+  <div class="kpi kpi-success">
+    <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div>
+    <div><div class="label">Concluídas hoje</div><div class="value">12</div><div class="delta">ontem: 09</div></div>
+  </div>
+  <div class="kpi kpi-danger">
+    <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div>
+    <div><div class="label">Alertas</div><div class="value">02</div><div class="delta">atenção da torre</div></div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head">
+    <h3>Fila de execução</h3>
+    <div class="actions">
+      <button class="btn btn-sm">Filtrar</button>
+      <button class="btn btn-sm btn-primary">Acionar equipe</button>
+    </div>
+  </div>
+  <div class="panel-body" style="padding:0">
+    <table class="dtbl">
+      <thead>
+        <tr>
+          <th>OS</th><th>Cliente</th><th>Local</th><th>Equipe</th><th>Início</th><th>Término</th><th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="mono">0007-159</td><td>SEMP TCL</td><td>Pátio 3</td><td>Aliança · Desova</td>
+          <td>23/07 08:00</td><td>23/07 13:00</td>
+          <td><span class="pill pill-info pill-dot">Em execução</span></td>
+        </tr>
+        <tr>
+          <td class="mono">0007-160</td><td>SEMP TCL</td><td>Pátio 2</td><td>Aliança · Desova 2</td>
+          <td>24/07 07:00</td><td>—</td>
+          <td><span class="pill pill-success pill-dot">Aprovada</span></td>
+        </tr>
+        <tr>
+          <td class="mono">0007-157</td><td>ADF</td><td>Porto CSF</td><td>TransNorte · 3 op.</td>
+          <td>21/07 06:00</td><td>21/07 18:00</td>
+          <td><span class="pill pill-success pill-dot">Concluída</span></td>
+        </tr>
+        <tr>
+          <td class="mono">0007-156</td><td>SEMP TCL</td><td>Pátio 3</td><td>—</td>
+          <td>—</td><td>—</td>
+          <td><span class="pill pill-danger pill-dot">Paralisada</span></td>
+        </tr>
+        <tr>
+          <td class="mono">0007-155</td><td>ADF</td><td>CD Manaus</td><td>—</td>
+          <td>20/07 14:00</td><td>20/07 17:00</td>
+          <td><span class="pill pill-success pill-dot">Concluída</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
