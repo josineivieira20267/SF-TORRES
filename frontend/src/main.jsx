@@ -818,6 +818,7 @@ function Productivity() {
   const [employees, setEmployees] = useState([]);
   const [compare, setCompare] = useState(false);
   const [showOsLaunches, setShowOsLaunches] = useState(false);
+  const [filters, setFilters] = useState({ q: '', employee: 'Todos', criterion: 'Todos', status: 'Todos' });
   useEffect(() => {
     api(workOrdersEndpoint()).then((payload) => setOrders(listData(payload))).catch((error) => triggerAction(error.message));
     api('/api/employees').then((payload) => setEmployees(listData(payload))).catch((error) => triggerAction(error.message));
@@ -846,7 +847,18 @@ function Productivity() {
       return { order, name, status };
     });
   });
-  const byEmployee = Object.values(memberEntries.reduce((acc, entry) => {
+  const employeeOptions = ['Todos', ...Array.from(new Set(memberEntries.map((entry) => entry.name).filter(Boolean))).sort((a, b) => a.localeCompare(b))];
+  const filteredEntries = memberEntries.filter((entry) => {
+    const employee = employeeByName[normalize(entry.name)] || { name: entry.name, role: '-', team: '-' };
+    const criterion = criterionFor(employee);
+    const text = normalize(`${entry.order.number} ${entry.order.client} ${entry.order.service} ${entry.order.date} ${entry.name} ${employee.team} ${employee.role}`);
+    const queryOk = !filters.q || text.includes(normalize(filters.q));
+    const employeeOk = filters.employee === 'Todos' || entry.name === filters.employee;
+    const criterionOk = filters.criterion === 'Todos' || criterion.name === filters.criterion;
+    const statusOk = filters.status === 'Todos' || normalize(entry.status) === normalize(filters.status);
+    return queryOk && employeeOk && criterionOk && statusOk;
+  });
+  const byEmployee = Object.values(filteredEntries.reduce((acc, entry) => {
     const key = normalize(entry.name);
     const employee = employeeByName[key] || { name: entry.name, role: '-', team: '-' };
     const criterion = criterionFor(employee);
@@ -864,7 +876,7 @@ function Productivity() {
     const total = adjustedValue * item.present;
     return [item.employee.name, item.employee.role || '-', item.employee.team || '-', item.criterion.name, item.os, item.present, item.absences, money(adjustedValue), `${Math.round(factor * 100)}%`, money(total)];
   });
-  const osRows = memberEntries.map(({ order, name, status }) => {
+  const osRows = filteredEntries.map(({ order, name, status }) => {
     const employee = employeeByName[normalize(name)] || { name, role: '-', team: '-' };
     const criterion = criterionFor(employee);
     const employeeSummary = byEmployee.find((item) => normalize(item.employee.name) === normalize(name));
@@ -875,7 +887,7 @@ function Productivity() {
   const pendingCalls = byEmployee.reduce((sum, item) => sum + item.pending, 0);
   const totalBonus = byEmployee.reduce((sum, item) => sum + (item.criterion.base * discountFor(item.absences) * item.present), 0);
   const exportRows = [['Colaborador', 'Função', 'Equipe cadastro', 'Critério', 'OS', 'Presenças', 'Faltas', 'Valor base', 'Percentual', 'Total'], ...productivityRows.map((row) => row.map((cell) => displayText(cell)))];
-  return <><PageHead title="Produtividade dos colaboradores" subtitle="Apuração mensal por OS, chamada, faltas e critérios de bonificação." ghostActions={[compare ? 'Ocultar critérios' : 'Ver critérios', showOsLaunches ? 'Ocultar lançamentos' : 'Ver lançamentos por OS']} onGhostAction={(label) => label.includes('critério') || label.includes('critérios') ? setCompare((value) => !value) : setShowOsLaunches((value) => !value)} action="Exportar relatório" onAction={() => downloadCsv('produtividade-colaboradores.csv', exportRows)} /><div className="kpi-grid"><Kpi icon="users" label="Colaboradores avaliados" value={byEmployee.length} delta="com OS no período" success /><Kpi icon="file" label="OS apuradas" value={orders.length} delta="mês atual filtrado no banco" /><Kpi icon="alert" label="Faltas registradas" value={totalAbsences} delta={`${pendingCalls} chamadas pendentes`} warning /><Kpi icon="money" label="Bônus previsto" value={money(totalBonus)} delta="conforme critérios" /></div>{compare && <Panel title="Critérios de bonificação" padded><DataTable columns={['Equipe/Função', 'Valor integral', '1 ausência', '2 ausências', '3 ausências', '4+ ausências']} rows={bonusRules.map(ruleRow)} /></Panel>}<Panel title="Produtividade por colaborador" padded><DataTable columns={['Colaborador', 'Função', 'Equipe cadastro', 'Critério', 'OS', 'Pres.', 'Faltas', 'Valor OS', '%', 'Total']} rows={productivityRows} /></Panel>{showOsLaunches && <Panel title="Lançamentos por OS" padded><DataTable columns={['OS', 'Data', 'Cliente', 'Colaborador', 'Equipe', 'Critério', 'Chamada', 'Valor']} rows={osRows} /></Panel>}</>;
+  return <><PageHead title="Produtividade dos colaboradores" subtitle="Apuração mensal por OS, chamada, faltas e critérios de bonificação." ghostActions={[compare ? 'Ocultar critérios' : 'Ver critérios', showOsLaunches ? 'Ocultar lançamentos' : 'Ver lançamentos por OS']} onGhostAction={(label) => label.includes('critério') || label.includes('critérios') ? setCompare((value) => !value) : setShowOsLaunches((value) => !value)} action="Exportar relatório" onAction={() => downloadCsv('produtividade-colaboradores.csv', exportRows)} /><div className="toolbar"><div className="filter"><label>Buscar</label><input value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="OS, cliente, colaborador..." /></div><div className="filter"><label>Colaborador</label><select value={filters.employee} onChange={(event) => setFilters((old) => ({ ...old, employee: event.target.value }))}>{employeeOptions.map((name) => <option key={name}>{name}</option>)}</select></div><div className="filter"><label>Critério</label><select value={filters.criterion} onChange={(event) => setFilters((old) => ({ ...old, criterion: event.target.value }))}><option>Todos</option><option>Equipe PA</option><option>Batedores</option><option>Apoio</option><option>Sem critério</option></select></div><div className="filter"><label>Chamada</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Presente</option><option>Falta</option><option>Pendente</option></select></div><span className="spacer" /><span className="soft">{filteredEntries.length} lançamentos</span></div><div className="kpi-grid"><Kpi icon="users" label="Colaboradores avaliados" value={byEmployee.length} delta="com OS no filtro" success /><Kpi icon="file" label="OS apuradas" value={new Set(filteredEntries.map((entry) => entry.order.id || entry.order.number)).size} delta="mês atual filtrado no banco" /><Kpi icon="alert" label="Faltas registradas" value={totalAbsences} delta={`${pendingCalls} chamadas pendentes`} warning /><Kpi icon="money" label="Bônus previsto" value={money(totalBonus)} delta="conforme critérios" /></div>{compare && <Panel title="Critérios de bonificação" padded><DataTable columns={['Equipe/Função', 'Valor integral', '1 ausência', '2 ausências', '3 ausências', '4+ ausências']} rows={bonusRules.map(ruleRow)} /></Panel>}<Panel title="Produtividade por colaborador" padded><DataTable columns={['Colaborador', 'Função', 'Equipe cadastro', 'Critério', 'OS', 'Pres.', 'Faltas', 'Valor OS', '%', 'Total']} rows={productivityRows} /></Panel>{showOsLaunches && <Panel title="Lançamentos por OS" padded><DataTable columns={['OS', 'Data', 'Cliente', 'Colaborador', 'Equipe', 'Critério', 'Chamada', 'Valor']} rows={osRows} /></Panel>}</>;
 }
 
 function OperationalMap() {
