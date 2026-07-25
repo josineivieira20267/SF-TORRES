@@ -791,7 +791,7 @@ function DailyOps({ notify }) {
     api('/api/clients').then((payload) => setClients(payload.data)).catch(() => {});
     api('/api/equipment').then((payload) => setEquipment(payload.data)).catch(() => {});
     api('/api/services').then((payload) => setServices(payload.data)).catch(() => {});
-    api('/api/employees?role=Líder de turno').then((payload) => setLeaders((payload.data || []).filter((item) => normalize(item.role).includes('lider')))).catch(() => {
+    api('/api/employees').then((payload) => setLeaders((payload.data || []).filter((item) => normalize(item.role).includes('lider')))).catch(() => {
       api('/api/employees').then((payload) => setLeaders(payload.data.filter((item) => normalize(item.role).includes('lider')))).catch(() => {});
     });
   }, []);
