@@ -204,6 +204,12 @@ class ErrorBoundary extends React.Component {
 
   componentDidCatch(error) {
     console.error(error);
+    const recoverKey = `sf:recover:${this.props.resetKey}`;
+    if (!sessionStorage.getItem(recoverKey)) {
+      sessionStorage.setItem(recoverKey, '1');
+      window.setTimeout(() => window.location.reload(), 250);
+      return;
+    }
     if (this.state.retries < 2) {
       window.setTimeout(() => {
         this.setState((state) => ({ error: null, retries: state.retries + 1 }));
@@ -218,7 +224,7 @@ class ErrorBoundary extends React.Component {
         <div className="panel">
           <div className="panel-body">
             <h3>Abrindo tela...</h3>
-            <p className="soft">Preparando o módulo automaticamente.</p>
+            <p className="soft">Preparando o módulo automaticamente. Se a API estiver acordando, isso pode levar alguns segundos.</p>
           </div>
         </div>
       );
@@ -469,8 +475,9 @@ function Schedules({ notify }) {
   const days = ['Seg 20', 'Ter 21', 'Qua 22', 'Qui 23', 'Sex 24', 'Sáb 25', 'Dom 26'];
   const fields = [['employee', 'Operador'], ['role', 'Função'], ['weekStart', 'Semana', 'date'], ['base', 'Base'], ['monday', 'Segunda'], ['tuesday', 'Terça'], ['wednesday', 'Quarta'], ['thursday', 'Quinta'], ['friday', 'Sexta'], ['saturday', 'Sábado'], ['sunday', 'Domingo'], ['status', 'Status', 'select', ['Programada', 'Pendente', 'Cancelada']]];
   const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
-  const load = () => api('/api/schedules').then((p) => setItems(p.data)).catch((error) => { setItems([]); notify(error.message); });
+  const load = () => { setLoading(true); api('/api/schedules').then((p) => setItems(p.data)).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
   useEffect(load, []);
   const save = async (data) => {
     await api(modal?.id ? `/api/schedules/${modal.id}` : '/api/schedules', { method: modal?.id ? 'PUT' : 'POST', body: JSON.stringify(data) });
@@ -479,7 +486,7 @@ function Schedules({ notify }) {
     load();
   };
   const shift = (value) => value ? <Pill value={value} /> : '-';
-  const rows = items.map((item) => [item.employee, item.role, shift(item.monday), shift(item.tuesday), shift(item.wednesday), shift(item.thursday), shift(item.friday), shift(item.saturday), shift(item.sunday)]);
+  const rows = loading ? [['Carregando dados do banco...', '', '', '', '', '', '', '', '']] : items.map((item) => [item.employee, item.role, shift(item.monday), shift(item.tuesday), shift(item.wednesday), shift(item.thursday), shift(item.friday), shift(item.saturday), shift(item.sunday)]);
   return <><PageHead title="Programação de Equipes" subtitle="Planejamento semanal de alocação de operadores, líderes e equipamentos por turno." ghostAction="Imprimir escala" action="Nova escala" onAction={() => setModal({ weekStart: '2026-07-20', base: 'Manaus / AM' })} /><div className="toolbar"><div className="filter"><label>Semana</label><input type="date" defaultValue="2026-07-20" /></div><div className="filter"><label>Base</label><select><option>Manaus / AM</option><option>Itacoatiara / AM</option></select></div><div className="filter"><label>Turno</label><select><option>Todos</option><option>Manhã</option><option>Tarde</option><option>Noite</option></select></div><span className="spacer" /><button className="btn btn-sm" onClick={() => notify('Semana anterior carregada')}><Icon name="refresh" /> Semana anterior</button><button className="btn btn-sm" onClick={() => notify('Semana seguinte carregada')}>Semana seguinte</button></div><Panel title="Escala · 20 a 26 de julho de 2026" actions={<><Pill value={`${items.length} programadas`} /> <Pill value="02 pendentes" /></>}><DataTable columns={['Operador', 'Função', ...days]} rows={rows} /></Panel>{modal && <Editor title={modal.id ? 'Editar escala' : 'Nova escala'} fields={fields} initial={modal} onCancel={() => setModal(null)} onSave={save} />}</>;
 }
 
@@ -572,11 +579,12 @@ function Settings({ notify }) {
 function DailyOps({ notify }) {
   const fields = [['number', 'Número da OS'], ['client', 'Cliente'], ['equipment', 'Equipamento'], ['status', 'Status', 'select', ['Rascunho', 'Enviada', 'Aprovada', 'Em execucao', 'Concluida', 'Cancelada']], ['date', 'Data', 'date'], ['carrier', 'Transportador'], ['service', 'Serviço'], ['location', 'Local'], ['responsible', 'Responsável'], ['progress', 'Percentual', 'number'], ['priority', 'Prioridade', 'select', ['Baixa', 'Normal', 'Alta', 'Crítica']]];
   const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState('');
   const [modal, setModal] = useState(null);
   const selected = items.find((i) => i.id === selectedId) || items[0];
   const counts = useMemo(() => items.reduce((acc, item) => ({ ...acc, [item.status]: (acc[item.status] || 0) + 1 }), {}), [items]);
-  const load = () => api('/api/workOrders').then((p) => { setItems(p.data); setSelectedId((old) => old || p.data[0]?.id || ''); }).catch((error) => { setItems([]); notify(error.message); });
+  const load = () => { setLoading(true); api('/api/workOrders').then((p) => { setItems(p.data); setSelectedId((old) => old || p.data[0]?.id || ''); }).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
   useEffect(load, []);
   const save = async (data) => {
     await api(modal?.id ? `/api/workOrders/${modal.id}` : '/api/workOrders', { method: modal?.id ? 'PUT' : 'POST', body: JSON.stringify(data) });
@@ -607,7 +615,7 @@ function DailyOps({ notify }) {
       <div className="detail">
         <div className="pane" style={{ overflow: 'hidden' }}>
           <div className="table-tools"><input className="search-input" placeholder="Filtrar resultados..." /><span className="spacer" /><span className="soft">Ordenar: <b>Data ↓</b></span></div>
-          <div className="table-scroll"><table className="dtbl"><thead><tr><th>OS</th><th>Cliente</th><th>Equipamento</th><th>Status</th><th className="right">Data</th></tr></thead><tbody>{items.map((i) => <tr key={i.id} className={selected?.id === i.id ? 'selected' : ''} onClick={() => setSelectedId(i.id)}><td className="mono">{i.number}</td><td>{i.client}</td><td className="mono">{i.equipment || '-'}</td><td><Pill value={i.status} /></td><td className="right">{date(i.date)}</td></tr>)}</tbody></table></div>
+          <div className="table-scroll"><table className="dtbl"><thead><tr><th>OS</th><th>Cliente</th><th>Equipamento</th><th>Status</th><th className="right">Data</th></tr></thead><tbody>{loading ? <tr><td colSpan="5">Carregando dados do banco...</td></tr> : items.map((i) => <tr key={i.id} className={selected?.id === i.id ? 'selected' : ''} onClick={() => setSelectedId(i.id)}><td className="mono">{i.number}</td><td>{i.client}</td><td className="mono">{i.equipment || '-'}</td><td><Pill value={i.status} /></td><td className="right">{date(i.date)}</td></tr>)}</tbody></table></div>
         </div>
         <div className="pane">{selected && <><div className="pane-head"><div><div className="eyebrow">Ordem de Serviço</div><div className="mono-title">OS {selected.number} · {selected.client}</div></div><div className="meta"><Pill value={selected.status} /></div></div><div className="tabs"><div className="tab active">Dados</div><div className="tab">Equipe</div><div className="tab">Horários</div><div className="tab">Ocorrências</div></div><div className="pane-body">{[['Data', date(selected.date)], ['Transportador', selected.carrier], ['Serviço', selected.service], ['Equipamento', selected.equipment || '-'], ['Posto', 'ARCONDICIONADO - 0 un.'], ['Responsável', selected.responsible], ['Percentual', `${selected.progress || 0}%`], ['Prioridade', selected.priority]].map(([k, v]) => <div className="field-row" key={k}><b>{k}</b><span>{v}</span></div>)}</div><div className="action-strip"><button className="btn" onClick={() => setModal(selected)}>Editar OS</button><button className="btn" onClick={() => triggerAction('Correção solicitada')}>Solicitar correção</button><button className="btn btn-success" onClick={async () => { await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ workOrder: selected.number, type: 'Operacional', description: 'Ocorrência lançada pela tela de operação diária', status: 'Aberta' }) }); notify('Ocorrência registrada no banco'); }}>Lançar ocorrência</button><button className="btn btn-danger push" onClick={remove}>Apagar</button></div></>}</div>
       </div>
@@ -632,9 +640,10 @@ function Measurement({ notify }) {
 
 function CrudScreen({ config, notify, beforeTable }) {
   const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const [modal, setModal] = useState(null);
-  const load = () => api(`${config.endpoint}${q ? `?q=${encodeURIComponent(q)}` : ''}`).then((p) => setItems(p.data)).catch((error) => { setItems([]); notify(error.message); });
+  const load = () => { setLoading(true); api(`${config.endpoint}${q ? `?q=${encodeURIComponent(q)}` : ''}`).then((p) => setItems(p.data)).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
   useEffect(load, [q]);
   const save = async (data) => {
     await api(modal?.id ? `${config.endpoint}/${modal.id}` : config.endpoint, { method: modal?.id ? 'PUT' : 'POST', body: JSON.stringify(data) });
@@ -651,7 +660,7 @@ function CrudScreen({ config, notify, beforeTable }) {
       {config.toolbar && <Toolbar fields={config.toolbar} count={items.length} />}
       {!config.noToolbar && !config.toolbar && <div className="toolbar"><div className="filter"><label>Buscar</label><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar..." /></div><span className="spacer" /><span className="soft">{items.length} registros</span></div>}
       {beforeTable}
-      <div className="panel" style={{ overflow: 'hidden' }}><div className="panel-head"><h3>{panelTitle(config, items.length)}</h3>{config.panelActions && <div className="actions">{typeof config.panelActions === 'function' ? config.panelActions({ items, load }) : config.panelActions}</div>}</div><div className="panel-body" style={{ padding: 0 }}><table className="dtbl"><thead><tr>{config.columns.map((c) => <th key={c.label} className={c.right ? 'right' : ''}>{c.label}</th>)}<th /></tr></thead><tbody>{items.map((item) => <tr key={item.id}>{config.columns.map((c) => <td key={c.label} className={`${c.mono ? 'mono' : ''} ${c.right ? 'right' : ''}`}>{c.render ? c.render(item) : item[c.key]}</td>)}<td className="right"><button className="btn btn-sm" onClick={() => setModal(item)}>Editar</button> <button className="btn btn-sm btn-danger" onClick={() => remove(item)}>Apagar</button></td></tr>)}</tbody></table></div></div>
+      <div className="panel" style={{ overflow: 'hidden' }}><div className="panel-head"><h3>{panelTitle(config, items.length)}</h3>{config.panelActions && <div className="actions">{typeof config.panelActions === 'function' ? config.panelActions({ items, load }) : config.panelActions}</div>}</div><div className="panel-body" style={{ padding: 0 }}><table className="dtbl"><thead><tr>{config.columns.map((c) => <th key={c.label} className={c.right ? 'right' : ''}>{c.label}</th>)}<th /></tr></thead><tbody>{loading ? <tr><td colSpan={config.columns.length + 1}>Carregando dados do banco...</td></tr> : items.map((item) => <tr key={item.id}>{config.columns.map((c) => <td key={c.label} className={`${c.mono ? 'mono' : ''} ${c.right ? 'right' : ''}`}>{c.render ? c.render(item) : item[c.key]}</td>)}<td className="right"><button className="btn btn-sm" onClick={() => setModal(item)}>Editar</button> <button className="btn btn-sm btn-danger" onClick={() => remove(item)}>Apagar</button></td></tr>)}</tbody></table></div></div>
       {modal && <Editor title={modal.id ? `Editar ${config.title}` : config.newLabel} fields={config.fields} initial={modal} onCancel={() => setModal(null)} onSave={save} />}
     </>
   );
