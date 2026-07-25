@@ -93,6 +93,29 @@ async function main() {
     ],
     skipDuplicates: true
   });
+
+  await prisma.schedule.createMany({
+    data: [
+      { id: 'sch_001', employee: 'Joana Almeida', role: 'Lider de turno', weekStart: '2026-07-20', base: 'Manaus / AM', monday: 'M 06-14', tuesday: 'M 06-14', wednesday: 'M 06-14', thursday: 'M 06-14', friday: 'M 06-14', saturday: '', sunday: '', status: 'Programada' },
+      { id: 'sch_002', employee: 'Marcelo Souza', role: 'Operador', weekStart: '2026-07-20', base: 'Manaus / AM', monday: 'T 14-22', tuesday: 'T 14-22', wednesday: 'T 14-22', thursday: 'T 14-22', friday: 'T 14-22', saturday: 'Folga', sunday: 'Folga', status: 'Programada' },
+      { id: 'sch_003', employee: 'Beatriz Lima', role: 'Operadora', weekStart: '2026-07-20', base: 'Manaus / AM', monday: 'N 22-06', tuesday: 'N 22-06', wednesday: 'Folga', thursday: 'N 22-06', friday: 'N 22-06', saturday: 'N 22-06', sunday: 'Folga', status: 'Programada' }
+    ],
+    skipDuplicates: true
+  });
+
+  await prisma.setting.upsert({
+    where: { key: 'company' },
+    update: {},
+    create: {
+      key: 'company',
+      value: {
+        legalName: 'ST Serviços de Logística LTDA',
+        fantasyName: 'SF TORRES',
+        cnpj: '00.000.000/0001-00',
+        phone: '(92) 99267-8067'
+      }
+    }
+  });
 }
 
 main()

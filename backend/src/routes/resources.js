@@ -11,7 +11,10 @@ const resources = {
   equipment: createController('equipment', ['code', 'type', 'model', 'status'], 'equipment'),
   locations: createController('locations', ['code', 'description', 'client', 'address', 'status'], 'location'),
   workOrders: createController('workOrders', ['number', 'client', 'equipment', 'service', 'status', 'carrier'], 'workOrder'),
-  measurements: createController('measurements', ['number', 'client', 'workOrder', 'status'], 'measurement')
+  measurements: createController('measurements', ['number', 'client', 'workOrder', 'status'], 'measurement'),
+  occurrences: createController('occurrences', ['workOrder', 'type', 'description', 'status'], 'occurrence'),
+  schedules: createController('schedules', ['employee', 'role', 'base', 'status'], 'schedule'),
+  settings: createController('settings', ['key'], 'setting')
 };
 
 router.use(requireAuth);

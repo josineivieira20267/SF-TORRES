@@ -123,6 +123,24 @@ model Occurrence {
   updatedAt   DateTime @updatedAt
 }
 
+model Schedule {
+  id        String @id @default(cuid())
+  employee  String
+  role      String?
+  weekStart String
+  base      String?
+  monday    String?
+  tuesday   String?
+  wednesday String?
+  thursday  String?
+  friday    String?
+  saturday  String?
+  sunday    String?
+  status    String @default("Programada")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Setting {
   id        String @id @default(cuid())
   key       String @unique
