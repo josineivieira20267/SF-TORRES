@@ -105,13 +105,16 @@ function createController(collection, searchableFields = ['name', 'code', 'descr
 
     async create(req, res, next) {
       try {
+        const body = collection === 'workOrders' && req.user
+          ? { ...req.body, createdBy: req.body.createdBy || req.user.name || req.user.email }
+          : req.body;
         if (hasDatabaseUrl) {
-          const item = await prisma[prismaModel].create({ data: req.body });
+          const item = await prisma[prismaModel].create({ data: body });
           return res.status(201).json({ data: item });
         }
 
         const now = new Date().toISOString();
-        const item = { id: nanoid(10), ...req.body, createdAt: now, updatedAt: now };
+        const item = { id: nanoid(10), ...body, createdAt: now, updatedAt: now };
         await updateDb((db) => {
           db[collection] = db[collection] || [];
           db[collection].push(item);

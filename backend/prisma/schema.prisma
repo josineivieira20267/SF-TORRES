@@ -106,6 +106,7 @@ model WorkOrder {
   correctionApproved  Boolean @default(false)
   progress    Float  @default(0)
   priority    String @default("Normal")
+  createdBy   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
