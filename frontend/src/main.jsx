@@ -78,6 +78,15 @@ function absenceCount(order) {
   return Object.values(order.attendance).filter((value) => normalize(typeof value === 'object' ? value.status : value) === 'falta').length;
 }
 
+function isFinalStatus(status) {
+  const value = normalize(status);
+  return value.includes('finalizado') || value.includes('conclu');
+}
+
+function isOpenQueueStatus(status) {
+  return ['programado', 'rascunho', 'enviada', 'aprovada'].includes(normalize(status));
+}
+
 const occurrenceFields = [
   ['type', 'Tipo', 'select', ['Operacional', 'Segurança', 'Atraso', 'Equipamento', 'Correção']],
   ['description', 'Descrição', 'textarea'],
@@ -567,7 +576,7 @@ function Dashboard() {
     api('/api/dashboard/summary').then((p) => setSummary(p.data)).catch((error) => triggerAction(error.message));
     api('/api/workOrders').then((p) => setOrders(p.data)).catch((error) => triggerAction(error.message));
   }, []);
-  const shownOrders = onlyOpen ? orders.filter((order) => !String(order.status).toLowerCase().includes('conclu')) : orders;
+  const shownOrders = onlyOpen ? orders.filter((order) => !isFinalStatus(order.status)) : orders;
   return (
     <>
       <PageHead title="Painel Corporativo" subtitle="Visão consolidada das operações, produtividade e faturamento." ghostAction="Exportar" onGhostAction={() => downloadCsv('painel-ordens-recentes.csv', [['OS', 'Cliente', 'Serviço', 'Equipamento', 'Equipe', 'Status', 'Data'], ...shownOrders.map((o) => [o.number, o.client, o.service, o.equipment, o.carrier, o.status, o.date])])} action="Atualizar agora" onAction={() => { triggerAction('Painel atualizado'); api('/api/dashboard/summary').then((p) => setSummary(p.data)).catch((error) => triggerAction(error.message)); api('/api/workOrders').then((p) => setOrders(p.data)).catch((error) => triggerAction(error.message)); }} />
@@ -600,19 +609,19 @@ function Tower() {
   useEffect(load, []);
   const visible = statusFilter === 'Todos'
     ? orders
-    : orders.filter((order) => ['Aprovada', 'Enviada', 'Em execucao', 'Rascunho'].includes(order.status));
+    : orders.filter((order) => isOpenQueueStatus(order.status) || order.status === 'Em execucao');
   const active = orders.filter((order) => String(order.status).includes('exec')).length;
-  const done = orders.filter((order) => String(order.status).toLowerCase().includes('conclu')).length;
-  const queue = orders.filter((order) => ['Aprovada', 'Enviada', 'Rascunho'].includes(order.status)).length;
-  const alertCount = orders.filter((order) => ['Paralisada', 'Cancelada'].includes(order.status)).length;
+  const done = orders.filter((order) => isFinalStatus(order.status)).length;
+  const queue = orders.filter((order) => isOpenQueueStatus(order.status)).length;
+  const alertCount = orders.filter((order) => ['Paralisada', 'Cancelada', 'Cancelado'].includes(order.status)).length;
   const assignTeam = async () => {
-    const order = visible.find((item) => ['Aprovada', 'Enviada', 'Rascunho'].includes(item.status));
+    const order = visible.find((item) => isOpenQueueStatus(item.status));
     if (!order) return triggerAction('Nenhuma OS na fila');
     await api(`/api/workOrders/${order.id}`, { method: 'PUT', body: JSON.stringify({ ...order, status: 'Em execucao', carrier: order.carrier || 'Equipe acionada pela torre', progress: Math.max(Number(order.progress || 0), 10) }) });
     triggerAction(`Equipe acionada para OS ${order.number}`);
     load();
   };
-  const rows = visible.map((order) => [order.number, order.client, order.location || '-', order.carrier || 'Sem equipe', date(order.date), order.status === 'Concluida' ? date(order.updatedAt) : '-', <Pill value={order.status} />]);
+  const rows = visible.map((order) => [order.number, order.client, order.location || '-', order.carrier || 'Sem equipe', date(order.date), isFinalStatus(order.status) ? date(order.updatedAt) : '-', <Pill value={order.status} />]);
   return <><PageHead title="Torre Operacional" subtitle="Painel em tempo real das operações em andamento e fila de execução." ghostAction="Tempo real" onGhostAction={() => setStatusFilter((value) => value === 'Todos' ? 'Fila' : 'Todos')} action="Atualizar" onAction={load} /><div className="kpi-grid"><Kpi icon="pulse" label="Operações ativas" value={active} delta="em campo agora" /><Kpi icon="clock" label="Na fila" value={queue} delta="próximas 24h" warning /><Kpi icon="check" label="Concluídas" value={done} delta="ordens no sistema" success /><Kpi icon="alert" label="Alertas" value={alertCount} delta="atenção da torre" danger /></div><Panel title="Fila de execução" actions={<><button className="btn btn-sm" onClick={() => setStatusFilter((value) => value === 'Todos' ? 'Fila' : 'Todos')}>{statusFilter === 'Todos' ? 'Ver fila' : 'Ver todas'}</button><button className="btn btn-sm btn-primary" onClick={assignTeam}>Acionar equipe</button></>}><DataTable columns={['OS', 'Cliente', 'Local', 'Equipe', 'Início', 'Término', 'Status']} rows={rows} /></Panel></>;
 }
 
@@ -651,7 +660,7 @@ function Schedules({ notify, editable = true }) {
     load();
   };
   const markStart = (order) => updateOrder(order, { operationStart: new Date().toLocaleString('pt-BR'), operationEnd: '', status: 'Em execucao', progress: Math.max(Number(order.progress || 0), 10) }, 'Inicio da operacao marcado');
-  const markEnd = (order) => updateOrder(order, { operationEnd: new Date().toLocaleString('pt-BR'), status: 'Concluida', progress: 100, correctionRequested: false, correctionApproved: false }, 'Fim da operacao marcado');
+  const markEnd = (order) => updateOrder(order, { operationEnd: new Date().toLocaleString('pt-BR'), status: 'Finalizado', progress: 100, correctionRequested: false, correctionApproved: false }, 'Fim da operacao marcado');
   const requestLeaderCorrection = async (order) => {
     if (order.correctionRequested && !order.correctionApproved) return notify('Correção já solicitada ao administrativo');
     await updateOrder(order, { correctionRequested: true, correctionApproved: false }, 'Solicitacao de correcao enviada ao administrativo');
@@ -674,7 +683,7 @@ function Schedules({ notify, editable = true }) {
   };
   const leaderActions = (item) => {
     if (!editable) return <span className="soft">Somente leitura</span>;
-    const done = item.status === 'Concluida';
+    const done = isFinalStatus(item.status);
     if (done && !item.correctionApproved) return <button className="btn btn-sm" onClick={() => requestLeaderCorrection(item)}>{item.correctionRequested ? 'Correção solicitada' : 'Solicitar correção'}</button>;
     return (
       <div className="inline-actions">
@@ -692,14 +701,14 @@ function Schedules({ notify, editable = true }) {
       <PageHead title="Programação de Equipes" subtitle="Fila de OS criadas pela administração para o líder vincular e acompanhar pelo próprio usuário." ghostAction="Exportar OS" onGhostAction={exportRows} action="Atualizar" onAction={load} />
       <div className="toolbar">
         <div className="filter"><label>Buscar</label><input type="text" value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="OS, cliente, equipamento..." /></div>
-        <div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Rascunho</option><option>Enviada</option><option>Aprovada</option><option>Em execucao</option><option>Concluida</option><option>Cancelada</option></select></div>
+        <div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Programado</option><option>Em execucao</option><option>Finalizado</option><option>Cancelado</option></select></div>
         <span className="spacer" /><span className="soft">{visibleOrders.length} OS para este usuario</span>
       </div>
       <div className="kpi-grid">
         <Kpi icon="file" label="OS recebidas" value={visibleOrders.length} delta="vinculadas ao lider" />
-        <Kpi icon="clock" label="Pendentes" value={visibleOrders.filter((item) => ['Rascunho', 'Enviada'].includes(item.status)).length} delta="aguardando programacao" warning />
+        <Kpi icon="clock" label="Programadas" value={visibleOrders.filter((item) => item.status === 'Programado').length} delta="aguardando inicio" warning />
         <Kpi icon="home" label="Em campo" value={visibleOrders.filter((item) => item.status === 'Em execucao').length} delta="em execucao" />
-        <Kpi icon="check" label="Concluidas" value={visibleOrders.filter((item) => item.status === 'Concluida').length} delta="finalizadas" success />
+        <Kpi icon="check" label="Finalizadas" value={visibleOrders.filter((item) => item.status === 'Finalizado').length} delta="finalizadas" success />
       </div>
       <Panel title="OS direcionadas ao lider" actions={<Pill value={user.name || user.email || 'usuario'} />}><DataTable columns={['OS', 'Cliente', 'Servico', 'Produto', 'Integrantes', 'Status', 'Inicio', 'Fim', 'Acao']} rows={rows} /></Panel>
       {attendanceModal && <AttendanceModal order={attendanceModal} onCancel={() => setAttendanceModal(null)} onSave={(attendance) => updateOrder(attendanceModal, { attendance }, 'Chamada salva na OS')} />}
@@ -717,7 +726,7 @@ function Productivity() {
     api('/api/workOrders').then((payload) => setOrders(payload.data)).catch((error) => triggerAction(error.message));
     api('/api/measurements').then((payload) => setMeasurements(payload.data)).catch((error) => triggerAction(error.message));
   }, []);
-  const done = orders.filter((order) => String(order.status).toLowerCase().includes('conclu'));
+  const done = orders.filter((order) => isFinalStatus(order.status));
   const byTeam = Object.values(orders.reduce((acc, order) => {
     const team = order.carrier || 'Sem equipe';
     acc[team] = acc[team] || { team, os: 0, progress: 0 };
@@ -892,7 +901,7 @@ function DailyOps({ notify, editable = true }) {
     ['equipment', 'Equipamento', 'select', equipmentTypes],
     ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')],
     ['trailerPlate', 'Placa da carreta', 'text', null, (form) => normalize(form.equipment).includes('carreta')],
-    ['status', 'Status', 'select', ['Rascunho', 'Enviada', 'Aprovada', 'Em execucao', 'Concluida', 'Cancelada']],
+    ['status', 'Status', 'select', ['Programado', 'Em execucao', 'Finalizado', 'Cancelado']],
     ['date', 'Data', 'date'],
     ['carrier', 'Transportador'],
     ['service', 'Serviço', 'select', ['', ...optionValues(services, 'description', 'code')]],
@@ -992,18 +1001,18 @@ function DailyOps({ notify, editable = true }) {
   };
   return (
     <>
-      <PageHead title="Operação Diária" subtitle="Gestão detalhada das OS com filtros, confirmação de equipe, horários e ocorrências." ghostActions={['Histórico', 'Exportar planilha']} onGhostAction={(label) => label === 'Histórico' ? setHistoryOpen(true) : exportFiltered()} action="Nova OS" onAction={() => setModal({})} />
+      <PageHead title="Operação Diária" subtitle="Gestão detalhada das OS com filtros, confirmação de equipe, horários e ocorrências." ghostActions={['Histórico', 'Exportar planilha']} onGhostAction={(label) => label === 'Histórico' ? setHistoryOpen(true) : exportFiltered()} action="Nova OS" onAction={() => setModal({ status: 'Programado' })} />
       <div className="toolbar">
         <div className="filter"><label>Buscar</label><input type="text" value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="OS, cliente, equipamento..." /></div>
-        <div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Rascunho</option><option>Enviada</option><option>Aprovada</option><option>Em execucao</option><option>Concluida</option><option>Cancelada</option></select></div>
+        <div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Programado</option><option>Em execucao</option><option>Finalizado</option><option>Cancelado</option></select></div>
         <div className="filter"><label>Cliente</label><select value={filters.client} onChange={(event) => setFilters((old) => ({ ...old, client: event.target.value }))}>{clientOptions.map((client) => <option key={client}>{client}</option>)}</select></div>
         <div className="filter"><label>Período</label><select value={filters.period} onChange={(event) => setFilters((old) => ({ ...old, period: event.target.value }))}><option>Hoje</option><option>Esta semana</option><option>Este mês</option><option>Personalizado</option></select></div>
         <span className="spacer" />
         <span className="soft">{filteredItems.length} resultados</span>
       </div>
       <div className="kpi-grid">
-        <Kpi icon="check" label="Aprovadas" value={counts.Aprovada || 0} delta="prontas para execução" success />
-        <Kpi icon="clock" label="Enviadas" value={counts.Enviada || 0} delta="aguardando aprovação" warning />
+        <Kpi icon="check" label="Programadas" value={counts.Programado || 0} delta="prontas para execução" success />
+        <Kpi icon="clock" label="Finalizadas" value={counts.Finalizado || 0} delta="operações concluídas" warning />
         <Kpi icon="home" label="Em execução" value={counts['Em execucao'] || 0} delta="campo" />
         <Kpi icon="alert" label="Ocorrências" value="02" delta="em análise" danger />
       </div>
