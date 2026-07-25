@@ -377,16 +377,17 @@ function Pill({ value }) {
 }
 
 function App() {
+  const [authenticated, setAuthenticated] = useState(() => Boolean(localStorage.getItem('sfTorresToken')));
   const [route, setRoute] = useState(() => localStorage.getItem('sfTorresToken') ? cleanRoute(window.location.hash) : 'login');
   const [toast, setToast] = useState('');
   const [settings, setSettings] = useState(readStoredSettings);
   const [panel, setPanel] = useState(null);
 
   useEffect(() => {
-    const onHash = () => setRoute(localStorage.getItem('sfTorresToken') ? cleanRoute(window.location.hash) : 'login');
+    const onHash = () => setRoute(authenticated ? cleanRoute(window.location.hash) : 'login');
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
-  }, []);
+  }, [authenticated]);
 
   useEffect(() => {
     applySystemSettings(settings);
@@ -415,18 +416,20 @@ function App() {
 
   const goLogin = () => {
     localStorage.clear();
+    setAuthenticated(false);
     setPanel(null);
     window.location.hash = '#/login';
     setRoute('login');
   };
 
-  const goAfterLogin = () => {
-    const nextRoute = firstAllowedRoute();
+  const goAfterLogin = (user) => {
+    setAuthenticated(true);
+    const nextRoute = routeKeys.find((key) => canView(key, user)) || firstAllowedRoute();
     window.location.hash = `#/${nextRoute}`;
     setRoute(nextRoute);
   };
 
-  if (route === 'login' || !localStorage.getItem('sfTorresToken')) {
+  if (route === 'login' || !authenticated) {
     return <Login settings={settings} onLogin={goAfterLogin} />;
   }
 
@@ -469,7 +472,7 @@ function Login({ settings, onLogin }) {
       });
       localStorage.setItem('sfTorresToken', payload.data.token);
       localStorage.setItem('sfTorresUser', JSON.stringify(payload.data.user));
-      onLogin();
+      onLogin(payload.data.user);
     } catch (error) {
       setMessage(error.message);
       setLoading(false);
