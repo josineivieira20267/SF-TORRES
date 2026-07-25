@@ -683,6 +683,9 @@ function Schedules({ notify, editable = true }) {
   const employeeOptions = employees.map((item) => item.name).filter(Boolean);
   const equipmentOptions = ['', ...Array.from(new Set(equipment.map((item) => item.type).filter(Boolean)))];
   const saveOperationEdit = (data) => {
+    const required = [['carrier', 'Transportador'], ['location', 'Local'], ['equipment', 'Equipamento'], ['product', 'Produto'], ['progress', 'Percentual']];
+    const missing = required.find(([name]) => String(data[name] ?? '').trim() === '');
+    if (missing) return notify(`Preencha o campo obrigatorio: ${missing[1]}`);
     const before = Array.isArray(operationModal.teamMembers) ? operationModal.teamMembers : [];
     const after = Array.isArray(data.teamMembers) ? data.teamMembers : [];
     const changedTeam = before.length !== after.length || before.some((name) => !after.includes(name)) || after.some((name) => !before.includes(name));
@@ -720,7 +723,7 @@ function Schedules({ notify, editable = true }) {
       </div>
       <Panel title="OS direcionadas ao lider" actions={<Pill value={user.name || user.email || 'usuario'} />}><DataTable columns={['OS', 'Cliente', 'Servico', 'Produto', 'Integrantes', 'Data programada', 'Status', 'Inicio', 'Fim', 'Acao']} rows={rows} /></Panel>
       {attendanceModal && <AttendanceModal order={attendanceModal} onCancel={() => setAttendanceModal(null)} onSave={(attendance) => updateOrder(attendanceModal, { attendance }, 'Chamada salva na OS')} />}
-      {operationModal && <Editor title="Editar operacao da OS" fields={[['carrier', 'Transportador'], ['location', 'Local'], ['product', 'Produto'], ['equipment', 'Equipamento', 'select', equipmentOptions], ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')], ['trailerPlate', 'Placa da carreta', 'text', null, (form) => normalize(form.equipment).includes('carreta')], ['teamMembers', 'Incluir integrantes da equipe', 'employees', employeeOptions], ['teamNote', 'Observacao obrigatoria ao alterar equipe', 'textarea'], ['progress', 'Percentual', 'number']]} initial={operationModal} onCancel={() => setOperationModal(null)} onSave={saveOperationEdit} />}
+      {operationModal && <Editor title="Editar operacao da OS" fields={[['carrier', 'Transportador', 'text', null, null, true], ['location', 'Local', 'text', null, null, true], ['product', 'Produto', 'text', null, null, true], ['equipment', 'Equipamento', 'select', equipmentOptions, null, true], ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')], ['trailerPlate', 'Placa da carreta', 'text', null, (form) => normalize(form.equipment).includes('carreta')], ['teamMembers', 'Incluir integrantes da equipe', 'employees', employeeOptions, () => absenceCount(operationModal) > 0], ['teamNote', 'Observacao obrigatoria ao alterar equipe', 'textarea', null, () => absenceCount(operationModal) > 0], ['progress', 'Percentual', 'number', null, null, true]]} initial={operationModal} onCancel={() => setOperationModal(null)} onSave={saveOperationEdit} />}
       {occurrenceModal && <Editor title={`Lançar ocorrência · OS ${occurrenceModal.number}`} fields={occurrenceFields} initial={{ workOrder: occurrenceModal.number, type: 'Operacional', status: 'Aberta' }} onCancel={() => setOccurrenceModal(null)} onSave={saveLeaderOccurrence} />}
     </>
   );
@@ -904,18 +907,18 @@ function DailyOps({ notify, editable = true }) {
   const optionValues = (list, ...keys) => list.map((item) => keys.map((key) => item[key]).find(Boolean)).filter(Boolean);
   const equipmentTypes = ['', ...Array.from(new Set(equipment.map((item) => item.type).filter(Boolean)))];
   const fields = [
-    ['number', 'Número da OS'],
-    ['client', 'Cliente', 'select', ['', ...optionValues(clients, 'name', 'legalName')]],
+    ['number', 'Número da OS', 'text', null, null, true],
+    ['client', 'Cliente', 'select', ['', ...optionValues(clients, 'name', 'legalName')], null, true],
     ['equipment', 'Equipamento', 'select', equipmentTypes],
     ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')],
     ['trailerPlate', 'Placa da carreta', 'text', null, (form) => normalize(form.equipment).includes('carreta')],
     ['status', 'Status', 'select', ['Programado', 'Em execucao', 'Finalizado', 'Cancelado']],
-    ['date', 'Data programada', 'datetime-local'],
+    ['date', 'Data programada', 'datetime-local', null, null, true],
     ['carrier', 'Transportador'],
-    ['service', 'Serviço', 'select', ['', ...optionValues(services, 'description', 'code')]],
+    ['service', 'Serviço', 'select', ['', ...optionValues(services, 'description', 'code')], null, true],
     ['location', 'Local'],
-    ['responsible', 'Responsável', 'select', ['', ...optionValues(leaders, 'name')]],
-    ['teamMembers', 'Integrantes da equipe', 'employees', optionValues(employees, 'name')],
+    ['responsible', 'Responsável', 'select', ['', ...optionValues(leaders, 'name')], null, true],
+    ['teamMembers', 'Integrantes da equipe', 'employees', optionValues(employees, 'name'), null, true],
     ['product', 'Produto'],
     ['operationStart', 'Início da operação', 'datetime-local'],
     ['operationEnd', 'Fim da operação', 'datetime-local'],
@@ -1114,16 +1117,25 @@ function Editor({ title, fields, initial, onCancel, onSave }) {
     }
     return next;
   });
+  const isVisible = (visible) => !visible || visible(form);
+  const isRequired = (required) => typeof required === 'function' ? required(form) : Boolean(required);
+  const isEmpty = (value) => Array.isArray(value) ? value.length === 0 : String(value ?? '').trim() === '';
+  const submit = (event) => {
+    event.preventDefault();
+    const missing = fields.find(([name, label, , , visible, required]) => isVisible(visible) && isRequired(required) && isEmpty(form[name]));
+    if (missing) return alert(`Preencha o campo obrigatorio: ${missing[1]}`);
+    return onSave(form);
+  };
   return (
     <div className="modal-backdrop">
       <div className="modal">
         <div className="modal-head"><h3>{title}</h3><button className="btn btn-sm" onClick={onCancel}>Fechar</button></div>
-        <form className="modal-body" onSubmit={(e) => { e.preventDefault(); onSave(form); }}>
-          <div className="form-grid">{fields.map(([name, label, type = 'text', options, visible]) => {
-            if (visible && !visible(form)) return null;
+        <form className="modal-body" onSubmit={submit}>
+          <div className="form-grid">{fields.map(([name, label, type = 'text', options, visible, required]) => {
+            if (!isVisible(visible)) return null;
             if (type === 'permissions') return <PermissionMatrix key={name} label={label} value={form[name]} onChange={(value) => change(name, value, type)} />;
-            if (type === 'employees') return <EmployeePicker key={name} label={label} options={options || []} value={form[name]} onChange={(value) => change(name, value, type)} />;
-            return <div className="form-field" key={name}><label>{label}</label>{type === 'select' ? <select value={form[name]} onChange={(e) => change(name, e.target.value, type)}>{options.map((o) => <option key={o || '-'} value={o}>{o || '-'}</option>)}</select> : type === 'textarea' ? <textarea value={form[name]} onChange={(e) => change(name, e.target.value, type)} /> : <input type={type} value={form[name]} onChange={(e) => change(name, e.target.value, type)} />}</div>;
+            if (type === 'employees') return <EmployeePicker key={name} label={`${label}${isRequired(required) ? ' *' : ''}`} options={options || []} value={form[name]} onChange={(value) => change(name, value, type)} />;
+            return <div className="form-field" key={name}><label>{label}{isRequired(required) ? ' *' : ''}</label>{type === 'select' ? <select value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)}>{options.map((o) => <option key={o || '-'} value={o}>{o || '-'}</option>)}</select> : type === 'textarea' ? <textarea value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)} /> : <input type={type} value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)} />}</div>;
           })}</div>
           <div className="modal-actions"><button type="button" className="btn" onClick={onCancel}>Cancelar</button><button className="btn btn-primary">Salvar</button></div>
         </form>
