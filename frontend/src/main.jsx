@@ -871,6 +871,7 @@ function DailyOps({ notify, editable = true }) {
   const [services, setServices] = useState([]);
   const [leaders, setLeaders] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [occurrences, setOccurrences] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState('');
   const [modal, setModal] = useState(null);
@@ -924,7 +925,9 @@ function DailyOps({ notify, editable = true }) {
   const selected = filteredItems.find((i) => i.id === selectedId) || filteredItems[0];
   const counts = useMemo(() => filteredItems.reduce((acc, item) => ({ ...acc, [item.status]: (acc[item.status] || 0) + 1 }), {}), [filteredItems]);
   const load = () => { setLoading(true); api('/api/workOrders').then((p) => { setItems(p.data); setSelectedId((old) => old || p.data[0]?.id || ''); }).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
+  const loadOccurrences = () => api('/api/occurrences').then((p) => setOccurrences(p.data || [])).catch(() => setOccurrences([]));
   useEffect(load, []);
+  useEffect(loadOccurrences, []);
   useEffect(() => {
     api('/api/clients').then((payload) => setClients(payload.data)).catch(() => {});
     api('/api/equipment').then((payload) => setEquipment(payload.data)).catch(() => {});
@@ -967,12 +970,19 @@ function DailyOps({ notify, editable = true }) {
     await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ ...data, workOrder: occurrenceModal.number, status: data.status || 'Aberta' }) });
     notify('Ocorrência registrada no banco');
     setOccurrenceModal(null);
+    loadOccurrences();
   };
+  const selectedOccurrences = selected ? occurrences.filter((item) => String(item.workOrder) === String(selected.number)) : [];
   const detailContent = () => {
     if (!selected) return null;
     if (activeTab === 'Equipe') return [['Equipe', Array.isArray(selected.teamMembers) && selected.teamMembers.length ? selected.teamMembers.join(', ') : 'Sem integrantes definidos'], ['Responsável', selected.responsible || '-'], ['Chamada', selected.attendance ? Object.entries(selected.attendance).map(([name, value]) => `${name}: ${typeof value === 'object' ? `${value.status}${value.note ? ` (${value.note})` : ''}` : value}`).join(' | ') : '-'], ['Justificativa', selected.teamNote || '-']];
     if (activeTab === 'Horários') return [['Data prevista', date(selected.date)], ['Início da operação', selected.operationStart || '-'], ['Fim da operação', selected.operationEnd || '-'], ['Janela', selected.window || '06:00 - 22:00']];
-    if (activeTab === 'Ocorrências') return [['Status operacional', selected.status], ['Solicitação de correção', selected.correctionRequested ? (selected.correctionApproved ? 'Liberada' : 'Aguardando liberação') : 'Sem solicitação'], ['Último registro', 'Ocorrências salvas no histórico do banco']];
+    if (activeTab === 'Ocorrências') return [
+      ['Status operacional', selected.status],
+      ['Solicitação de correção', selected.correctionRequested ? (selected.correctionApproved ? 'Liberada' : 'Aguardando liberação') : 'Sem solicitação'],
+      ...selectedOccurrences.map((item) => [`${item.type || 'Ocorrência'} · ${item.status || '-'}`, item.description || '-']),
+      ...(selectedOccurrences.length ? [] : [['Ocorrências', 'Nenhuma ocorrência lançada para esta OS']])
+    ];
     return [['Data', date(selected.date)], ['Transportador', selected.carrier], ['Serviço', selected.service], ['Produto', selected.product || '-'], ['Equipamento', selected.equipment || '-'], ['Container', selected.containerNumber || '-'], ['Placa', selected.trailerPlate || '-'], ['Posto', selected.location || 'ARCONDICIONADO - 0 un.'], ['Responsável', selected.responsible], ['Percentual', `${selected.progress || 0}%`], ['Prioridade', selected.priority]];
   };
   return (
@@ -1175,7 +1185,35 @@ function Placeholder({ route }) {
 
 function ActionPanel({ type, setRoute, onClose }) {
   const [q, setQ] = useState('');
+  const [notifications, setNotifications] = useState([]);
   const routeEntries = Object.entries(routes).filter(([key, item]) => canView(key) && normalize(item.title + item.group).includes(normalize(q)));
+  useEffect(() => {
+    if (type !== 'notifications') return;
+    Promise.all([
+      api('/api/occurrences').catch(() => ({ data: [] })),
+      api('/api/workOrders').catch(() => ({ data: [] }))
+    ]).then(([occurrencePayload, orderPayload]) => {
+      const occurrenceAlerts = (occurrencePayload.data || [])
+        .filter((item) => !normalize(item.status).includes('resolvida'))
+        .map((item) => ({ tag: item.type || 'OCO', title: `Ocorrência na OS ${item.workOrder || '-'}`, text: `${item.description || '-'} · ${item.status || 'Aberta'}` }));
+      const correctionAlerts = (orderPayload.data || [])
+        .filter((item) => item.correctionRequested && !item.correctionApproved)
+        .map((item) => ({ tag: 'COR', title: `Correção solicitada · OS ${item.number}`, text: `${item.client || '-'} aguardando liberação administrativa` }));
+      const noteAlerts = (orderPayload.data || []).flatMap((item) => {
+        const notes = [];
+        if (item.teamNote) notes.push({ tag: 'OBS', title: `Observação de equipe · OS ${item.number}`, text: item.teamNote });
+        if (item.attendance) {
+          Object.entries(item.attendance).forEach(([name, value]) => {
+            const note = typeof value === 'object' ? value.note : '';
+            const status = typeof value === 'object' ? value.status : value;
+            if (note) notes.push({ tag: 'OBS', title: `${name} · ${status || 'Chamada'} · OS ${item.number}`, text: note });
+          });
+        }
+        return notes;
+      });
+      setNotifications([...correctionAlerts, ...occurrenceAlerts, ...noteAlerts].slice(0, 20));
+    });
+  }, [type]);
   const openRoute = (key) => {
     window.location.hash = `#/${key}`;
     setRoute(key);
@@ -1186,7 +1224,7 @@ function ActionPanel({ type, setRoute, onClose }) {
       <div className="form-field"><label>Pesquisar módulo</label><input value={q} onChange={(e) => setQ(e.target.value)} autoFocus placeholder="Digite cliente, OS, usuário, relatório..." /></div>
       <div className="section-list compact-list">{routeEntries.map(([key, item]) => <div className="section-card" key={key} onClick={() => openRoute(key)}><div className="ico"><Icon name="grid" /></div><div><h4>{item.title}</h4><p>{item.group}</p></div></div>)}</div>
     </>,
-    notifications: <ul className="activity"><li><Pill value="OS" /><div><b>OS aguardando aprovação</b><span>Use Operação Diária para revisar e aprovar.</span></div></li><li><Pill value="MED" /><div><b>Medições pendentes</b><span>2 medições aguardando fechamento financeiro.</span></div></li><li><Pill value="CFG" /><div><b>Configurações atualizadas</b><span>Alterações de marca e política ficam registradas no banco.</span></div></li></ul>,
+    notifications: <ul className="activity">{notifications.length ? notifications.map((item, index) => <li key={`${item.title}-${index}`}><Pill value={item.tag} /><div><b>{item.title}</b><span>{item.text}</span></div></li>) : <li><Pill value="OK" /><div><b>Nenhuma notificação operacional</b><span>Ocorrências, observações e solicitações de correção aparecerão aqui.</span></div></li>}</ul>,
     messages: <ul className="activity"><li><Pill value="Torre" /><div><b>Equipe de campo solicitou correção</b><span>Abra Operação Diária para tratar ocorrência.</span></div></li><li><Pill value="Financeiro" /><div><b>Relatório mensal disponível</b><span>Gere CSV em Relatórios ou Medição.</span></div></li></ul>,
     help: <div className="panel-body"><p><b>Fluxos principais:</b></p><p className="soft">Cadastros gravam no banco. Configurações aplicam marca/cores e salvam no Postgres. Relatórios exportam CSV. Operação diária cria OS e registra ocorrências.</p><p className="soft">Use o menu lateral ou a pesquisa para trocar de tela sem recarregar.</p></div>
   };
