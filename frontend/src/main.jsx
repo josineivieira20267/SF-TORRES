@@ -299,6 +299,10 @@ function displayText(value) {
   return String(value);
 }
 
+function listData(payload) {
+  return Array.isArray(payload?.data) ? payload.data : [];
+}
+
 function triggerAction(label) {
   window.dispatchEvent(new CustomEvent('sf:action', { detail: label }));
 }
@@ -659,12 +663,12 @@ function Dashboard() {
   const [onlyOpen, setOnlyOpen] = useState(false);
   useEffect(() => {
     api('/api/dashboard/summary').then((p) => setSummary(p.data)).catch((error) => triggerAction(error.message));
-    api(workOrdersEndpoint()).then((p) => setOrders(p.data)).catch((error) => triggerAction(error.message));
+    api(workOrdersEndpoint()).then((p) => setOrders(listData(p))).catch((error) => triggerAction(error.message));
   }, []);
   const shownOrders = onlyOpen ? orders.filter((order) => !isFinalStatus(order.status)) : orders;
   return (
     <>
-      <PageHead title="Painel Corporativo" subtitle="Visão consolidada das operações, produtividade e faturamento." ghostAction="Exportar" onGhostAction={() => downloadCsv('painel-ordens-recentes.csv', [['OS', 'Cliente', 'Serviço', 'Equipamento', 'Equipe', 'Status', 'Data'], ...shownOrders.map((o) => [o.number, o.client, o.service, o.equipment, o.carrier, o.status, o.date])])} action="Atualizar agora" onAction={() => { triggerAction('Painel atualizado'); api('/api/dashboard/summary').then((p) => setSummary(p.data)).catch((error) => triggerAction(error.message)); api(workOrdersEndpoint()).then((p) => setOrders(p.data)).catch((error) => triggerAction(error.message)); }} />
+      <PageHead title="Painel Corporativo" subtitle="Visão consolidada das operações, produtividade e faturamento." ghostAction="Exportar" onGhostAction={() => downloadCsv('painel-ordens-recentes.csv', [['OS', 'Cliente', 'Serviço', 'Equipamento', 'Equipe', 'Status', 'Data'], ...shownOrders.map((o) => [o.number, o.client, o.service, o.equipment, o.carrier, o.status, o.date])])} action="Atualizar agora" onAction={() => { triggerAction('Painel atualizado'); api('/api/dashboard/summary').then((p) => setSummary(p.data)).catch((error) => triggerAction(error.message)); api(workOrdersEndpoint()).then((p) => setOrders(listData(p))).catch((error) => triggerAction(error.message)); }} />
       <div className="kpi-grid">
         <Kpi icon="grid" label="Módulos ativos" value="10" delta="+1 desde o último ciclo" />
         <Kpi icon="users" label="Clientes ativos" value={summary?.activeClients ?? '-'} delta="contratos em operação" success />
@@ -691,8 +695,10 @@ function Tower() {
   const [orders, setOrders] = useState([]);
   const [statusFilter, setStatusFilter] = useState('Fila');
   const [month, setMonth] = useState(currentMonthValue());
-  const load = () => api(workOrdersEndpoint(month)).then((payload) => setOrders(payload.data)).catch((error) => triggerAction(error.message));
-  useEffect(load, [month]);
+  const load = () => {
+    api(workOrdersEndpoint(month)).then((payload) => setOrders(listData(payload))).catch((error) => triggerAction(error.message));
+  };
+  useEffect(() => { load(); }, [month]);
   const visible = statusFilter === 'Todos'
     ? orders
     : orders.filter((order) => isOpenQueueStatus(order.status) || order.status === 'Em execucao');
@@ -721,11 +727,11 @@ function Schedules({ notify, editable = true }) {
   const [attendanceModal, setAttendanceModal] = useState(null);
   const [operationModal, setOperationModal] = useState(null);
   const [occurrenceModal, setOccurrenceModal] = useState(null);
-  const load = () => { setLoading(true); api(workOrdersEndpoint()).then((p) => setItems(p.data)).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
+  const load = () => { setLoading(true); api(workOrdersEndpoint()).then((p) => setItems(listData(p))).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
   useEffect(load, []);
   useEffect(() => {
-    api('/api/employees').then((payload) => setEmployees(payload.data || [])).catch(() => {});
-    api('/api/equipment').then((payload) => setEquipment(payload.data || [])).catch(() => {});
+    api('/api/employees').then((payload) => setEmployees(listData(payload))).catch(() => {});
+    api('/api/equipment').then((payload) => setEquipment(listData(payload))).catch(() => {});
   }, []);
   const belongsToLeader = (order) => {
     if (user.role === 'Administrador') return true;
@@ -812,8 +818,8 @@ function Productivity() {
   const [measurements, setMeasurements] = useState([]);
   const [compare, setCompare] = useState(false);
   useEffect(() => {
-    api(workOrdersEndpoint()).then((payload) => setOrders(payload.data)).catch((error) => triggerAction(error.message));
-    api('/api/measurements').then((payload) => setMeasurements(payload.data)).catch((error) => triggerAction(error.message));
+    api(workOrdersEndpoint()).then((payload) => setOrders(listData(payload))).catch((error) => triggerAction(error.message));
+    api('/api/measurements').then((payload) => setMeasurements(listData(payload))).catch((error) => triggerAction(error.message));
   }, []);
   const done = orders.filter((order) => isFinalStatus(order.status));
   const byTeam = Object.values(orders.reduce((acc, order) => {
@@ -845,8 +851,8 @@ function OperationalMap() {
   const [locations, setLocations] = useState([]);
   const [orders, setOrders] = useState([]);
   const load = () => {
-    api('/api/locations').then((payload) => setLocations(payload.data)).catch((error) => triggerAction(error.message));
-    api(workOrdersEndpoint()).then((payload) => setOrders(payload.data)).catch((error) => triggerAction(error.message));
+    api('/api/locations').then((payload) => setLocations(listData(payload))).catch((error) => triggerAction(error.message));
+    api(workOrdersEndpoint()).then((payload) => setOrders(listData(payload))).catch((error) => triggerAction(error.message));
   };
   useEffect(load, []);
   const points = (locations.length ? locations : [{ description: 'Pátio 3 - SEMP TCL', status: 'Operacional' }, { description: 'Pátio 2', status: 'Fila' }, { description: 'Porto CSF', status: 'Alerta' }]).slice(0, 5);
@@ -867,7 +873,7 @@ function Reports() {
   const [config, setConfig] = useState(false);
   const generate = async (card = selected) => {
     const payload = await api(card[2] === '/api/workOrders' ? workOrdersEndpoint() : card[2]);
-    const rows = payload.data || [];
+    const rows = listData(payload);
     const keys = [...new Set(rows.flatMap((row) => Object.keys(row).filter((key) => !['id', 'createdAt', 'updatedAt'].includes(key))))];
     downloadCsv(`${card[0].toLowerCase().replaceAll(' ', '-')}.csv`, [keys, ...rows.map((row) => keys.map((key) => row[key]))]);
   };
@@ -1027,16 +1033,16 @@ function DailyOps({ notify, editable = true }) {
   });
   const selected = filteredItems.find((i) => i.id === selectedId) || filteredItems[0];
   const counts = useMemo(() => filteredItems.reduce((acc, item) => ({ ...acc, [item.status]: (acc[item.status] || 0) + 1 }), {}), [filteredItems]);
-  const load = () => { setLoading(true); api(workOrdersEndpoint()).then((p) => { setItems(p.data); setSelectedId((old) => old || p.data[0]?.id || ''); }).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
-  const loadOccurrences = () => api('/api/occurrences').then((p) => setOccurrences(p.data || [])).catch(() => setOccurrences([]));
+  const load = () => { setLoading(true); api(workOrdersEndpoint()).then((p) => { const data = listData(p); setItems(data); setSelectedId((old) => old || data[0]?.id || ''); }).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
+  const loadOccurrences = () => api('/api/occurrences').then((p) => setOccurrences(listData(p))).catch(() => setOccurrences([]));
   useEffect(load, []);
   useEffect(loadOccurrences, []);
   useEffect(() => {
-    api('/api/clients').then((payload) => setClients(payload.data)).catch(() => {});
-    api('/api/equipment').then((payload) => setEquipment(payload.data)).catch(() => {});
-    api('/api/services').then((payload) => setServices(payload.data)).catch(() => {});
+    api('/api/clients').then((payload) => setClients(listData(payload))).catch(() => {});
+    api('/api/equipment').then((payload) => setEquipment(listData(payload))).catch(() => {});
+    api('/api/services').then((payload) => setServices(listData(payload))).catch(() => {});
     api('/api/employees').then((payload) => {
-      const list = payload.data || [];
+      const list = listData(payload);
       setEmployees(list);
       setLeaders(list.filter((item) => normalize(item.role).includes('lider')));
     }).catch(() => {});
@@ -1145,7 +1151,7 @@ function CrudScreen({ config, notify, beforeTable, editable = true }) {
   const load = () => {
     const separator = config.endpoint.includes('?') ? '&' : '?';
     setLoading(true);
-    api(`${config.endpoint}${q ? `${separator}q=${encodeURIComponent(q)}` : ''}`).then((p) => setItems(p.data)).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false));
+    api(`${config.endpoint}${q ? `${separator}q=${encodeURIComponent(q)}` : ''}`).then((p) => setItems(listData(p))).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false));
   };
   useEffect(load, [q, config.endpoint]);
   const fieldMap = { Função: 'role', Equipe: 'team', Status: 'status', Tipo: 'type' };
@@ -1305,13 +1311,13 @@ function ActionPanel({ type, setRoute, onClose }) {
       api('/api/occurrences').catch(() => ({ data: [] })),
       api(workOrdersEndpoint()).catch(() => ({ data: [] }))
     ]).then(([occurrencePayload, orderPayload]) => {
-      const occurrenceAlerts = (occurrencePayload.data || [])
+      const occurrenceAlerts = listData(occurrencePayload)
         .filter((item) => !normalize(item.status).includes('resolvida'))
         .map((item) => ({ tag: item.type || 'OCO', title: `Ocorrência na OS ${item.workOrder || '-'}`, text: `${item.description || '-'} · ${item.status || 'Aberta'}` }));
-      const correctionAlerts = (orderPayload.data || [])
+      const correctionAlerts = listData(orderPayload)
         .filter((item) => item.correctionRequested && !item.correctionApproved)
         .map((item) => ({ tag: 'COR', title: `Correção solicitada · OS ${item.number}`, text: `${item.client || '-'} aguardando liberação administrativa` }));
-      const noteAlerts = (orderPayload.data || []).flatMap((item) => {
+      const noteAlerts = listData(orderPayload).flatMap((item) => {
         const notes = [];
         if (item.teamNote) notes.push({ tag: 'OBS', title: `Observação de equipe · OS ${item.number}`, text: item.teamNote });
         if (item.attendance) {
