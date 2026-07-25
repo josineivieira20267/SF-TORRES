@@ -297,11 +297,14 @@ function fileToDataUrl(file) {
 
 function cleanRoute(hash) {
   const route = String(hash || '').replace(/^#\/?/, '') || 'dailyOps';
+  if (route === 'login') return 'login';
+  if (!localStorage.getItem('sfTorresToken')) return 'login';
   if (!routes[route]) return firstAllowedRoute();
   return canView(route) ? route : firstAllowedRoute();
 }
 
 function firstAllowedRoute() {
+  if (!localStorage.getItem('sfTorresToken')) return 'login';
   return routeKeys.find((key) => canView(key)) || 'login';
 }
 
@@ -380,7 +383,7 @@ function App() {
   const [panel, setPanel] = useState(null);
 
   useEffect(() => {
-    const onHash = () => setRoute(cleanRoute(window.location.hash));
+    const onHash = () => setRoute(localStorage.getItem('sfTorresToken') ? cleanRoute(window.location.hash) : 'login');
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
@@ -410,13 +413,26 @@ function App() {
     return () => window.removeEventListener('sf:action', onAction);
   }, []);
 
+  const goLogin = () => {
+    localStorage.clear();
+    setPanel(null);
+    window.location.hash = '#/login';
+    setRoute('login');
+  };
+
+  const goAfterLogin = () => {
+    const nextRoute = firstAllowedRoute();
+    window.location.hash = `#/${nextRoute}`;
+    setRoute(nextRoute);
+  };
+
   if (route === 'login' || !localStorage.getItem('sfTorresToken')) {
-    return <Login settings={settings} />;
+    return <Login settings={settings} onLogin={goAfterLogin} />;
   }
 
   return (
     <div className="app">
-      <Sidebar route={route} setRoute={setRoute} settings={settings} />
+      <Sidebar route={route} setRoute={setRoute} settings={settings} onLogout={goLogin} />
       <Topbar route={route} settings={settings} openPanel={setPanel} />
       <main className="main">
         <div className="page">
@@ -431,7 +447,7 @@ function App() {
   );
 }
 
-function Login({ settings }) {
+function Login({ settings, onLogin }) {
   const [email, setEmail] = useState('admin@sftorres.local');
   const [password, setPassword] = useState('admin123');
   const [message, setMessage] = useState('Acesso restrito a colaboradores autorizados. As ações são auditadas conforme LGPD.');
@@ -453,7 +469,7 @@ function Login({ settings }) {
       });
       localStorage.setItem('sfTorresToken', payload.data.token);
       localStorage.setItem('sfTorresUser', JSON.stringify(payload.data.user));
-      window.location.hash = `#/${firstAllowedRoute()}`;
+      onLogin();
     } catch (error) {
       setMessage(error.message);
       setLoading(false);
@@ -497,7 +513,7 @@ function Login({ settings }) {
   );
 }
 
-function Sidebar({ route, setRoute, settings }) {
+function Sidebar({ route, setRoute, settings, onLogout }) {
   const groups = [
     ['Principal', [['dashboard', 'PR', 'Principal']]],
     ['Operações', [['tower', 'TO', 'Torre Operacional'], ['dailyOps', 'OD', 'Operação Diária'], ['schedules', 'PD', 'Programação de Equipes']]],
@@ -530,7 +546,7 @@ function Sidebar({ route, setRoute, settings }) {
       </nav>
       <div className="user-card">
         <div className="avatar">SF</div><div className="info"><b>{user.name || 'Administrador SF'}</b><span>{user.email || '@sftorres'}</span></div>
-        <button className="logout" onClick={() => { localStorage.clear(); window.location.hash = '#/login'; }}>↪</button>
+        <button className="logout" onClick={onLogout}>↪</button>
       </div>
     </aside>
   );
