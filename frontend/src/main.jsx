@@ -189,7 +189,7 @@ function cleanRoute(hash) {
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { error: null };
+    this.state = { error: null, retries: 0 };
   }
 
   static getDerivedStateFromError(error) {
@@ -198,16 +198,31 @@ class ErrorBoundary extends React.Component {
 
   componentDidUpdate(prevProps) {
     if (prevProps.resetKey !== this.props.resetKey && this.state.error) {
-      this.setState({ error: null });
+      this.setState({ error: null, retries: 0 });
     }
   }
 
   componentDidCatch(error) {
     console.error(error);
+    if (this.state.retries < 2) {
+      window.setTimeout(() => {
+        this.setState((state) => ({ error: null, retries: state.retries + 1 }));
+      }, 250);
+    }
   }
 
   render() {
     if (!this.state.error) return this.props.children;
+    if (this.state.retries < 2) {
+      return (
+        <div className="panel">
+          <div className="panel-body">
+            <h3>Abrindo tela...</h3>
+            <p className="soft">Preparando o módulo automaticamente.</p>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="panel">
         <div className="panel-body">
