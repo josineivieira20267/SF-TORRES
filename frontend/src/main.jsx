@@ -74,8 +74,8 @@ const crudConfigs = {
     panelTitle: 'Funcionários',
     toolbar: [
       ['Buscar', 'Nome, CPF, função...', 'input'],
-      ['Função', ['Todas', 'Líder de turno', 'Operador', 'Motorista', 'Auxiliar'], 'select'],
-      ['Equipe', ['Todas', 'Aliança', 'TransNorte', 'Mov. Sul'], 'select'],
+      ['Função', ['Todas', 'Auxiliar', 'Líder de turno'], 'select'],
+      ['Equipe', ['Todas', 'Conferente', 'Apoio', 'Batedor'], 'select'],
       ['Status', ['Todos', 'Ativo', 'Férias', 'Afastado'], 'select']
     ],
     columns: [
@@ -84,7 +84,7 @@ const crudConfigs = {
       { label: 'Admissão', render: (i) => date(i.admissionDate) }, { label: 'Status', render: (i) => <Pill value={i.status} /> }
     ],
     fields: [
-      ['code', 'Código'], ['name', 'Nome'], ['cpf', 'CPF'], ['role', 'Função'], ['team', 'Equipe'],
+      ['code', 'Código'], ['name', 'Nome'], ['cpf', 'CPF'], ['role', 'Função', 'select', ['Auxiliar', 'Líder de turno']], ['team', 'Equipe', 'select', ['Conferente', 'Apoio', 'Batedor']],
       ['admissionDate', 'Admissão', 'date'], ['status', 'Status', 'select', ['Ativo', 'Férias', 'Afastado', 'Cadastro']]
     ]
   },
