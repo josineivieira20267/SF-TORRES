@@ -822,13 +822,21 @@ function Productivity() {
     api('/api/employees').then((payload) => setEmployees(listData(payload))).catch((error) => triggerAction(error.message));
   }, []);
   const employeeByName = Object.fromEntries(employees.map((item) => [normalize(item.name), item]));
+  const bonusRules = [
+    { key: 'pa', name: 'Equipe PA', base: 150, match: ['equipe pa', 'pa', 'conferente'] },
+    { key: 'batedores', name: 'Batedores', base: 8, match: ['batedor', 'batedores'] },
+    { key: 'apoio', name: 'Apoio', base: 5, match: ['apoio'] }
+  ];
   const criterionFor = (employee) => {
-    const text = normalize(`${employee?.team || ''} ${employee?.role || ''}`);
-    if (text.includes('batedor')) return { name: 'Batedor', base: 8 };
-    if (text.includes('apoio')) return { name: 'Apoio', base: 5 };
-    return { name: 'Equipe PA', base: 150 };
+    const team = normalize(employee?.team);
+    const role = normalize(employee?.role);
+    const byTeam = bonusRules.find((rule) => rule.match.some((item) => team.includes(item)));
+    if (byTeam) return byTeam;
+    const byRole = bonusRules.find((rule) => rule.match.some((item) => !team && role.includes(item)));
+    return byRole || { key: 'none', name: 'Sem critério', base: 0, match: [] };
   };
   const discountFor = (absences) => absences <= 0 ? 1 : absences === 1 ? 0.75 : absences === 2 ? 0.5 : absences === 3 ? 0.25 : 0;
+  const ruleRow = (rule) => [rule.name, money(rule.base), money(rule.base * 0.75), money(rule.base * 0.5), money(rule.base * 0.25), money(0)];
   const memberEntries = orders.flatMap((order) => {
     const members = Array.isArray(order.teamMembers) ? order.teamMembers : Object.keys(order.attendance || {});
     return members.map((name) => {
@@ -853,19 +861,19 @@ function Productivity() {
     const factor = discountFor(item.absences);
     const baseTotal = item.criterion.base * item.os;
     const total = baseTotal * factor;
-    return [item.employee.name, item.employee.role || '-', item.criterion.name, item.os, item.present, item.absences, money(item.criterion.base), `${Math.round(factor * 100)}%`, money(total)];
+    return [item.employee.name, item.employee.role || '-', item.employee.team || '-', item.criterion.name, item.os, item.present, item.absences, money(item.criterion.base), `${Math.round(factor * 100)}%`, money(total)];
   });
   const osRows = memberEntries.map(({ order, name, status }) => {
     const employee = employeeByName[normalize(name)] || { name, role: '-', team: '-' };
     const criterion = criterionFor(employee);
     const payable = normalize(status) === 'falta' || normalize(status) === 'pendente' ? 0 : criterion.base;
-    return [order.number, dateTime(order.date), order.client, name, criterion.name, <Pill value={status} />, money(payable)];
+    return [order.number, dateTime(order.date), order.client, name, employee.team || '-', criterion.name, <Pill value={status} />, money(payable)];
   });
   const totalAbsences = byEmployee.reduce((sum, item) => sum + item.absences, 0);
   const pendingCalls = byEmployee.reduce((sum, item) => sum + item.pending, 0);
   const totalBonus = byEmployee.reduce((sum, item) => sum + (item.criterion.base * item.os * discountFor(item.absences)), 0);
-  const exportRows = [['Colaborador', 'Função', 'Critério', 'OS', 'Presenças', 'Faltas', 'Valor base', 'Percentual', 'Total'], ...productivityRows.map((row) => row.map((cell) => displayText(cell)))];
-  return <><PageHead title="Produtividade dos colaboradores" subtitle="Apuração mensal por OS, chamada, faltas e critérios de bonificação." ghostAction={compare ? 'Ocultar critérios' : 'Ver critérios'} onGhostAction={() => setCompare((value) => !value)} action="Exportar relatório" onAction={() => downloadCsv('produtividade-colaboradores.csv', exportRows)} /><div className="kpi-grid"><Kpi icon="users" label="Colaboradores avaliados" value={byEmployee.length} delta="com OS no período" success /><Kpi icon="file" label="OS apuradas" value={orders.length} delta="mês atual filtrado no banco" /><Kpi icon="alert" label="Faltas registradas" value={totalAbsences} delta={`${pendingCalls} chamadas pendentes`} warning /><Kpi icon="money" label="Bônus previsto" value={money(totalBonus)} delta="conforme critérios" /></div>{compare && <Panel title="Critérios de bonificação" padded><DataTable columns={['Equipe/Função', 'Valor base por OS', '1 falta', '2 faltas', '3 faltas', '4+ faltas']} rows={[['Equipe PA', money(150), '75%', '50%', '25%', '0%'], ['Batedor', money(8), '75%', '50%', '25%', '0%'], ['Apoio', money(5), '75%', '50%', '25%', '0%']]} /></Panel>}<div className="two-grid"><Panel title="Produtividade por colaborador" padded><DataTable columns={['Colaborador', 'Função', 'Critério', 'OS', 'Pres.', 'Faltas', 'Valor OS', '%', 'Total']} rows={productivityRows} /></Panel><Panel title="Lançamentos por OS" padded><DataTable columns={['OS', 'Data', 'Cliente', 'Colaborador', 'Critério', 'Chamada', 'Valor']} rows={osRows} /></Panel></div></>;
+  const exportRows = [['Colaborador', 'Função', 'Equipe cadastro', 'Critério', 'OS', 'Presenças', 'Faltas', 'Valor base', 'Percentual', 'Total'], ...productivityRows.map((row) => row.map((cell) => displayText(cell)))];
+  return <><PageHead title="Produtividade dos colaboradores" subtitle="Apuração mensal por OS, chamada, faltas e critérios de bonificação." ghostAction={compare ? 'Ocultar critérios' : 'Ver critérios'} onGhostAction={() => setCompare((value) => !value)} action="Exportar relatório" onAction={() => downloadCsv('produtividade-colaboradores.csv', exportRows)} /><div className="kpi-grid"><Kpi icon="users" label="Colaboradores avaliados" value={byEmployee.length} delta="com OS no período" success /><Kpi icon="file" label="OS apuradas" value={orders.length} delta="mês atual filtrado no banco" /><Kpi icon="alert" label="Faltas registradas" value={totalAbsences} delta={`${pendingCalls} chamadas pendentes`} warning /><Kpi icon="money" label="Bônus previsto" value={money(totalBonus)} delta="conforme critérios" /></div>{compare && <Panel title="Critérios de bonificação" padded><DataTable columns={['Equipe/Função', 'Valor integral', '1 ausência', '2 ausências', '3 ausências', '4+ ausências']} rows={bonusRules.map(ruleRow)} /></Panel>}<div className="two-grid"><Panel title="Produtividade por colaborador" padded><DataTable columns={['Colaborador', 'Função', 'Equipe cadastro', 'Critério', 'OS', 'Pres.', 'Faltas', 'Valor OS', '%', 'Total']} rows={productivityRows} /></Panel><Panel title="Lançamentos por OS" padded><DataTable columns={['OS', 'Data', 'Cliente', 'Colaborador', 'Equipe', 'Critério', 'Chamada', 'Valor']} rows={osRows} /></Panel></div></>;
 }
 
 function OperationalMap() {
