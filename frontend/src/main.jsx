@@ -181,6 +181,45 @@ function downloadCsv(filename, rows) {
   URL.revokeObjectURL(url);
 }
 
+function cleanRoute(hash) {
+  const route = String(hash || '').replace(/^#\/?/, '') || 'dailyOps';
+  return routes[route] ? route : 'dailyOps';
+}
+
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidUpdate(prevProps) {
+    if (prevProps.resetKey !== this.props.resetKey && this.state.error) {
+      this.setState({ error: null });
+    }
+  }
+
+  componentDidCatch(error) {
+    console.error(error);
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div className="panel">
+        <div className="panel-body">
+          <h3>Não foi possível abrir esta tela agora.</h3>
+          <p className="soft">O sistema se recuperou do erro. Tente abrir o módulo novamente ou atualize a página.</p>
+          <button className="btn btn-primary" onClick={() => window.location.reload()}>Atualizar tela</button>
+        </div>
+      </div>
+    );
+  }
+}
+
 function pillClass(value) {
   const text = String(value || '').toLowerCase();
   if (text.includes('ativo') || text.includes('aprov') || text.includes('fech') || text.includes('operacional') || text.includes('dispon')) return 'pill-success';
@@ -195,11 +234,11 @@ function Pill({ value }) {
 }
 
 function App() {
-  const [route, setRoute] = useState(() => window.location.hash.replace('#/', '') || (localStorage.getItem('sfTorresToken') ? 'dailyOps' : 'login'));
+  const [route, setRoute] = useState(() => localStorage.getItem('sfTorresToken') ? cleanRoute(window.location.hash) : 'login');
   const [toast, setToast] = useState('');
 
   useEffect(() => {
-    const onHash = () => setRoute(window.location.hash.replace('#/', '') || 'dailyOps');
+    const onHash = () => setRoute(cleanRoute(window.location.hash));
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
@@ -225,7 +264,9 @@ function App() {
       <Topbar route={route} />
       <main className="main">
         <div className="page">
-          <Screen route={route} notify={notify} />
+          <ErrorBoundary resetKey={route}>
+            <Screen route={route} notify={notify} />
+          </ErrorBoundary>
         </div>
       </main>
       <div className={`sf-toast ${toast ? 'show' : ''}`}>{toast}</div>
@@ -370,12 +411,12 @@ function Dashboard() {
   const [summary, setSummary] = useState(null);
   const [orders, setOrders] = useState([]);
   useEffect(() => {
-    api('/api/dashboard/summary').then((p) => setSummary(p.data));
-    api('/api/workOrders').then((p) => setOrders(p.data));
+    api('/api/dashboard/summary').then((p) => setSummary(p.data)).catch((error) => triggerAction(error.message));
+    api('/api/workOrders').then((p) => setOrders(p.data)).catch((error) => triggerAction(error.message));
   }, []);
   return (
     <>
-      <PageHead title="Painel Corporativo" subtitle="Visão consolidada das operações, produtividade e faturamento." ghostAction="Exportar" action="Atualizar agora" onAction={() => { triggerAction('Painel atualizado'); api('/api/dashboard/summary').then((p) => setSummary(p.data)); api('/api/workOrders').then((p) => setOrders(p.data)); }} />
+      <PageHead title="Painel Corporativo" subtitle="Visão consolidada das operações, produtividade e faturamento." ghostAction="Exportar" action="Atualizar agora" onAction={() => { triggerAction('Painel atualizado'); api('/api/dashboard/summary').then((p) => setSummary(p.data)).catch((error) => triggerAction(error.message)); api('/api/workOrders').then((p) => setOrders(p.data)).catch((error) => triggerAction(error.message)); }} />
       <div className="kpi-grid">
         <Kpi icon="grid" label="Módulos ativos" value="10" delta="+1 desde o último ciclo" />
         <Kpi icon="users" label="Clientes ativos" value={summary?.activeClients ?? '-'} delta="contratos em operação" success />
@@ -414,7 +455,7 @@ function Schedules({ notify }) {
   const fields = [['employee', 'Operador'], ['role', 'Função'], ['weekStart', 'Semana', 'date'], ['base', 'Base'], ['monday', 'Segunda'], ['tuesday', 'Terça'], ['wednesday', 'Quarta'], ['thursday', 'Quinta'], ['friday', 'Sexta'], ['saturday', 'Sábado'], ['sunday', 'Domingo'], ['status', 'Status', 'select', ['Programada', 'Pendente', 'Cancelada']]];
   const [items, setItems] = useState([]);
   const [modal, setModal] = useState(null);
-  const load = () => api('/api/schedules').then((p) => setItems(p.data));
+  const load = () => api('/api/schedules').then((p) => setItems(p.data)).catch((error) => { setItems([]); notify(error.message); });
   useEffect(load, []);
   const save = async (data) => {
     await api(modal?.id ? `/api/schedules/${modal.id}` : '/api/schedules', { method: modal?.id ? 'PUT' : 'POST', body: JSON.stringify(data) });
@@ -520,7 +561,7 @@ function DailyOps({ notify }) {
   const [modal, setModal] = useState(null);
   const selected = items.find((i) => i.id === selectedId) || items[0];
   const counts = useMemo(() => items.reduce((acc, item) => ({ ...acc, [item.status]: (acc[item.status] || 0) + 1 }), {}), [items]);
-  const load = () => api('/api/workOrders').then((p) => { setItems(p.data); setSelectedId((old) => old || p.data[0]?.id || ''); });
+  const load = () => api('/api/workOrders').then((p) => { setItems(p.data); setSelectedId((old) => old || p.data[0]?.id || ''); }).catch((error) => { setItems([]); notify(error.message); });
   useEffect(load, []);
   const save = async (data) => {
     await api(modal?.id ? `/api/workOrders/${modal.id}` : '/api/workOrders', { method: modal?.id ? 'PUT' : 'POST', body: JSON.stringify(data) });
@@ -578,7 +619,7 @@ function CrudScreen({ config, notify, beforeTable }) {
   const [items, setItems] = useState([]);
   const [q, setQ] = useState('');
   const [modal, setModal] = useState(null);
-  const load = () => api(`${config.endpoint}${q ? `?q=${encodeURIComponent(q)}` : ''}`).then((p) => setItems(p.data));
+  const load = () => api(`${config.endpoint}${q ? `?q=${encodeURIComponent(q)}` : ''}`).then((p) => setItems(p.data)).catch((error) => { setItems([]); notify(error.message); });
   useEffect(load, [q]);
   const save = async (data) => {
     await api(modal?.id ? `${config.endpoint}/${modal.id}` : config.endpoint, { method: modal?.id ? 'PUT' : 'POST', body: JSON.stringify(data) });

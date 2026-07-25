@@ -24,6 +24,14 @@ services:
     rootDir: frontend
     buildCommand: npm install --production=false && npm run build
     staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache
     envVars:
       - key: VITE_API_URL
         value: https://sf-torres-api.onrender.com
