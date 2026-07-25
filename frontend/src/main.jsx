@@ -860,19 +860,20 @@ function Productivity() {
   }, {})).sort((a, b) => a.employee.name.localeCompare(b.employee.name));
   const productivityRows = byEmployee.map((item) => {
     const factor = discountFor(item.absences);
-    const baseTotal = item.criterion.base * item.os;
-    const total = baseTotal * factor;
-    return [item.employee.name, item.employee.role || '-', item.employee.team || '-', item.criterion.name, item.os, item.present, item.absences, money(item.criterion.base), `${Math.round(factor * 100)}%`, money(total)];
+    const adjustedValue = item.criterion.base * factor;
+    const total = adjustedValue * item.present;
+    return [item.employee.name, item.employee.role || '-', item.employee.team || '-', item.criterion.name, item.os, item.present, item.absences, money(adjustedValue), `${Math.round(factor * 100)}%`, money(total)];
   });
   const osRows = memberEntries.map(({ order, name, status }) => {
     const employee = employeeByName[normalize(name)] || { name, role: '-', team: '-' };
     const criterion = criterionFor(employee);
-    const payable = normalize(status) === 'falta' || normalize(status) === 'pendente' ? 0 : criterion.base;
+    const employeeSummary = byEmployee.find((item) => normalize(item.employee.name) === normalize(name));
+    const payable = normalize(status) === 'falta' || normalize(status) === 'pendente' ? 0 : criterion.base * discountFor(employeeSummary?.absences || 0);
     return [order.number, dateTime(order.date), order.client, name, employee.team || '-', criterion.name, <Pill value={status} />, money(payable)];
   });
   const totalAbsences = byEmployee.reduce((sum, item) => sum + item.absences, 0);
   const pendingCalls = byEmployee.reduce((sum, item) => sum + item.pending, 0);
-  const totalBonus = byEmployee.reduce((sum, item) => sum + (item.criterion.base * item.os * discountFor(item.absences)), 0);
+  const totalBonus = byEmployee.reduce((sum, item) => sum + (item.criterion.base * discountFor(item.absences) * item.present), 0);
   const exportRows = [['Colaborador', 'Função', 'Equipe cadastro', 'Critério', 'OS', 'Presenças', 'Faltas', 'Valor base', 'Percentual', 'Total'], ...productivityRows.map((row) => row.map((cell) => displayText(cell)))];
   return <><PageHead title="Produtividade dos colaboradores" subtitle="Apuração mensal por OS, chamada, faltas e critérios de bonificação." ghostActions={[compare ? 'Ocultar critérios' : 'Ver critérios', showOsLaunches ? 'Ocultar lançamentos' : 'Ver lançamentos por OS']} onGhostAction={(label) => label.includes('critério') || label.includes('critérios') ? setCompare((value) => !value) : setShowOsLaunches((value) => !value)} action="Exportar relatório" onAction={() => downloadCsv('produtividade-colaboradores.csv', exportRows)} /><div className="kpi-grid"><Kpi icon="users" label="Colaboradores avaliados" value={byEmployee.length} delta="com OS no período" success /><Kpi icon="file" label="OS apuradas" value={orders.length} delta="mês atual filtrado no banco" /><Kpi icon="alert" label="Faltas registradas" value={totalAbsences} delta={`${pendingCalls} chamadas pendentes`} warning /><Kpi icon="money" label="Bônus previsto" value={money(totalBonus)} delta="conforme critérios" /></div>{compare && <Panel title="Critérios de bonificação" padded><DataTable columns={['Equipe/Função', 'Valor integral', '1 ausência', '2 ausências', '3 ausências', '4+ ausências']} rows={bonusRules.map(ruleRow)} /></Panel>}<Panel title="Produtividade por colaborador" padded><DataTable columns={['Colaborador', 'Função', 'Equipe cadastro', 'Critério', 'OS', 'Pres.', 'Faltas', 'Valor OS', '%', 'Total']} rows={productivityRows} /></Panel>{showOsLaunches && <Panel title="Lançamentos por OS" padded><DataTable columns={['OS', 'Data', 'Cliente', 'Colaborador', 'Equipe', 'Critério', 'Chamada', 'Valor']} rows={osRows} /></Panel>}</>;
 }
