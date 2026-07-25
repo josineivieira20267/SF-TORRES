@@ -815,34 +815,57 @@ function Schedules({ notify, editable = true }) {
 
 function Productivity() {
   const [orders, setOrders] = useState([]);
-  const [measurements, setMeasurements] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [compare, setCompare] = useState(false);
   useEffect(() => {
     api(workOrdersEndpoint()).then((payload) => setOrders(listData(payload))).catch((error) => triggerAction(error.message));
-    api('/api/measurements').then((payload) => setMeasurements(listData(payload))).catch((error) => triggerAction(error.message));
+    api('/api/employees').then((payload) => setEmployees(listData(payload))).catch((error) => triggerAction(error.message));
   }, []);
-  const done = orders.filter((order) => isFinalStatus(order.status));
-  const byTeam = Object.values(orders.reduce((acc, order) => {
-    const team = order.carrier || 'Sem equipe';
-    acc[team] = acc[team] || { team, os: 0, progress: 0 };
-    acc[team].os += 1;
-    acc[team].progress += Number(order.progress || 0);
-    return acc;
-  }, {}));
-  const teamRows = byTeam.map((item) => {
-    const efficiency = item.os ? Math.round(item.progress / item.os) : 0;
-    return [item.team, item.team.includes('·') ? item.team.split('·')[0].trim() : '-', item.os, (item.os * 8.4).toFixed(1), (Math.max(5, efficiency / 10)).toFixed(1), <Pill value={`${efficiency || 75}%`} />];
+  const employeeByName = Object.fromEntries(employees.map((item) => [normalize(item.name), item]));
+  const criterionFor = (employee) => {
+    const text = normalize(`${employee?.team || ''} ${employee?.role || ''}`);
+    if (text.includes('batedor')) return { name: 'Batedor', base: 8 };
+    if (text.includes('apoio')) return { name: 'Apoio', base: 5 };
+    return { name: 'Equipe PA', base: 150 };
+  };
+  const discountFor = (absences) => absences <= 0 ? 1 : absences === 1 ? 0.75 : absences === 2 ? 0.5 : absences === 3 ? 0.25 : 0;
+  const memberEntries = orders.flatMap((order) => {
+    const members = Array.isArray(order.teamMembers) ? order.teamMembers : Object.keys(order.attendance || {});
+    return members.map((name) => {
+      const attendance = order.attendance?.[name];
+      const status = attendance ? (typeof attendance === 'object' ? attendance.status : attendance) : 'Pendente';
+      return { order, name, status };
+    });
   });
-  const revenueByClient = Object.values(measurements.reduce((acc, item) => {
-    acc[item.client] = acc[item.client] || { client: item.client, count: 0, total: 0 };
-    acc[item.client].count += 1;
-    acc[item.client].total += Number(item.total || 0);
+  const byEmployee = Object.values(memberEntries.reduce((acc, entry) => {
+    const key = normalize(entry.name);
+    const employee = employeeByName[key] || { name: entry.name, role: '-', team: '-' };
+    const criterion = criterionFor(employee);
+    acc[key] = acc[key] || { employee, criterion, os: 0, present: 0, absences: 0, pending: 0 };
+    acc[key].os += 1;
+    const status = normalize(entry.status);
+    if (status === 'falta') acc[key].absences += 1;
+    else if (status === 'pendente') acc[key].pending += 1;
+    else acc[key].present += 1;
     return acc;
-  }, {}));
-  const revenueRows = revenueByClient.map((item) => [item.client, item.count, money(item.total)]);
-  const totalRevenue = revenueByClient.reduce((sum, item) => sum + item.total, 0);
-  const exportRows = [['Equipe', 'Líder', 'OS', 'Ton.', 't/h', 'Efic.'], ...teamRows.map((row) => row.map((cell) => typeof cell === 'object' ? cell.props.value : cell))];
-  return <><PageHead title="Produtividade" subtitle="Indicadores operacionais por equipe, cliente, equipamento e turno." ghostAction={compare ? 'Ocultar comparação' : 'Comparar períodos'} onGhostAction={() => setCompare((value) => !value)} action="Exportar relatório" onAction={() => downloadCsv('produtividade.csv', exportRows)} /><div className="kpi-grid"><Kpi icon="chart" label="Toneladas / hora" value={(done.length ? done.length * 1.4 : 8.4).toFixed(1)} delta={compare ? 'comparado ao período anterior' : 'meta: 7,5'} success /><Kpi icon="clock" label="Tempo médio OS" value="04:32" delta="Meta: 5h" /><Kpi icon="alert" label="Índice de paradas" value={`${orders.filter((order) => ['Paralisada', 'Cancelada'].includes(order.status)).length}%`} delta={compare ? '-1 p.p.' : 'base atual'} warning /><Kpi icon="file" label="OS concluídas" value={done.length} delta="base do banco" /></div><div className="two-grid"><Panel title={`Produtividade por equipe${compare ? ' · comparativo ativo' : ''}`} padded><DataTable columns={['Equipe', 'Líder', 'OS', 'Ton.', 't/h', 'Efic.']} rows={teamRows} /></Panel><Panel title="Resumo por cliente" padded><DataTable columns={['Cliente', 'Medições', 'Fat. (R$)']} rows={[...revenueRows, [<b>Total</b>, <b>{measurements.length}</b>, <b>{money(totalRevenue)}</b>]]} /></Panel></div></>;
+  }, {})).sort((a, b) => a.employee.name.localeCompare(b.employee.name));
+  const productivityRows = byEmployee.map((item) => {
+    const factor = discountFor(item.absences);
+    const baseTotal = item.criterion.base * item.os;
+    const total = baseTotal * factor;
+    return [item.employee.name, item.employee.role || '-', item.criterion.name, item.os, item.present, item.absences, money(item.criterion.base), `${Math.round(factor * 100)}%`, money(total)];
+  });
+  const osRows = memberEntries.map(({ order, name, status }) => {
+    const employee = employeeByName[normalize(name)] || { name, role: '-', team: '-' };
+    const criterion = criterionFor(employee);
+    const payable = normalize(status) === 'falta' || normalize(status) === 'pendente' ? 0 : criterion.base;
+    return [order.number, dateTime(order.date), order.client, name, criterion.name, <Pill value={status} />, money(payable)];
+  });
+  const totalAbsences = byEmployee.reduce((sum, item) => sum + item.absences, 0);
+  const pendingCalls = byEmployee.reduce((sum, item) => sum + item.pending, 0);
+  const totalBonus = byEmployee.reduce((sum, item) => sum + (item.criterion.base * item.os * discountFor(item.absences)), 0);
+  const exportRows = [['Colaborador', 'Função', 'Critério', 'OS', 'Presenças', 'Faltas', 'Valor base', 'Percentual', 'Total'], ...productivityRows.map((row) => row.map((cell) => displayText(cell)))];
+  return <><PageHead title="Produtividade dos colaboradores" subtitle="Apuração mensal por OS, chamada, faltas e critérios de bonificação." ghostAction={compare ? 'Ocultar critérios' : 'Ver critérios'} onGhostAction={() => setCompare((value) => !value)} action="Exportar relatório" onAction={() => downloadCsv('produtividade-colaboradores.csv', exportRows)} /><div className="kpi-grid"><Kpi icon="users" label="Colaboradores avaliados" value={byEmployee.length} delta="com OS no período" success /><Kpi icon="file" label="OS apuradas" value={orders.length} delta="mês atual filtrado no banco" /><Kpi icon="alert" label="Faltas registradas" value={totalAbsences} delta={`${pendingCalls} chamadas pendentes`} warning /><Kpi icon="money" label="Bônus previsto" value={money(totalBonus)} delta="conforme critérios" /></div>{compare && <Panel title="Critérios de bonificação" padded><DataTable columns={['Equipe/Função', 'Valor base por OS', '1 falta', '2 faltas', '3 faltas', '4+ faltas']} rows={[['Equipe PA', money(150), '75%', '50%', '25%', '0%'], ['Batedor', money(8), '75%', '50%', '25%', '0%'], ['Apoio', money(5), '75%', '50%', '25%', '0%']]} /></Panel>}<div className="two-grid"><Panel title="Produtividade por colaborador" padded><DataTable columns={['Colaborador', 'Função', 'Critério', 'OS', 'Pres.', 'Faltas', 'Valor OS', '%', 'Total']} rows={productivityRows} /></Panel><Panel title="Lançamentos por OS" padded><DataTable columns={['OS', 'Data', 'Cliente', 'Colaborador', 'Critério', 'Chamada', 'Valor']} rows={osRows} /></Panel></div></>;
 }
 
 function OperationalMap() {
