@@ -73,6 +73,12 @@ function defaultUserPermissions(role = 'Operacional') {
   return { dashboard: 'view', dailyOps: 'view' };
 }
 
+const occurrenceFields = [
+  ['type', 'Tipo', 'select', ['Operacional', 'Segurança', 'Atraso', 'Equipamento', 'Correção']],
+  ['description', 'Descrição', 'textarea'],
+  ['status', 'Status', 'select', ['Aberta', 'Em analise', 'Resolvida']]
+];
+
 const crudConfigs = {
   clients: {
     title: 'Clientes',
@@ -614,6 +620,7 @@ function Schedules({ notify, editable = true }) {
   const [filters, setFilters] = useState({ q: '', status: 'Todos' });
   const [attendanceModal, setAttendanceModal] = useState(null);
   const [operationModal, setOperationModal] = useState(null);
+  const [occurrenceModal, setOccurrenceModal] = useState(null);
   const load = () => { setLoading(true); api('/api/workOrders').then((p) => setItems(p.data)).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
   useEffect(load, []);
   useEffect(() => {
@@ -645,6 +652,11 @@ function Schedules({ notify, editable = true }) {
     await updateOrder(order, { correctionRequested: true, correctionApproved: false }, 'Solicitacao de correcao enviada ao administrativo');
     await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ workOrder: order.number, type: 'Correção', description: `Líder solicitou correção após conclusão da OS`, status: 'Aguardando liberação' }) });
   };
+  const saveLeaderOccurrence = async (data) => {
+    await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ ...data, workOrder: occurrenceModal.number, status: data.status || 'Aberta' }) });
+    notify('Ocorrência lançada na OS');
+    setOccurrenceModal(null);
+  };
   const exportRows = () => downloadCsv('programacao-os-lider.csv', [['OS', 'Cliente', 'Servico', 'Equipamento', 'Local', 'Lider', 'Status', 'Data'], ...visibleOrders.map((item) => [item.number, item.client, item.service, item.equipment, item.location, item.responsible, item.status, item.date])]);
   const employeeOptions = employees.map((item) => item.name).filter(Boolean);
   const equipmentOptions = ['', ...Array.from(new Set(equipment.map((item) => item.type).filter(Boolean)))];
@@ -663,6 +675,7 @@ function Schedules({ notify, editable = true }) {
       <div className="inline-actions">
         <button className="btn btn-sm" onClick={() => setAttendanceModal(item)}>Chamada</button>
         <button className="btn btn-sm" onClick={() => setOperationModal(item)}>Editar</button>
+        {item.operationStart && !item.operationEnd && <button className="btn btn-sm btn-success" onClick={() => setOccurrenceModal(item)}>Ocorrência</button>}
         {!item.operationStart && !done && <button className="btn btn-sm btn-success" onClick={() => markStart(item)}>Iniciar</button>}
         {item.operationStart && !item.operationEnd && !done && <button className="btn btn-sm btn-primary" onClick={() => markEnd(item)}>Finalizar</button>}
       </div>
@@ -686,6 +699,7 @@ function Schedules({ notify, editable = true }) {
       <Panel title="OS direcionadas ao lider" actions={<Pill value={user.name || user.email || 'usuario'} />}><DataTable columns={['OS', 'Cliente', 'Servico', 'Produto', 'Integrantes', 'Status', 'Inicio', 'Fim', 'Acao']} rows={rows} /></Panel>
       {attendanceModal && <AttendanceModal order={attendanceModal} onCancel={() => setAttendanceModal(null)} onSave={(attendance) => updateOrder(attendanceModal, { attendance }, 'Chamada salva na OS')} />}
       {operationModal && <Editor title="Editar operacao da OS" fields={[['carrier', 'Transportador'], ['location', 'Local'], ['product', 'Produto'], ['equipment', 'Equipamento', 'select', equipmentOptions], ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')], ['trailerPlate', 'Placa da carreta', 'text', null, (form) => normalize(form.equipment).includes('carreta')], ['teamMembers', 'Incluir integrantes da equipe', 'employees', employeeOptions], ['teamNote', 'Observacao obrigatoria ao alterar equipe', 'textarea'], ['progress', 'Percentual', 'number']]} initial={operationModal} onCancel={() => setOperationModal(null)} onSave={saveOperationEdit} />}
+      {occurrenceModal && <Editor title={`Lançar ocorrência · OS ${occurrenceModal.number}`} fields={occurrenceFields} initial={{ workOrder: occurrenceModal.number, type: 'Operacional', status: 'Aberta' }} onCancel={() => setOccurrenceModal(null)} onSave={saveLeaderOccurrence} />}
     </>
   );
 }
@@ -860,6 +874,7 @@ function DailyOps({ notify, editable = true }) {
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState('');
   const [modal, setModal] = useState(null);
+  const [occurrenceModal, setOccurrenceModal] = useState(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('Dados');
   const [filters, setFilters] = useState({ q: '', status: 'Todos', client: 'Todos', period: 'Este mês', table: '' });
@@ -946,8 +961,12 @@ function DailyOps({ notify, editable = true }) {
   const registerOccurrence = async () => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     if (!selected) return;
-    await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ workOrder: selected.number, type: 'Operacional', description: 'Ocorrência lançada pela tela de operação diária', status: 'Aberta' }) });
+    setOccurrenceModal(selected);
+  };
+  const saveOccurrence = async (data) => {
+    await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ ...data, workOrder: occurrenceModal.number, status: data.status || 'Aberta' }) });
     notify('Ocorrência registrada no banco');
+    setOccurrenceModal(null);
   };
   const detailContent = () => {
     if (!selected) return null;
@@ -981,6 +1000,7 @@ function DailyOps({ notify, editable = true }) {
         <div className="pane">{selected && <><div className="pane-head"><div><div className="eyebrow">Ordem de Serviço</div><div className="mono-title">OS {selected.number} · {selected.client}</div></div><div className="meta"><Pill value={selected.status} /></div></div><div className="tabs">{['Dados', 'Equipe', 'Horários', 'Ocorrências'].map((tab) => <div key={tab} className={`tab ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>{tab}</div>)}</div><div className="pane-body">{detailContent().map(([k, v]) => <div className="field-row" key={k}><b>{k}</b><span>{v}</span></div>)}</div><div className="action-strip"><button className="btn" onClick={() => setModal(selected)}>Editar OS</button>{selected.correctionRequested && !selected.correctionApproved && <button className="btn btn-primary" onClick={releaseCorrection}>Liberar correção</button>}<button className="btn btn-success" onClick={registerOccurrence}>Lançar ocorrência</button><button className="btn btn-danger push" onClick={remove}>Apagar</button></div></>}</div>
       </div>
       {modal && <Editor title={modal.id ? 'Editar OS' : 'Nova OS'} fields={fields} initial={modal} onCancel={() => setModal(null)} onSave={save} />}
+      {occurrenceModal && <Editor title={`Lançar ocorrência · OS ${occurrenceModal.number}`} fields={occurrenceFields} initial={{ workOrder: occurrenceModal.number, type: 'Operacional', status: 'Aberta' }} onCancel={() => setOccurrenceModal(null)} onSave={saveOccurrence} />}
       {historyOpen && <div className="modal-backdrop"><div className="modal"><div className="modal-head"><h3>Histórico da operação</h3><button className="btn btn-sm" onClick={() => setHistoryOpen(false)}>Fechar</button></div><div className="modal-body"><DataTable columns={['OS', 'Cliente', 'Status', 'Data']} rows={items.map((item) => [item.number, item.client, <Pill value={item.status} />, date(item.date)])} /></div></div></div>}
     </>
   );
