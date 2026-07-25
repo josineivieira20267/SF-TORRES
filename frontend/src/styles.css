@@ -401,6 +401,8 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   font-size:11.5px;font-weight:600;letter-spacing:.2px;
   border-radius:var(--radius-sm);
   text-transform:uppercase;
+  white-space:nowrap;
+  min-width:max-content;
 }
 .pill-success{background:#E3F3EB;color:#166D3A;border:1px solid #BFE3CF}
 .pill-warning{background:#FAEFDD;color:#8A5400;border:1px solid #E7D2A1}

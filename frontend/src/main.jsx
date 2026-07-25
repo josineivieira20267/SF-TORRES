@@ -232,6 +232,14 @@ function date(value) {
   return year && month && day ? `${day}/${month}/${year}` : value;
 }
 
+function dateTime(value) {
+  if (!value) return '-';
+  const raw = String(value);
+  const formattedDate = date(raw);
+  const time = raw.includes('T') ? raw.slice(11, 16) : (raw.match(/\b\d{2}:\d{2}\b/)?.[0] || '');
+  return time ? `${formattedDate}, ${time}` : formattedDate;
+}
+
 function money(value) {
   return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
@@ -695,7 +703,7 @@ function Schedules({ notify, editable = true }) {
       </div>
     );
   };
-  const rows = loading ? [['Carregando OS do banco...', '', '', '', '', '', '', '', '']] : visibleOrders.map((item) => [<span className="mono">{item.number}</span>, item.client, item.service || '-', item.product || '-', Array.isArray(item.teamMembers) && item.teamMembers.length ? item.teamMembers.join(', ') : '-', <Pill value={item.status} />, <span className="soft">{item.operationStart || '-'}</span>, <span className="soft">{item.operationEnd || '-'}</span>, leaderActions(item)]);
+  const rows = loading ? [['Carregando OS do banco...', '', '', '', '', '', '', '', '', '']] : visibleOrders.map((item) => [<span className="mono">{item.number}</span>, item.client, item.service || '-', item.product || '-', Array.isArray(item.teamMembers) && item.teamMembers.length ? item.teamMembers.join(', ') : '-', <span className="soft">{dateTime(item.date)}</span>, <Pill value={item.status} />, <span className="soft">{item.operationStart || '-'}</span>, <span className="soft">{item.operationEnd || '-'}</span>, leaderActions(item)]);
   return (
     <>
       <PageHead title="Programação de Equipes" subtitle="Fila de OS criadas pela administração para o líder vincular e acompanhar pelo próprio usuário." ghostAction="Exportar OS" onGhostAction={exportRows} action="Atualizar" onAction={load} />
@@ -710,7 +718,7 @@ function Schedules({ notify, editable = true }) {
         <Kpi icon="home" label="Em campo" value={visibleOrders.filter((item) => item.status === 'Em execucao').length} delta="em execucao" />
         <Kpi icon="check" label="Finalizadas" value={visibleOrders.filter((item) => item.status === 'Finalizado').length} delta="finalizadas" success />
       </div>
-      <Panel title="OS direcionadas ao lider" actions={<Pill value={user.name || user.email || 'usuario'} />}><DataTable columns={['OS', 'Cliente', 'Servico', 'Produto', 'Integrantes', 'Status', 'Inicio', 'Fim', 'Acao']} rows={rows} /></Panel>
+      <Panel title="OS direcionadas ao lider" actions={<Pill value={user.name || user.email || 'usuario'} />}><DataTable columns={['OS', 'Cliente', 'Servico', 'Produto', 'Integrantes', 'Data programada', 'Status', 'Inicio', 'Fim', 'Acao']} rows={rows} /></Panel>
       {attendanceModal && <AttendanceModal order={attendanceModal} onCancel={() => setAttendanceModal(null)} onSave={(attendance) => updateOrder(attendanceModal, { attendance }, 'Chamada salva na OS')} />}
       {operationModal && <Editor title="Editar operacao da OS" fields={[['carrier', 'Transportador'], ['location', 'Local'], ['product', 'Produto'], ['equipment', 'Equipamento', 'select', equipmentOptions], ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')], ['trailerPlate', 'Placa da carreta', 'text', null, (form) => normalize(form.equipment).includes('carreta')], ['teamMembers', 'Incluir integrantes da equipe', 'employees', employeeOptions], ['teamNote', 'Observacao obrigatoria ao alterar equipe', 'textarea'], ['progress', 'Percentual', 'number']]} initial={operationModal} onCancel={() => setOperationModal(null)} onSave={saveOperationEdit} />}
       {occurrenceModal && <Editor title={`Lançar ocorrência · OS ${occurrenceModal.number}`} fields={occurrenceFields} initial={{ workOrder: occurrenceModal.number, type: 'Operacional', status: 'Aberta' }} onCancel={() => setOccurrenceModal(null)} onSave={saveLeaderOccurrence} />}
@@ -902,7 +910,7 @@ function DailyOps({ notify, editable = true }) {
     ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')],
     ['trailerPlate', 'Placa da carreta', 'text', null, (form) => normalize(form.equipment).includes('carreta')],
     ['status', 'Status', 'select', ['Programado', 'Em execucao', 'Finalizado', 'Cancelado']],
-    ['date', 'Data', 'date'],
+    ['date', 'Data programada', 'datetime-local'],
     ['carrier', 'Transportador'],
     ['service', 'Serviço', 'select', ['', ...optionValues(services, 'description', 'code')]],
     ['location', 'Local'],
@@ -990,14 +998,14 @@ function DailyOps({ notify, editable = true }) {
   const detailContent = () => {
     if (!selected) return null;
     if (activeTab === 'Equipe') return [['Equipe', Array.isArray(selected.teamMembers) && selected.teamMembers.length ? selected.teamMembers.join(', ') : 'Sem integrantes definidos'], ['Responsável', selected.responsible || '-'], ['Chamada', selected.attendance ? Object.entries(selected.attendance).map(([name, value]) => `${name}: ${typeof value === 'object' ? `${value.status}${value.note ? ` (${value.note})` : ''}` : value}`).join(' | ') : '-'], ['Justificativa', selected.teamNote || '-']];
-    if (activeTab === 'Horários') return [['Data prevista', date(selected.date)], ['Início da operação', selected.operationStart || '-'], ['Fim da operação', selected.operationEnd || '-'], ['Janela', selected.window || '06:00 - 22:00']];
+    if (activeTab === 'Horários') return [['Data programada', dateTime(selected.date)], ['Início da operação', selected.operationStart || '-'], ['Fim da operação', selected.operationEnd || '-'], ['Janela', selected.window || '06:00 - 22:00']];
     if (activeTab === 'Ocorrências') return [
       ['Status operacional', selected.status],
       ['Solicitação de correção', selected.correctionRequested ? (selected.correctionApproved ? 'Liberada' : 'Aguardando liberação') : 'Sem solicitação'],
       ...selectedOccurrences.map((item) => [`${item.type || 'Ocorrência'} · ${item.status || '-'}`, item.description || '-']),
       ...(selectedOccurrences.length ? [] : [['Ocorrências', 'Nenhuma ocorrência lançada para esta OS']])
     ];
-    return [['Data', date(selected.date)], ['Transportador', selected.carrier], ['Serviço', selected.service], ['Produto', selected.product || '-'], ['Equipamento', selected.equipment || '-'], ['Container', selected.containerNumber || '-'], ['Placa', selected.trailerPlate || '-'], ['Posto', selected.location || 'ARCONDICIONADO - 0 un.'], ['Responsável', selected.responsible], ['Percentual', `${selected.progress || 0}%`], ['Prioridade', selected.priority]];
+    return [['Data programada', dateTime(selected.date)], ['Transportador', selected.carrier], ['Serviço', selected.service], ['Produto', selected.product || '-'], ['Equipamento', selected.equipment || '-'], ['Container', selected.containerNumber || '-'], ['Placa', selected.trailerPlate || '-'], ['Posto', selected.location || 'ARCONDICIONADO - 0 un.'], ['Responsável', selected.responsible], ['Percentual', `${selected.progress || 0}%`], ['Prioridade', selected.priority]];
   };
   return (
     <>
@@ -1019,7 +1027,7 @@ function DailyOps({ notify, editable = true }) {
       <div className="detail">
         <div className="pane" style={{ overflow: 'hidden' }}>
           <div className="table-tools"><input className="search-input" value={filters.table} onChange={(event) => setFilters((old) => ({ ...old, table: event.target.value }))} placeholder="Filtrar resultados..." /><span className="spacer" /><button className="btn btn-sm" onClick={() => setItems((old) => [...old].sort((a, b) => String(b.date).localeCompare(String(a.date))))}>Ordenar: Data ↓</button></div>
-          <div className="table-scroll"><table className="dtbl"><thead><tr><th>OS</th><th>Cliente</th><th>Equipamento</th><th>Status</th><th className="right">Falta</th><th className="right">Data</th></tr></thead><tbody>{loading ? <tr><td colSpan="6">Carregando dados do banco...</td></tr> : filteredItems.map((i) => <tr key={i.id} className={selected?.id === i.id ? 'selected' : ''} onClick={() => setSelectedId(i.id)}><td className="mono">{i.number}</td><td>{i.client}</td><td className="mono">{i.equipment || '-'}</td><td><Pill value={i.status} /></td><td className="right">{absenceCount(i)}</td><td className="right">{date(i.date)}</td></tr>)}</tbody></table></div>
+          <div className="table-scroll"><table className="dtbl"><thead><tr><th>OS</th><th>Cliente</th><th>Equipamento</th><th>Status</th><th className="right">Falta</th><th className="right">Data programada</th></tr></thead><tbody>{loading ? <tr><td colSpan="6">Carregando dados do banco...</td></tr> : filteredItems.map((i) => <tr key={i.id} className={selected?.id === i.id ? 'selected' : ''} onClick={() => setSelectedId(i.id)}><td className="mono">{i.number}</td><td>{i.client}</td><td className="mono">{i.equipment || '-'}</td><td><Pill value={i.status} /></td><td className="right">{absenceCount(i)}</td><td className="right">{dateTime(i.date)}</td></tr>)}</tbody></table></div>
         </div>
         <div className="pane">{selected && <><div className="pane-head"><div><div className="eyebrow">Ordem de Serviço</div><div className="mono-title">OS {selected.number} · {selected.client}</div></div><div className="meta"><Pill value={selected.status} /></div></div><div className="tabs">{['Dados', 'Equipe', 'Horários', 'Ocorrências'].map((tab) => <div key={tab} className={`tab ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>{tab}</div>)}</div><div className="pane-body">{detailContent().map(([k, v]) => <div className="field-row" key={k}><b>{k}</b><span>{v}</span></div>)}</div><div className="action-strip"><button className="btn" onClick={() => setModal(selected)}>Editar OS</button>{selected.correctionRequested && !selected.correctionApproved && <button className="btn btn-primary" onClick={releaseCorrection}>Liberar correção</button>}<button className="btn btn-success" onClick={registerOccurrence}>Lançar ocorrência</button><button className="btn btn-danger push" onClick={remove}>Apagar</button></div></>}</div>
       </div>
