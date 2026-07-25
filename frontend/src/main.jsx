@@ -73,6 +73,11 @@ function defaultUserPermissions(role = 'Operacional') {
   return { dashboard: 'view', dailyOps: 'view' };
 }
 
+function absenceCount(order) {
+  if (!order?.attendance) return 0;
+  return Object.values(order.attendance).filter((value) => normalize(typeof value === 'object' ? value.status : value) === 'falta').length;
+}
+
 const occurrenceFields = [
   ['type', 'Tipo', 'select', ['Operacional', 'Segurança', 'Atraso', 'Equipamento', 'Correção']],
   ['description', 'Descrição', 'textarea'],
@@ -1005,7 +1010,7 @@ function DailyOps({ notify, editable = true }) {
       <div className="detail">
         <div className="pane" style={{ overflow: 'hidden' }}>
           <div className="table-tools"><input className="search-input" value={filters.table} onChange={(event) => setFilters((old) => ({ ...old, table: event.target.value }))} placeholder="Filtrar resultados..." /><span className="spacer" /><button className="btn btn-sm" onClick={() => setItems((old) => [...old].sort((a, b) => String(b.date).localeCompare(String(a.date))))}>Ordenar: Data ↓</button></div>
-          <div className="table-scroll"><table className="dtbl"><thead><tr><th>OS</th><th>Cliente</th><th>Equipamento</th><th>Status</th><th className="right">Data</th></tr></thead><tbody>{loading ? <tr><td colSpan="5">Carregando dados do banco...</td></tr> : filteredItems.map((i) => <tr key={i.id} className={selected?.id === i.id ? 'selected' : ''} onClick={() => setSelectedId(i.id)}><td className="mono">{i.number}</td><td>{i.client}</td><td className="mono">{i.equipment || '-'}</td><td><Pill value={i.status} /></td><td className="right">{date(i.date)}</td></tr>)}</tbody></table></div>
+          <div className="table-scroll"><table className="dtbl"><thead><tr><th>OS</th><th>Cliente</th><th>Equipamento</th><th>Status</th><th className="right">Falta</th><th className="right">Data</th></tr></thead><tbody>{loading ? <tr><td colSpan="6">Carregando dados do banco...</td></tr> : filteredItems.map((i) => <tr key={i.id} className={selected?.id === i.id ? 'selected' : ''} onClick={() => setSelectedId(i.id)}><td className="mono">{i.number}</td><td>{i.client}</td><td className="mono">{i.equipment || '-'}</td><td><Pill value={i.status} /></td><td className="right">{absenceCount(i)}</td><td className="right">{date(i.date)}</td></tr>)}</tbody></table></div>
         </div>
         <div className="pane">{selected && <><div className="pane-head"><div><div className="eyebrow">Ordem de Serviço</div><div className="mono-title">OS {selected.number} · {selected.client}</div></div><div className="meta"><Pill value={selected.status} /></div></div><div className="tabs">{['Dados', 'Equipe', 'Horários', 'Ocorrências'].map((tab) => <div key={tab} className={`tab ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>{tab}</div>)}</div><div className="pane-body">{detailContent().map(([k, v]) => <div className="field-row" key={k}><b>{k}</b><span>{v}</span></div>)}</div><div className="action-strip"><button className="btn" onClick={() => setModal(selected)}>Editar OS</button>{selected.correctionRequested && !selected.correctionApproved && <button className="btn btn-primary" onClick={releaseCorrection}>Liberar correção</button>}<button className="btn btn-success" onClick={registerOccurrence}>Lançar ocorrência</button><button className="btn btn-danger push" onClick={remove}>Apagar</button></div></>}</div>
       </div>
