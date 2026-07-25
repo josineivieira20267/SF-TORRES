@@ -102,6 +102,8 @@ model WorkOrder {
   teamNote    String?
   operationStart String?
   operationEnd   String?
+  correctionRequested Boolean @default(false)
+  correctionApproved  Boolean @default(false)
   progress    Float  @default(0)
   priority    String @default("Normal")
   createdAt   DateTime @default(now())

@@ -630,14 +630,6 @@ function Schedules({ notify, editable = true }) {
     const statusOk = filters.status === 'Todos' || normalize(item.status) === normalize(filters.status);
     return belongsToLeader(item) && queryOk && statusOk;
   });
-  const bindToMe = async (order) => {
-    if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
-    const name = user.name || 'Lider';
-    const email = user.email || '';
-    await api(`/api/workOrders/${order.id}`, { method: 'PUT', body: JSON.stringify({ ...order, responsible: `${name}${email ? ` (${email})` : ''}`, status: order.status === 'Rascunho' ? 'Enviada' : order.status, progress: Math.max(Number(order.progress || 0), 5) }) });
-    notify('OS vinculada ao lider logado');
-    load();
-  };
   const updateOrder = async (order, patch, message) => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     await api(`/api/workOrders/${order.id}`, { method: 'PUT', body: JSON.stringify({ ...order, ...patch }) });
@@ -646,8 +638,13 @@ function Schedules({ notify, editable = true }) {
     setOperationModal(null);
     load();
   };
-  const markStart = (order) => updateOrder(order, { operationStart: new Date().toLocaleString('pt-BR'), status: 'Em execucao', progress: Math.max(Number(order.progress || 0), 10) }, 'Inicio da operacao marcado');
-  const markEnd = (order) => updateOrder(order, { operationEnd: new Date().toLocaleString('pt-BR'), status: 'Concluida', progress: 100 }, 'Fim da operacao marcado');
+  const markStart = (order) => updateOrder(order, { operationStart: new Date().toLocaleString('pt-BR'), operationEnd: '', status: 'Em execucao', progress: Math.max(Number(order.progress || 0), 10) }, 'Inicio da operacao marcado');
+  const markEnd = (order) => updateOrder(order, { operationEnd: new Date().toLocaleString('pt-BR'), status: 'Concluida', progress: 100, correctionRequested: false, correctionApproved: false }, 'Fim da operacao marcado');
+  const requestLeaderCorrection = async (order) => {
+    if (order.correctionRequested && !order.correctionApproved) return notify('Correção já solicitada ao administrativo');
+    await updateOrder(order, { correctionRequested: true, correctionApproved: false }, 'Solicitacao de correcao enviada ao administrativo');
+    await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ workOrder: order.number, type: 'Correção', description: `Líder solicitou correção após conclusão da OS`, status: 'Aguardando liberação' }) });
+  };
   const exportRows = () => downloadCsv('programacao-os-lider.csv', [['OS', 'Cliente', 'Servico', 'Equipamento', 'Local', 'Lider', 'Status', 'Data'], ...visibleOrders.map((item) => [item.number, item.client, item.service, item.equipment, item.location, item.responsible, item.status, item.date])]);
   const employeeOptions = employees.map((item) => item.name).filter(Boolean);
   const equipmentOptions = ['', ...Array.from(new Set(equipment.map((item) => item.type).filter(Boolean)))];
@@ -656,9 +653,22 @@ function Schedules({ notify, editable = true }) {
     const after = Array.isArray(data.teamMembers) ? data.teamMembers : [];
     const changedTeam = before.length !== after.length || before.some((name) => !after.includes(name)) || after.some((name) => !before.includes(name));
     if (changedTeam && !String(data.teamNote || '').trim()) return notify('Informe a observacao/justificativa para alterar integrantes da equipe');
-    return updateOrder(operationModal, data, 'Dados operacionais atualizados');
+    return updateOrder(operationModal, { ...data, correctionRequested: false, correctionApproved: false }, 'Dados operacionais atualizados');
   };
-  const rows = loading ? [['Carregando OS do banco...', '', '', '', '', '', '', '']] : visibleOrders.map((item) => [<span className="mono">{item.number}</span>, item.client, item.service || '-', item.product || '-', Array.isArray(item.teamMembers) && item.teamMembers.length ? item.teamMembers.join(', ') : '-', <Pill value={item.status} />, <span className="soft">{item.operationStart || '-'}</span>, editable ? <div className="inline-actions"><button className="btn btn-sm" onClick={() => bindToMe(item)}>Vincular</button><button className="btn btn-sm" onClick={() => setAttendanceModal(item)}>Chamada</button><button className="btn btn-sm" onClick={() => setOperationModal(item)}>Editar</button><button className="btn btn-sm btn-success" onClick={() => markStart(item)}>Iniciar</button><button className="btn btn-sm btn-primary" onClick={() => markEnd(item)}>Finalizar</button></div> : <span className="soft">Somente leitura</span>]);
+  const leaderActions = (item) => {
+    if (!editable) return <span className="soft">Somente leitura</span>;
+    const done = item.status === 'Concluida';
+    if (done && !item.correctionApproved) return <button className="btn btn-sm" onClick={() => requestLeaderCorrection(item)}>{item.correctionRequested ? 'Correção solicitada' : 'Solicitar correção'}</button>;
+    return (
+      <div className="inline-actions">
+        <button className="btn btn-sm" onClick={() => setAttendanceModal(item)}>Chamada</button>
+        <button className="btn btn-sm" onClick={() => setOperationModal(item)}>Editar</button>
+        {!item.operationStart && !done && <button className="btn btn-sm btn-success" onClick={() => markStart(item)}>Iniciar</button>}
+        {item.operationStart && !item.operationEnd && !done && <button className="btn btn-sm btn-primary" onClick={() => markEnd(item)}>Finalizar</button>}
+      </div>
+    );
+  };
+  const rows = loading ? [['Carregando OS do banco...', '', '', '', '', '', '', '', '']] : visibleOrders.map((item) => [<span className="mono">{item.number}</span>, item.client, item.service || '-', item.product || '-', Array.isArray(item.teamMembers) && item.teamMembers.length ? item.teamMembers.join(', ') : '-', <Pill value={item.status} />, <span className="soft">{item.operationStart || '-'}</span>, <span className="soft">{item.operationEnd || '-'}</span>, leaderActions(item)]);
   return (
     <>
       <PageHead title="Programação de Equipes" subtitle="Fila de OS criadas pela administração para o líder vincular e acompanhar pelo próprio usuário." ghostAction="Exportar OS" onGhostAction={exportRows} action="Atualizar" onAction={load} />
@@ -673,7 +683,7 @@ function Schedules({ notify, editable = true }) {
         <Kpi icon="home" label="Em campo" value={visibleOrders.filter((item) => item.status === 'Em execucao').length} delta="em execucao" />
         <Kpi icon="check" label="Concluidas" value={visibleOrders.filter((item) => item.status === 'Concluida').length} delta="finalizadas" success />
       </div>
-      <Panel title="OS direcionadas ao lider" actions={<Pill value={user.name || user.email || 'usuario'} />}><DataTable columns={['OS', 'Cliente', 'Servico', 'Produto', 'Integrantes', 'Status', 'Inicio', 'Acao']} rows={rows} /></Panel>
+      <Panel title="OS direcionadas ao lider" actions={<Pill value={user.name || user.email || 'usuario'} />}><DataTable columns={['OS', 'Cliente', 'Servico', 'Produto', 'Integrantes', 'Status', 'Inicio', 'Fim', 'Acao']} rows={rows} /></Panel>
       {attendanceModal && <AttendanceModal order={attendanceModal} onCancel={() => setAttendanceModal(null)} onSave={(attendance) => updateOrder(attendanceModal, { attendance }, 'Chamada salva na OS')} />}
       {operationModal && <Editor title="Editar operacao da OS" fields={[['carrier', 'Transportador'], ['location', 'Local'], ['product', 'Produto'], ['equipment', 'Equipamento', 'select', equipmentOptions], ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')], ['trailerPlate', 'Placa da carreta', 'text', null, (form) => normalize(form.equipment).includes('carreta')], ['teamMembers', 'Incluir integrantes da equipe', 'employees', employeeOptions], ['teamNote', 'Observacao obrigatoria ao alterar equipe', 'textarea'], ['progress', 'Percentual', 'number']]} initial={operationModal} onCancel={() => setOperationModal(null)} onSave={saveOperationEdit} />}
     </>
@@ -925,11 +935,13 @@ function DailyOps({ notify, editable = true }) {
     notify('OS apagada'); setSelectedId(''); load();
   };
   const exportFiltered = () => downloadCsv('operacao-diaria.csv', [['OS', 'Cliente', 'Equipamento', 'Status', 'Data', 'Serviço', 'Equipe'], ...filteredItems.map((item) => [item.number, item.client, item.equipment, item.status, item.date, item.service, item.carrier])]);
-  const requestCorrection = async () => {
+  const releaseCorrection = async () => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     if (!selected) return;
-    await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ workOrder: selected.number, type: 'Correção', description: 'Solicitação de correção aberta pela Operação Diária', status: 'Aberta' }) });
-    notify('Correção registrada no banco');
+    await api(`/api/workOrders/${selected.id}`, { method: 'PUT', body: JSON.stringify({ ...selected, correctionApproved: true }) });
+    await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ workOrder: selected.number, type: 'Correção', description: 'Correção liberada pela administração para edição do líder', status: 'Liberada' }) });
+    notify('Correção liberada para o líder');
+    load();
   };
   const registerOccurrence = async () => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
@@ -941,7 +953,7 @@ function DailyOps({ notify, editable = true }) {
     if (!selected) return null;
     if (activeTab === 'Equipe') return [['Equipe', Array.isArray(selected.teamMembers) && selected.teamMembers.length ? selected.teamMembers.join(', ') : 'Sem integrantes definidos'], ['Responsável', selected.responsible || '-'], ['Chamada', selected.attendance ? Object.entries(selected.attendance).map(([name, value]) => `${name}: ${typeof value === 'object' ? `${value.status}${value.note ? ` (${value.note})` : ''}` : value}`).join(' | ') : '-'], ['Justificativa', selected.teamNote || '-']];
     if (activeTab === 'Horários') return [['Data prevista', date(selected.date)], ['Início da operação', selected.operationStart || '-'], ['Fim da operação', selected.operationEnd || '-'], ['Janela', selected.window || '06:00 - 22:00']];
-    if (activeTab === 'Ocorrências') return [['Status operacional', selected.status], ['Último registro', 'Ocorrências salvas no histórico do banco'], ['Ação rápida', 'Use Lançar ocorrência ou Solicitar correção']];
+    if (activeTab === 'Ocorrências') return [['Status operacional', selected.status], ['Solicitação de correção', selected.correctionRequested ? (selected.correctionApproved ? 'Liberada' : 'Aguardando liberação') : 'Sem solicitação'], ['Último registro', 'Ocorrências salvas no histórico do banco']];
     return [['Data', date(selected.date)], ['Transportador', selected.carrier], ['Serviço', selected.service], ['Produto', selected.product || '-'], ['Equipamento', selected.equipment || '-'], ['Container', selected.containerNumber || '-'], ['Placa', selected.trailerPlate || '-'], ['Posto', selected.location || 'ARCONDICIONADO - 0 un.'], ['Responsável', selected.responsible], ['Percentual', `${selected.progress || 0}%`], ['Prioridade', selected.priority]];
   };
   return (
@@ -966,7 +978,7 @@ function DailyOps({ notify, editable = true }) {
           <div className="table-tools"><input className="search-input" value={filters.table} onChange={(event) => setFilters((old) => ({ ...old, table: event.target.value }))} placeholder="Filtrar resultados..." /><span className="spacer" /><button className="btn btn-sm" onClick={() => setItems((old) => [...old].sort((a, b) => String(b.date).localeCompare(String(a.date))))}>Ordenar: Data ↓</button></div>
           <div className="table-scroll"><table className="dtbl"><thead><tr><th>OS</th><th>Cliente</th><th>Equipamento</th><th>Status</th><th className="right">Data</th></tr></thead><tbody>{loading ? <tr><td colSpan="5">Carregando dados do banco...</td></tr> : filteredItems.map((i) => <tr key={i.id} className={selected?.id === i.id ? 'selected' : ''} onClick={() => setSelectedId(i.id)}><td className="mono">{i.number}</td><td>{i.client}</td><td className="mono">{i.equipment || '-'}</td><td><Pill value={i.status} /></td><td className="right">{date(i.date)}</td></tr>)}</tbody></table></div>
         </div>
-        <div className="pane">{selected && <><div className="pane-head"><div><div className="eyebrow">Ordem de Serviço</div><div className="mono-title">OS {selected.number} · {selected.client}</div></div><div className="meta"><Pill value={selected.status} /></div></div><div className="tabs">{['Dados', 'Equipe', 'Horários', 'Ocorrências'].map((tab) => <div key={tab} className={`tab ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>{tab}</div>)}</div><div className="pane-body">{detailContent().map(([k, v]) => <div className="field-row" key={k}><b>{k}</b><span>{v}</span></div>)}</div><div className="action-strip"><button className="btn" onClick={() => setModal(selected)}>Editar OS</button><button className="btn" onClick={requestCorrection}>Solicitar correção</button><button className="btn btn-success" onClick={registerOccurrence}>Lançar ocorrência</button><button className="btn btn-danger push" onClick={remove}>Apagar</button></div></>}</div>
+        <div className="pane">{selected && <><div className="pane-head"><div><div className="eyebrow">Ordem de Serviço</div><div className="mono-title">OS {selected.number} · {selected.client}</div></div><div className="meta"><Pill value={selected.status} /></div></div><div className="tabs">{['Dados', 'Equipe', 'Horários', 'Ocorrências'].map((tab) => <div key={tab} className={`tab ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>{tab}</div>)}</div><div className="pane-body">{detailContent().map(([k, v]) => <div className="field-row" key={k}><b>{k}</b><span>{v}</span></div>)}</div><div className="action-strip"><button className="btn" onClick={() => setModal(selected)}>Editar OS</button>{selected.correctionRequested && !selected.correctionApproved && <button className="btn btn-primary" onClick={releaseCorrection}>Liberar correção</button>}<button className="btn btn-success" onClick={registerOccurrence}>Lançar ocorrência</button><button className="btn btn-danger push" onClick={remove}>Apagar</button></div></>}</div>
       </div>
       {modal && <Editor title={modal.id ? 'Editar OS' : 'Nova OS'} fields={fields} initial={modal} onCancel={() => setModal(null)} onSave={save} />}
       {historyOpen && <div className="modal-backdrop"><div className="modal"><div className="modal-head"><h3>Histórico da operação</h3><button className="btn btn-sm" onClick={() => setHistoryOpen(false)}>Fechar</button></div><div className="modal-body"><DataTable columns={['OS', 'Cliente', 'Status', 'Data']} rows={items.map((item) => [item.number, item.client, <Pill value={item.status} />, date(item.date)])} /></div></div></div>}
