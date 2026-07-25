@@ -504,13 +504,15 @@ function Screen({ route, notify, settings, setSettings }) {
 function Dashboard() {
   const [summary, setSummary] = useState(null);
   const [orders, setOrders] = useState([]);
+  const [onlyOpen, setOnlyOpen] = useState(false);
   useEffect(() => {
     api('/api/dashboard/summary').then((p) => setSummary(p.data)).catch((error) => triggerAction(error.message));
     api('/api/workOrders').then((p) => setOrders(p.data)).catch((error) => triggerAction(error.message));
   }, []);
+  const shownOrders = onlyOpen ? orders.filter((order) => !String(order.status).toLowerCase().includes('conclu')) : orders;
   return (
     <>
-      <PageHead title="Painel Corporativo" subtitle="Visão consolidada das operações, produtividade e faturamento." ghostAction="Exportar" action="Atualizar agora" onAction={() => { triggerAction('Painel atualizado'); api('/api/dashboard/summary').then((p) => setSummary(p.data)).catch((error) => triggerAction(error.message)); api('/api/workOrders').then((p) => setOrders(p.data)).catch((error) => triggerAction(error.message)); }} />
+      <PageHead title="Painel Corporativo" subtitle="Visão consolidada das operações, produtividade e faturamento." ghostAction="Exportar" onGhostAction={() => downloadCsv('painel-ordens-recentes.csv', [['OS', 'Cliente', 'Serviço', 'Equipamento', 'Equipe', 'Status', 'Data'], ...shownOrders.map((o) => [o.number, o.client, o.service, o.equipment, o.carrier, o.status, o.date])])} action="Atualizar agora" onAction={() => { triggerAction('Painel atualizado'); api('/api/dashboard/summary').then((p) => setSummary(p.data)).catch((error) => triggerAction(error.message)); api('/api/workOrders').then((p) => setOrders(p.data)).catch((error) => triggerAction(error.message)); }} />
       <div className="kpi-grid">
         <Kpi icon="grid" label="Módulos ativos" value="10" delta="+1 desde o último ciclo" />
         <Kpi icon="users" label="Clientes ativos" value={summary?.activeClients ?? '-'} delta="contratos em operação" success />
@@ -519,8 +521,8 @@ function Dashboard() {
       </div>
       <div className="dash-grid">
         <div className="panel">
-          <div className="panel-head"><h3>Ordens de serviço recentes</h3><div className="actions"><button className="btn btn-sm" onClick={() => triggerAction('Filtro de OS')}>Filtrar</button><button className="btn btn-sm btn-primary" onClick={() => { window.location.hash = '#/dailyOps'; }}>Nova OS</button></div></div>
-          <DataTable columns={['OS', 'Cliente', 'Serviço', 'Equipamento', 'Equipe', 'Status', 'Prev.']} rows={orders.map((o) => [<span className="mono">{o.number}</span>, o.client, o.service, <span className="mono">{o.equipment || '-'}</span>, o.carrier || '-', <Pill value={o.status} />, date(o.date).slice(0, 5)])} />
+          <div className="panel-head"><h3>Ordens de serviço recentes</h3><div className="actions"><button className="btn btn-sm" onClick={() => setOnlyOpen((value) => !value)}>{onlyOpen ? 'Ver todas' : 'Filtrar abertas'}</button><button className="btn btn-sm btn-primary" onClick={() => { window.location.hash = '#/dailyOps'; }}>Nova OS</button></div></div>
+          <DataTable columns={['OS', 'Cliente', 'Serviço', 'Equipamento', 'Equipe', 'Status', 'Prev.']} rows={shownOrders.map((o) => [<span className="mono">{o.number}</span>, o.client, o.service, <span className="mono">{o.equipment || '-'}</span>, o.carrier || '-', <Pill value={o.status} />, date(o.date).slice(0, 5)])} />
         </div>
         <ActivityPanel />
       </div>
@@ -534,14 +536,26 @@ function Dashboard() {
 }
 
 function Tower() {
-  const rows = [
-    ['0007-159', 'SEMP TCL', 'Pátio 3', 'Aliança · Desova', '23/07 08:00', '23/07 13:00', <Pill value="Em execução" />],
-    ['0007-160', 'SEMP TCL', 'Pátio 2', 'Aliança · Desova 2', '24/07 07:00', '-', <Pill value="Aprovada" />],
-    ['0007-157', 'ADF', 'Porto CSF', 'TransNorte · 3 op.', '21/07 06:00', '21/07 18:00', <Pill value="Concluída" />],
-    ['0007-156', 'SEMP TCL', 'Pátio 3', '-', '-', '-', <Pill value="Paralisada" />],
-    ['0007-155', 'ADF', 'CD Manaus', '-', '20/07 14:00', '20/07 17:00', <Pill value="Concluída" />]
-  ];
-  return <><PageHead title="Torre Operacional" subtitle="Painel em tempo real das operações em andamento e fila de execução." ghostAction="Tempo real" action="Atualizar" /><div className="kpi-grid"><Kpi icon="pulse" label="Operações ativas" value="04" delta="em campo agora" /><Kpi icon="clock" label="Na fila" value="07" delta="próximas 24h" warning /><Kpi icon="check" label="Concluídas hoje" value="12" delta="ontem: 09" success /><Kpi icon="alert" label="Alertas" value="02" delta="atenção da torre" danger /></div><Panel title="Fila de execução" actions={<><button className="btn btn-sm" onClick={() => triggerAction('Filtro da torre')}>Filtrar</button><button className="btn btn-sm btn-primary" onClick={() => triggerAction('Equipe acionada')}>Acionar equipe</button></>}><DataTable columns={['OS', 'Cliente', 'Local', 'Equipe', 'Início', 'Término', 'Status']} rows={rows} /></Panel></>;
+  const [orders, setOrders] = useState([]);
+  const [statusFilter, setStatusFilter] = useState('Fila');
+  const load = () => api('/api/workOrders').then((payload) => setOrders(payload.data)).catch((error) => triggerAction(error.message));
+  useEffect(load, []);
+  const visible = statusFilter === 'Todos'
+    ? orders
+    : orders.filter((order) => ['Aprovada', 'Enviada', 'Em execucao', 'Rascunho'].includes(order.status));
+  const active = orders.filter((order) => String(order.status).includes('exec')).length;
+  const done = orders.filter((order) => String(order.status).toLowerCase().includes('conclu')).length;
+  const queue = orders.filter((order) => ['Aprovada', 'Enviada', 'Rascunho'].includes(order.status)).length;
+  const alertCount = orders.filter((order) => ['Paralisada', 'Cancelada'].includes(order.status)).length;
+  const assignTeam = async () => {
+    const order = visible.find((item) => ['Aprovada', 'Enviada', 'Rascunho'].includes(item.status));
+    if (!order) return triggerAction('Nenhuma OS na fila');
+    await api(`/api/workOrders/${order.id}`, { method: 'PUT', body: JSON.stringify({ ...order, status: 'Em execucao', carrier: order.carrier || 'Equipe acionada pela torre', progress: Math.max(Number(order.progress || 0), 10) }) });
+    triggerAction(`Equipe acionada para OS ${order.number}`);
+    load();
+  };
+  const rows = visible.map((order) => [order.number, order.client, order.location || '-', order.carrier || 'Sem equipe', date(order.date), order.status === 'Concluida' ? date(order.updatedAt) : '-', <Pill value={order.status} />]);
+  return <><PageHead title="Torre Operacional" subtitle="Painel em tempo real das operações em andamento e fila de execução." ghostAction="Tempo real" onGhostAction={() => setStatusFilter((value) => value === 'Todos' ? 'Fila' : 'Todos')} action="Atualizar" onAction={load} /><div className="kpi-grid"><Kpi icon="pulse" label="Operações ativas" value={active} delta="em campo agora" /><Kpi icon="clock" label="Na fila" value={queue} delta="próximas 24h" warning /><Kpi icon="check" label="Concluídas" value={done} delta="ordens no sistema" success /><Kpi icon="alert" label="Alertas" value={alertCount} delta="atenção da torre" danger /></div><Panel title="Fila de execução" actions={<><button className="btn btn-sm" onClick={() => setStatusFilter((value) => value === 'Todos' ? 'Fila' : 'Todos')}>{statusFilter === 'Todos' ? 'Ver fila' : 'Ver todas'}</button><button className="btn btn-sm btn-primary" onClick={assignTeam}>Acionar equipe</button></>}><DataTable columns={['OS', 'Cliente', 'Local', 'Equipe', 'Início', 'Término', 'Status']} rows={rows} /></Panel></>;
 }
 
 function Schedules({ notify }) {
@@ -564,16 +578,70 @@ function Schedules({ notify }) {
 }
 
 function Productivity() {
-  return <><PageHead title="Produtividade" subtitle="Indicadores operacionais por equipe, cliente, equipamento e turno." ghostAction="Comparar períodos" action="Exportar relatório" /><div className="kpi-grid"><Kpi icon="chart" label="Toneladas / hora" value="8,4" delta="meta: 7,5" success /><Kpi icon="clock" label="Tempo médio OS" value="04:32" delta="Meta: 5h" /><Kpi icon="alert" label="Índice de paradas" value="3,8%" delta="-1,1 p.p." warning /><Kpi icon="file" label="OS concluídas" value="328" delta="mês corrente" /></div><div className="two-grid"><Panel title="Produtividade por equipe (últimos 7 dias)" padded><DataTable columns={['Equipe', 'Líder', 'OS', 'Ton.', 't/h', 'Efic.']} rows={[['Aliança - Desova', 'Joana Almeida', '48', '402,1', '9,1', <Pill value="112%" />], ['Aliança - Carga', 'Marcelo Souza', '36', '298,4', '8,2', <Pill value="101%" />], ['TransNorte 3 op.', 'Beatriz Lima', '22', '162,0', '7,6', <Pill value="94%" />], ['Mov. Sul', 'Ronaldo Pena', '14', '98,2', '6,8', <Pill value="84%" />]]} /></Panel><Panel title="Resumo por cliente" padded><DataTable columns={['Cliente', 'OS', 'Fat. (R$)']} rows={[['SEMP TCL', '218', '125.430,00'], ['ADF', '110', '58.820,00'], [<b>Total</b>, <b>328</b>, <b>184.250,00</b>]]} /></Panel></div></>;
+  const [orders, setOrders] = useState([]);
+  const [measurements, setMeasurements] = useState([]);
+  const [compare, setCompare] = useState(false);
+  useEffect(() => {
+    api('/api/workOrders').then((payload) => setOrders(payload.data)).catch((error) => triggerAction(error.message));
+    api('/api/measurements').then((payload) => setMeasurements(payload.data)).catch((error) => triggerAction(error.message));
+  }, []);
+  const done = orders.filter((order) => String(order.status).toLowerCase().includes('conclu'));
+  const byTeam = Object.values(orders.reduce((acc, order) => {
+    const team = order.carrier || 'Sem equipe';
+    acc[team] = acc[team] || { team, os: 0, progress: 0 };
+    acc[team].os += 1;
+    acc[team].progress += Number(order.progress || 0);
+    return acc;
+  }, {}));
+  const teamRows = byTeam.map((item) => {
+    const efficiency = item.os ? Math.round(item.progress / item.os) : 0;
+    return [item.team, item.team.includes('·') ? item.team.split('·')[0].trim() : '-', item.os, (item.os * 8.4).toFixed(1), (Math.max(5, efficiency / 10)).toFixed(1), <Pill value={`${efficiency || 75}%`} />];
+  });
+  const revenueByClient = Object.values(measurements.reduce((acc, item) => {
+    acc[item.client] = acc[item.client] || { client: item.client, count: 0, total: 0 };
+    acc[item.client].count += 1;
+    acc[item.client].total += Number(item.total || 0);
+    return acc;
+  }, {}));
+  const revenueRows = revenueByClient.map((item) => [item.client, item.count, money(item.total)]);
+  const totalRevenue = revenueByClient.reduce((sum, item) => sum + item.total, 0);
+  const exportRows = [['Equipe', 'Líder', 'OS', 'Ton.', 't/h', 'Efic.'], ...teamRows.map((row) => row.map((cell) => typeof cell === 'object' ? cell.props.value : cell))];
+  return <><PageHead title="Produtividade" subtitle="Indicadores operacionais por equipe, cliente, equipamento e turno." ghostAction={compare ? 'Ocultar comparação' : 'Comparar períodos'} onGhostAction={() => setCompare((value) => !value)} action="Exportar relatório" onAction={() => downloadCsv('produtividade.csv', exportRows)} /><div className="kpi-grid"><Kpi icon="chart" label="Toneladas / hora" value={(done.length ? done.length * 1.4 : 8.4).toFixed(1)} delta={compare ? 'comparado ao período anterior' : 'meta: 7,5'} success /><Kpi icon="clock" label="Tempo médio OS" value="04:32" delta="Meta: 5h" /><Kpi icon="alert" label="Índice de paradas" value={`${orders.filter((order) => ['Paralisada', 'Cancelada'].includes(order.status)).length}%`} delta={compare ? '-1 p.p.' : 'base atual'} warning /><Kpi icon="file" label="OS concluídas" value={done.length} delta="base do banco" /></div><div className="two-grid"><Panel title={`Produtividade por equipe${compare ? ' · comparativo ativo' : ''}`} padded><DataTable columns={['Equipe', 'Líder', 'OS', 'Ton.', 't/h', 'Efic.']} rows={teamRows} /></Panel><Panel title="Resumo por cliente" padded><DataTable columns={['Cliente', 'Medições', 'Fat. (R$)']} rows={[...revenueRows, [<b>Total</b>, <b>{measurements.length}</b>, <b>{money(totalRevenue)}</b>]]} /></Panel></div></>;
 }
 
 function OperationalMap() {
-  return <><PageHead title="Mapa Operacional" subtitle="Visualização georreferenciada das operações em andamento e pátios ativos." ghostAction="Centralizar" action="Atualizar mapa" /><div className="map-grid"><Panel title="Mapa · Manaus / AM" actions={<><button className="btn btn-sm" onClick={() => triggerAction('Camada satélite')}>Satélite</button><button className="btn btn-sm" onClick={() => triggerAction('Camada ruas')}>Ruas</button></>}><svg viewBox="0 0 1100 520" className="map-svg"><defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="#D9E2EC" strokeWidth="1" /></pattern></defs><rect width="1100" height="520" fill="url(#grid)" /><path d="M0 320 C 200 280, 380 360, 620 310 S 980 280, 1100 320 L 1100 400 C 980 380, 800 420, 580 380 S 240 360, 0 400 Z" fill="#BFD8E5" /><MapPoint x="180" y="120" w="220" h="130" title="Pátio 3 - SEMP TCL" status="OS 0007-159 ativa" color="#1F8A4C" /><MapPoint x="500" y="140" w="180" h="120" title="Pátio 2" status="2 OS agendadas" color="#C77700" /><MapPoint x="800" y="100" w="220" h="140" title="Porto CSF" status="Alerta · 1 parado" color="#B3261E" /><path d="M 290 160 Q 430 90 590 170 T 910 140" stroke="#1B3A6B" strokeWidth="3" fill="none" strokeDasharray="6 4" /></svg></Panel><Panel title="Pontos monitorados"><ul className="activity"><li><Pill value="OK" /><div><b>Pátio 3 - SEMP TCL</b><span>OS 0007-159 · Desova em curso</span></div></li><li><Pill value="Fila" /><div><b>Pátio 2</b><span>2 OS agendadas · 04h-06h</span></div></li><li><Pill value="Alerta" /><div><b>Porto CSF</b><span>Equipamento parado · 04h12</span></div></li></ul></Panel></div></>;
+  const [layer, setLayer] = useState('ruas');
+  const [centered, setCentered] = useState(false);
+  const [locations, setLocations] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const load = () => {
+    api('/api/locations').then((payload) => setLocations(payload.data)).catch((error) => triggerAction(error.message));
+    api('/api/workOrders').then((payload) => setOrders(payload.data)).catch((error) => triggerAction(error.message));
+  };
+  useEffect(load, []);
+  const points = (locations.length ? locations : [{ description: 'Pátio 3 - SEMP TCL', status: 'Operacional' }, { description: 'Pátio 2', status: 'Fila' }, { description: 'Porto CSF', status: 'Alerta' }]).slice(0, 5);
+  const colors = ['#1F8A4C', '#C77700', '#B3261E', '#0B6FB8', '#1B3A6B'];
+  return <><PageHead title="Mapa Operacional" subtitle="Visualização georreferenciada das operações em andamento e pátios ativos." ghostAction="Centralizar" onGhostAction={() => setCentered(true)} action="Atualizar mapa" onAction={load} /><div className="map-grid"><Panel title={`Mapa · Manaus / AM · ${layer === 'ruas' ? 'Ruas' : 'Satélite'}`} actions={<><button className={`btn btn-sm ${layer === 'satelite' ? 'btn-primary' : ''}`} onClick={() => setLayer('satelite')}>Satélite</button><button className={`btn btn-sm ${layer === 'ruas' ? 'btn-primary' : ''}`} onClick={() => setLayer('ruas')}>Ruas</button></>}><svg viewBox="0 0 1100 520" className={`map-svg map-${layer} ${centered ? 'map-centered' : ''}`}><defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="#D9E2EC" strokeWidth="1" /></pattern></defs><rect width="1100" height="520" fill={layer === 'ruas' ? 'url(#grid)' : '#D9E4D4'} /><path d="M0 320 C 200 280, 380 360, 620 310 S 980 280, 1100 320 L 1100 400 C 980 380, 800 420, 580 380 S 240 360, 0 400 Z" fill={layer === 'ruas' ? '#BFD8E5' : '#96B88D'} />{points.map((point, index) => <MapPoint key={point.id || point.description} x={160 + index * 180} y={110 + (index % 2) * 42} w="190" h="120" title={point.description || point.code} status={`${orders.filter((order) => order.location === point.description).length} OS · ${point.status || 'Operacional'}`} color={colors[index]} />)}<path d="M 290 160 Q 430 90 590 170 T 910 140" stroke="#1B3A6B" strokeWidth="3" fill="none" strokeDasharray="6 4" /></svg></Panel><Panel title="Pontos monitorados"><ul className="activity">{points.map((point, index) => <li key={point.id || point.description}><Pill value={point.status || 'OK'} /><div><b>{point.description || point.code}</b><span>{orders.filter((order) => order.location === point.description).length} OS vinculadas · camada {layer}</span></div></li>)}</ul></Panel></div></>;
 }
 
 function Reports() {
-  const cards = [['Ordens de Serviço', 'Listagem detalhada com filtros por período, cliente, status e equipamento.'], ['Produtividade por Equipe', 'Indicadores de t/h, eficiência, OS concluídas e tempo médio.'], ['Faturamento por Cliente', 'Totalizadores por cliente, contrato e centro de custo.'], ['Ocorrências Operacionais', 'Histórico de incidentes por tipo, equipe e local, com SLA.'], ['Movimentação de Pessoal', 'Admissões, desligamentos, férias, afastamentos por período.'], ['Equipamentos', 'Utilização, manutenções e vida útil por container/veículo.']];
-  return <><PageHead title="Relatórios" subtitle="Modelos de relatórios prontos e exportação em PDF, XLSX e CSV." ghostAction="Configurar modelos" action="Gerar relatório" onAction={() => { downloadCsv('sf-torres-relatorios.csv', [['Relatório', 'Descrição'], ...cards]); triggerAction('Relatório gerado'); }} /><div className="section-list">{cards.map(([title, text], index) => <div className="section-card" key={title} onClick={() => { downloadCsv(`${title.toLowerCase().replaceAll(' ', '-')}.csv`, [['Relatório', 'Descrição'], [title, text]]); triggerAction(title); }}><div className="ico"><Icon name={['file', 'clock', 'money', 'box', 'users', 'monitor'][index]} /></div><div><h4>{title}</h4><p>{text}</p></div></div>)}</div></>;
+  const cards = [
+    ['Ordens de Serviço', 'Listagem detalhada com filtros por período, cliente, status e equipamento.', '/api/workOrders'],
+    ['Produtividade por Equipe', 'Indicadores de t/h, eficiência, OS concluídas e tempo médio.', '/api/workOrders'],
+    ['Faturamento por Cliente', 'Totalizadores por cliente, contrato e centro de custo.', '/api/measurements'],
+    ['Ocorrências Operacionais', 'Histórico de incidentes por tipo, equipe e local, com SLA.', '/api/occurrences'],
+    ['Movimentação de Pessoal', 'Admissões, desligamentos, férias, afastamentos por período.', '/api/employees'],
+    ['Equipamentos', 'Utilização, manutenções e vida útil por container/veículo.', '/api/equipment']
+  ];
+  const [selected, setSelected] = useState(cards[0]);
+  const [config, setConfig] = useState(false);
+  const generate = async (card = selected) => {
+    const payload = await api(card[2]);
+    const rows = payload.data || [];
+    const keys = [...new Set(rows.flatMap((row) => Object.keys(row).filter((key) => !['id', 'createdAt', 'updatedAt'].includes(key))))];
+    downloadCsv(`${card[0].toLowerCase().replaceAll(' ', '-')}.csv`, [keys, ...rows.map((row) => keys.map((key) => row[key]))]);
+  };
+  return <><PageHead title="Relatórios" subtitle="Modelos de relatórios prontos e exportação em PDF, XLSX e CSV." ghostAction="Configurar modelos" onGhostAction={() => setConfig(true)} action="Gerar relatório" onAction={() => generate()} /><div className="section-list">{cards.map(([title, text, endpoint], index) => <div className={`section-card ${selected[0] === title ? 'selected-card' : ''}`} key={title} onClick={() => setSelected([title, text, endpoint])} onDoubleClick={() => generate([title, text, endpoint])}><div className="ico"><Icon name={['file', 'clock', 'money', 'box', 'users', 'monitor'][index]} /></div><div><h4>{title}</h4><p>{text}</p></div></div>)}</div>{config && <Editor title="Configurar modelo de relatório" fields={[['name', 'Modelo'], ['format', 'Formato', 'select', ['CSV', 'XLSX', 'PDF']], ['period', 'Período', 'select', ['Hoje', 'Esta semana', 'Este mês', 'Personalizado']]]} initial={{ name: selected[0], format: 'CSV', period: 'Este mês' }} onCancel={() => setConfig(false)} onSave={(data) => { localStorage.setItem('sfTorresReportConfig', JSON.stringify(data)); setConfig(false); triggerAction('Modelo de relatório salvo'); }} />}</>;
 }
 
 function Users({ notify }) {
@@ -707,12 +775,14 @@ function DailyOps({ notify }) {
 }
 
 function Measurement({ notify }) {
+  const [pendingOnly, setPendingOnly] = useState(false);
   return <>
     <CrudScreen
       config={{
         ...crudConfigs.measurement,
+        endpoint: `/api/measurements${pendingOnly ? '?status=Pendente' : ''}`,
         noToolbar: true,
-        panelActions: ({ items, load }) => <><button className="btn btn-sm" onClick={() => triggerAction('Filtro de medição')}>Filtrar</button><button className="btn btn-sm btn-primary" onClick={async () => { const pending = items.find((item) => item.status === 'Pendente') || items[0]; if (!pending) return notify('Nenhuma medição para fechar'); await api(`/api/measurements/${pending.id}`, { method: 'PUT', body: JSON.stringify({ ...pending, status: 'Fechada' }) }); notify('Medição fechada no banco'); load(); }}>Fechar medição</button></>
+        panelActions: ({ items, load }) => <><button className="btn btn-sm" onClick={() => setPendingOnly((value) => !value)}>{pendingOnly ? 'Ver todas' : 'Filtrar pendentes'}</button><button className="btn btn-sm btn-primary" onClick={async () => { const pending = items.find((item) => item.status === 'Pendente') || items[0]; if (!pending) return notify('Nenhuma medição para fechar'); await api(`/api/measurements/${pending.id}`, { method: 'PUT', body: JSON.stringify({ ...pending, status: 'Fechada' }) }); notify('Medição fechada no banco'); load(); }}>Fechar medição</button></>
       }}
       notify={notify}
       beforeTable={<div className="kpi-grid"><Kpi icon="money" label="Faturado (mês)" value="R$ 184.250" delta="+12% MoM" success /><Kpi icon="clock" label="A faturar" value="R$ 42.180" delta="4 medições" /><Kpi icon="alert" label="Pendentes" value="02" delta="aguardando cliente" warning /><Kpi icon="check" label="Medições fechadas" value="38" delta="no mês" /></div>}
@@ -726,7 +796,7 @@ function CrudScreen({ config, notify, beforeTable }) {
   const [q, setQ] = useState('');
   const [modal, setModal] = useState(null);
   const load = () => { setLoading(true); api(`${config.endpoint}${q ? `?q=${encodeURIComponent(q)}` : ''}`).then((p) => setItems(p.data)).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
-  useEffect(load, [q]);
+  useEffect(load, [q, config.endpoint]);
   const save = async (data) => {
     await api(modal?.id ? `${config.endpoint}/${modal.id}` : config.endpoint, { method: modal?.id ? 'PUT' : 'POST', body: JSON.stringify(data) });
     setModal(null); notify('Registro salvo'); load();
