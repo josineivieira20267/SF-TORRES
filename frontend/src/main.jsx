@@ -235,9 +235,41 @@ function date(value) {
 function dateTime(value) {
   if (!value) return '-';
   const raw = String(value);
+  const brDate = raw.match(/^(\d{2}\/\d{2}\/\d{4})(?:,?\s+(\d{2}:\d{2}))?/);
+  if (brDate) return brDate[2] ? `${brDate[1]}, ${brDate[2]}` : brDate[1];
   const formattedDate = date(raw);
   const time = raw.includes('T') ? raw.slice(11, 16) : (raw.match(/\b\d{2}:\d{2}\b/)?.[0] || '');
   return time ? `${formattedDate}, ${time}` : formattedDate;
+}
+
+function pad2(value) {
+  return String(value).padStart(2, '0');
+}
+
+function localDateValue(value) {
+  return `${value.getFullYear()}-${pad2(value.getMonth() + 1)}-${pad2(value.getDate())}`;
+}
+
+function currentMonthValue() {
+  const now = new Date();
+  return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`;
+}
+
+function monthRange(month = currentMonthValue()) {
+  const [year, monthNumber] = String(month).split('-').map(Number);
+  const safeYear = year || new Date().getFullYear();
+  const safeMonth = monthNumber ? monthNumber - 1 : new Date().getMonth();
+  const start = new Date(safeYear, safeMonth, 1);
+  const end = new Date(safeYear, safeMonth + 1, 0);
+  return {
+    from: `${localDateValue(start)}T00:00:00`,
+    to: `${localDateValue(end)}T23:59:59`
+  };
+}
+
+function workOrdersEndpoint(month = currentMonthValue()) {
+  const range = monthRange(month);
+  return `/api/workOrders?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}&limit=500`;
 }
 
 function money(value) {
@@ -615,12 +647,12 @@ function Dashboard() {
   const [onlyOpen, setOnlyOpen] = useState(false);
   useEffect(() => {
     api('/api/dashboard/summary').then((p) => setSummary(p.data)).catch((error) => triggerAction(error.message));
-    api('/api/workOrders').then((p) => setOrders(p.data)).catch((error) => triggerAction(error.message));
+    api(workOrdersEndpoint()).then((p) => setOrders(p.data)).catch((error) => triggerAction(error.message));
   }, []);
   const shownOrders = onlyOpen ? orders.filter((order) => !isFinalStatus(order.status)) : orders;
   return (
     <>
-      <PageHead title="Painel Corporativo" subtitle="Visão consolidada das operações, produtividade e faturamento." ghostAction="Exportar" onGhostAction={() => downloadCsv('painel-ordens-recentes.csv', [['OS', 'Cliente', 'Serviço', 'Equipamento', 'Equipe', 'Status', 'Data'], ...shownOrders.map((o) => [o.number, o.client, o.service, o.equipment, o.carrier, o.status, o.date])])} action="Atualizar agora" onAction={() => { triggerAction('Painel atualizado'); api('/api/dashboard/summary').then((p) => setSummary(p.data)).catch((error) => triggerAction(error.message)); api('/api/workOrders').then((p) => setOrders(p.data)).catch((error) => triggerAction(error.message)); }} />
+      <PageHead title="Painel Corporativo" subtitle="Visão consolidada das operações, produtividade e faturamento." ghostAction="Exportar" onGhostAction={() => downloadCsv('painel-ordens-recentes.csv', [['OS', 'Cliente', 'Serviço', 'Equipamento', 'Equipe', 'Status', 'Data'], ...shownOrders.map((o) => [o.number, o.client, o.service, o.equipment, o.carrier, o.status, o.date])])} action="Atualizar agora" onAction={() => { triggerAction('Painel atualizado'); api('/api/dashboard/summary').then((p) => setSummary(p.data)).catch((error) => triggerAction(error.message)); api(workOrdersEndpoint()).then((p) => setOrders(p.data)).catch((error) => triggerAction(error.message)); }} />
       <div className="kpi-grid">
         <Kpi icon="grid" label="Módulos ativos" value="10" delta="+1 desde o último ciclo" />
         <Kpi icon="users" label="Clientes ativos" value={summary?.activeClients ?? '-'} delta="contratos em operação" success />
@@ -646,8 +678,9 @@ function Dashboard() {
 function Tower() {
   const [orders, setOrders] = useState([]);
   const [statusFilter, setStatusFilter] = useState('Fila');
-  const load = () => api('/api/workOrders').then((payload) => setOrders(payload.data)).catch((error) => triggerAction(error.message));
-  useEffect(load, []);
+  const [month, setMonth] = useState(currentMonthValue());
+  const load = () => api(workOrdersEndpoint(month)).then((payload) => setOrders(payload.data)).catch((error) => triggerAction(error.message));
+  useEffect(load, [month]);
   const visible = statusFilter === 'Todos'
     ? orders
     : orders.filter((order) => isOpenQueueStatus(order.status) || order.status === 'Em execucao');
@@ -662,8 +695,8 @@ function Tower() {
     triggerAction(`Equipe acionada para OS ${order.number}`);
     load();
   };
-  const rows = visible.map((order) => [order.number, order.client, order.location || '-', order.carrier || 'Sem equipe', date(order.date), isFinalStatus(order.status) ? date(order.updatedAt) : '-', <Pill value={order.status} />]);
-  return <><PageHead title="Torre Operacional" subtitle="Painel em tempo real das operações em andamento e fila de execução." ghostAction="Tempo real" onGhostAction={() => setStatusFilter((value) => value === 'Todos' ? 'Fila' : 'Todos')} action="Atualizar" onAction={load} /><div className="kpi-grid"><Kpi icon="pulse" label="Operações ativas" value={active} delta="em campo agora" /><Kpi icon="clock" label="Na fila" value={queue} delta="próximas 24h" warning /><Kpi icon="check" label="Concluídas" value={done} delta="ordens no sistema" success /><Kpi icon="alert" label="Alertas" value={alertCount} delta="atenção da torre" danger /></div><Panel title="Fila de execução" actions={<><button className="btn btn-sm" onClick={() => setStatusFilter((value) => value === 'Todos' ? 'Fila' : 'Todos')}>{statusFilter === 'Todos' ? 'Ver fila' : 'Ver todas'}</button><button className="btn btn-sm btn-primary" onClick={assignTeam}>Acionar equipe</button></>}><DataTable columns={['OS', 'Cliente', 'Local', 'Equipe', 'Início', 'Término', 'Status']} rows={rows} /></Panel></>;
+  const rows = visible.map((order) => [order.number, order.client, order.location || '-', order.carrier || 'Sem equipe', dateTime(order.date), dateTime(order.operationStart), dateTime(order.operationEnd), <Pill value={order.status} />]);
+  return <><PageHead title="Torre Operacional" subtitle="Painel em tempo real das operações em andamento e fila de execução." ghostAction="Tempo real" onGhostAction={() => setStatusFilter((value) => value === 'Todos' ? 'Fila' : 'Todos')} action="Atualizar" onAction={load} /><div className="toolbar"><div className="filter"><label>Período</label><input type="month" value={month} onChange={(event) => setMonth(event.target.value || currentMonthValue())} /></div><span className="spacer" /><span className="soft">Dados filtrados no banco pelo mês selecionado</span></div><div className="kpi-grid"><Kpi icon="pulse" label="Operações ativas" value={active} delta="em campo agora" /><Kpi icon="clock" label="Na fila" value={queue} delta="próximas 24h" warning /><Kpi icon="check" label="Concluídas" value={done} delta="ordens no sistema" success /><Kpi icon="alert" label="Alertas" value={alertCount} delta="atenção da torre" danger /></div><Panel title="Fila de execução" actions={<><button className="btn btn-sm" onClick={() => setStatusFilter((value) => value === 'Todos' ? 'Fila' : 'Todos')}>{statusFilter === 'Todos' ? 'Ver fila' : 'Ver todas'}</button><button className="btn btn-sm btn-primary" onClick={assignTeam}>Acionar equipe</button></>}><DataTable columns={['OS', 'Cliente', 'Local', 'Equipe', 'Data programada', 'Início', 'Término', 'Status']} rows={rows} /></Panel></>;
 }
 
 function Schedules({ notify, editable = true }) {
@@ -676,7 +709,7 @@ function Schedules({ notify, editable = true }) {
   const [attendanceModal, setAttendanceModal] = useState(null);
   const [operationModal, setOperationModal] = useState(null);
   const [occurrenceModal, setOccurrenceModal] = useState(null);
-  const load = () => { setLoading(true); api('/api/workOrders').then((p) => setItems(p.data)).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
+  const load = () => { setLoading(true); api(workOrdersEndpoint()).then((p) => setItems(p.data)).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
   useEffect(load, []);
   useEffect(() => {
     api('/api/employees').then((payload) => setEmployees(payload.data || [])).catch(() => {});
@@ -767,7 +800,7 @@ function Productivity() {
   const [measurements, setMeasurements] = useState([]);
   const [compare, setCompare] = useState(false);
   useEffect(() => {
-    api('/api/workOrders').then((payload) => setOrders(payload.data)).catch((error) => triggerAction(error.message));
+    api(workOrdersEndpoint()).then((payload) => setOrders(payload.data)).catch((error) => triggerAction(error.message));
     api('/api/measurements').then((payload) => setMeasurements(payload.data)).catch((error) => triggerAction(error.message));
   }, []);
   const done = orders.filter((order) => isFinalStatus(order.status));
@@ -801,7 +834,7 @@ function OperationalMap() {
   const [orders, setOrders] = useState([]);
   const load = () => {
     api('/api/locations').then((payload) => setLocations(payload.data)).catch((error) => triggerAction(error.message));
-    api('/api/workOrders').then((payload) => setOrders(payload.data)).catch((error) => triggerAction(error.message));
+    api(workOrdersEndpoint()).then((payload) => setOrders(payload.data)).catch((error) => triggerAction(error.message));
   };
   useEffect(load, []);
   const points = (locations.length ? locations : [{ description: 'Pátio 3 - SEMP TCL', status: 'Operacional' }, { description: 'Pátio 2', status: 'Fila' }, { description: 'Porto CSF', status: 'Alerta' }]).slice(0, 5);
@@ -821,7 +854,7 @@ function Reports() {
   const [selected, setSelected] = useState(cards[0]);
   const [config, setConfig] = useState(false);
   const generate = async (card = selected) => {
-    const payload = await api(card[2]);
+    const payload = await api(card[2] === '/api/workOrders' ? workOrdersEndpoint() : card[2]);
     const rows = payload.data || [];
     const keys = [...new Set(rows.flatMap((row) => Object.keys(row).filter((key) => !['id', 'createdAt', 'updatedAt'].includes(key))))];
     downloadCsv(`${card[0].toLowerCase().replaceAll(' ', '-')}.csv`, [keys, ...rows.map((row) => keys.map((key) => row[key]))]);
@@ -982,7 +1015,7 @@ function DailyOps({ notify, editable = true }) {
   });
   const selected = filteredItems.find((i) => i.id === selectedId) || filteredItems[0];
   const counts = useMemo(() => filteredItems.reduce((acc, item) => ({ ...acc, [item.status]: (acc[item.status] || 0) + 1 }), {}), [filteredItems]);
-  const load = () => { setLoading(true); api('/api/workOrders').then((p) => { setItems(p.data); setSelectedId((old) => old || p.data[0]?.id || ''); }).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
+  const load = () => { setLoading(true); api(workOrdersEndpoint()).then((p) => { setItems(p.data); setSelectedId((old) => old || p.data[0]?.id || ''); }).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
   const loadOccurrences = () => api('/api/occurrences').then((p) => setOccurrences(p.data || [])).catch(() => setOccurrences([]));
   useEffect(load, []);
   useEffect(loadOccurrences, []);
@@ -1258,7 +1291,7 @@ function ActionPanel({ type, setRoute, onClose }) {
     if (type !== 'notifications') return;
     Promise.all([
       api('/api/occurrences').catch(() => ({ data: [] })),
-      api('/api/workOrders').catch(() => ({ data: [] }))
+      api(workOrdersEndpoint()).catch(() => ({ data: [] }))
     ]).then(([occurrencePayload, orderPayload]) => {
       const occurrenceAlerts = (occurrencePayload.data || [])
         .filter((item) => !normalize(item.status).includes('resolvida'))

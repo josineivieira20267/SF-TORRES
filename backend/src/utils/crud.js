@@ -6,8 +6,9 @@ function normalize(value) {
   return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
-function applyQuery(items, query, searchableFields) {
+function applyQuery(items, query, searchableFields, options = {}) {
   let result = [...items];
+  const dateField = options.dateField;
 
   if (query.q) {
     const needle = normalize(query.q);
@@ -16,8 +17,18 @@ function applyQuery(items, query, searchableFields) {
     );
   }
 
+  if (dateField && (query.from || query.to)) {
+    result = result.filter((item) => {
+      const value = String(item[dateField] || '');
+      if (!value) return false;
+      if (query.from && value < String(query.from)) return false;
+      if (query.to && value > String(query.to)) return false;
+      return true;
+    });
+  }
+
   for (const [key, value] of Object.entries(query)) {
-    if (['q', 'limit', 'offset'].includes(key) || value === undefined || value === '') continue;
+    if (['q', 'limit', 'offset', 'from', 'to'].includes(key) || value === undefined || value === '') continue;
     result = result.filter((item) => normalize(item[key]) === normalize(value));
   }
 
@@ -29,8 +40,9 @@ function applyQuery(items, query, searchableFields) {
   return { data: result, meta: { total, limit, offset } };
 }
 
-function buildWhere(query, searchableFields) {
+function buildWhere(query, searchableFields, options = {}) {
   const where = {};
+  const dateField = options.dateField;
 
   if (query.q) {
     where.OR = searchableFields.map((field) => ({
@@ -38,20 +50,26 @@ function buildWhere(query, searchableFields) {
     }));
   }
 
+  if (dateField && (query.from || query.to)) {
+    where[dateField] = {};
+    if (query.from) where[dateField].gte = String(query.from);
+    if (query.to) where[dateField].lte = String(query.to);
+  }
+
   for (const [key, value] of Object.entries(query)) {
-    if (['q', 'limit', 'offset'].includes(key) || value === undefined || value === '') continue;
+    if (['q', 'limit', 'offset', 'from', 'to'].includes(key) || value === undefined || value === '') continue;
     where[key] = String(value);
   }
 
   return where;
 }
 
-function createController(collection, searchableFields = ['name', 'code', 'description'], prismaModel = collection) {
+function createController(collection, searchableFields = ['name', 'code', 'description'], prismaModel = collection, options = {}) {
   return {
     async list(req, res, next) {
       try {
         if (hasDatabaseUrl) {
-          const where = buildWhere(req.query, searchableFields);
+          const where = buildWhere(req.query, searchableFields, options);
           const skip = Math.max(Number(req.query.offset || 0), 0);
           const take = Math.min(Math.max(Number(req.query.limit || 100), 1), 500);
           const [data, total] = await Promise.all([
@@ -62,7 +80,7 @@ function createController(collection, searchableFields = ['name', 'code', 'descr
         }
 
         const db = await readDb();
-        res.json(applyQuery(db[collection] || [], req.query, searchableFields));
+        res.json(applyQuery(db[collection] || [], req.query, searchableFields, options));
       } catch (error) {
         next(error);
       }

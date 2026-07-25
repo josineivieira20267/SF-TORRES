@@ -10,7 +10,7 @@ const resources = {
   services: createController('services', ['code', 'description', 'unit', 'category'], 'service'),
   equipment: createController('equipment', ['code', 'type', 'model', 'status'], 'equipment'),
   locations: createController('locations', ['code', 'description', 'client', 'address', 'status'], 'location'),
-  workOrders: createController('workOrders', ['number', 'client', 'equipment', 'service', 'status', 'carrier'], 'workOrder'),
+  workOrders: createController('workOrders', ['number', 'client', 'equipment', 'service', 'status', 'carrier'], 'workOrder', { dateField: 'date' }),
   measurements: createController('measurements', ['number', 'client', 'workOrder', 'status'], 'measurement'),
   occurrences: createController('occurrences', ['workOrder', 'type', 'description', 'status'], 'occurrence'),
   schedules: createController('schedules', ['employee', 'role', 'base', 'status'], 'schedule'),
