@@ -650,7 +650,14 @@ function Schedules({ notify, editable = true }) {
   const markEnd = (order) => updateOrder(order, { operationEnd: new Date().toLocaleString('pt-BR'), status: 'Concluida', progress: 100 }, 'Fim da operacao marcado');
   const exportRows = () => downloadCsv('programacao-os-lider.csv', [['OS', 'Cliente', 'Servico', 'Equipamento', 'Local', 'Lider', 'Status', 'Data'], ...visibleOrders.map((item) => [item.number, item.client, item.service, item.equipment, item.location, item.responsible, item.status, item.date])]);
   const employeeOptions = employees.map((item) => item.name).filter(Boolean);
-  const equipmentOptions = ['', ...equipment.map((item) => item.code || item.model || item.type).filter(Boolean)];
+  const equipmentOptions = ['', ...Array.from(new Set(equipment.map((item) => item.type).filter(Boolean)))];
+  const saveOperationEdit = (data) => {
+    const before = Array.isArray(operationModal.teamMembers) ? operationModal.teamMembers : [];
+    const after = Array.isArray(data.teamMembers) ? data.teamMembers : [];
+    const changedTeam = before.length !== after.length || before.some((name) => !after.includes(name)) || after.some((name) => !before.includes(name));
+    if (changedTeam && !String(data.teamNote || '').trim()) return notify('Informe a observacao/justificativa para alterar integrantes da equipe');
+    return updateOrder(operationModal, data, 'Dados operacionais atualizados');
+  };
   const rows = loading ? [['Carregando OS do banco...', '', '', '', '', '', '', '']] : visibleOrders.map((item) => [<span className="mono">{item.number}</span>, item.client, item.service || '-', item.product || '-', Array.isArray(item.teamMembers) && item.teamMembers.length ? item.teamMembers.join(', ') : '-', <Pill value={item.status} />, <span className="soft">{item.operationStart || '-'}</span>, editable ? <div className="inline-actions"><button className="btn btn-sm" onClick={() => bindToMe(item)}>Vincular</button><button className="btn btn-sm" onClick={() => setAttendanceModal(item)}>Chamada</button><button className="btn btn-sm" onClick={() => setOperationModal(item)}>Editar</button><button className="btn btn-sm btn-success" onClick={() => markStart(item)}>Iniciar</button><button className="btn btn-sm btn-primary" onClick={() => markEnd(item)}>Finalizar</button></div> : <span className="soft">Somente leitura</span>]);
   return (
     <>
@@ -668,7 +675,7 @@ function Schedules({ notify, editable = true }) {
       </div>
       <Panel title="OS direcionadas ao lider" actions={<Pill value={user.name || user.email || 'usuario'} />}><DataTable columns={['OS', 'Cliente', 'Servico', 'Produto', 'Integrantes', 'Status', 'Inicio', 'Acao']} rows={rows} /></Panel>
       {attendanceModal && <AttendanceModal order={attendanceModal} onCancel={() => setAttendanceModal(null)} onSave={(attendance) => updateOrder(attendanceModal, { attendance }, 'Chamada salva na OS')} />}
-      {operationModal && <Editor title="Editar operacao da OS" fields={[['carrier', 'Transportador'], ['location', 'Local'], ['product', 'Produto'], ['equipment', 'Equipamento', 'select', equipmentOptions], ['teamMembers', 'Incluir integrantes da equipe', 'employees', employeeOptions], ['teamNote', 'Justificativa para incluir integrante', 'textarea'], ['progress', 'Percentual', 'number']]} initial={operationModal} onCancel={() => setOperationModal(null)} onSave={(data) => updateOrder(operationModal, data, 'Dados operacionais atualizados')} />}
+      {operationModal && <Editor title="Editar operacao da OS" fields={[['carrier', 'Transportador'], ['location', 'Local'], ['product', 'Produto'], ['equipment', 'Equipamento', 'select', equipmentOptions], ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')], ['trailerPlate', 'Placa da carreta', 'text', null, (form) => normalize(form.equipment).includes('carreta')], ['teamMembers', 'Incluir integrantes da equipe', 'employees', employeeOptions], ['teamNote', 'Observacao obrigatoria ao alterar equipe', 'textarea'], ['progress', 'Percentual', 'number']]} initial={operationModal} onCancel={() => setOperationModal(null)} onSave={saveOperationEdit} />}
     </>
   );
 }
@@ -847,10 +854,13 @@ function DailyOps({ notify, editable = true }) {
   const [activeTab, setActiveTab] = useState('Dados');
   const [filters, setFilters] = useState({ q: '', status: 'Todos', client: 'Todos', period: 'Este mês', table: '' });
   const optionValues = (list, ...keys) => list.map((item) => keys.map((key) => item[key]).find(Boolean)).filter(Boolean);
+  const equipmentTypes = ['', ...Array.from(new Set(equipment.map((item) => item.type).filter(Boolean)))];
   const fields = [
     ['number', 'Número da OS'],
     ['client', 'Cliente', 'select', ['', ...optionValues(clients, 'name', 'legalName')]],
-    ['equipment', 'Equipamento', 'select', ['', ...optionValues(equipment, 'code', 'model', 'type')]],
+    ['equipment', 'Equipamento', 'select', equipmentTypes],
+    ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')],
+    ['trailerPlate', 'Placa da carreta', 'text', null, (form) => normalize(form.equipment).includes('carreta')],
     ['status', 'Status', 'select', ['Rascunho', 'Enviada', 'Aprovada', 'Em execucao', 'Concluida', 'Cancelada']],
     ['date', 'Data', 'date'],
     ['carrier', 'Transportador'],
@@ -929,10 +939,10 @@ function DailyOps({ notify, editable = true }) {
   };
   const detailContent = () => {
     if (!selected) return null;
-    if (activeTab === 'Equipe') return [['Equipe', Array.isArray(selected.teamMembers) && selected.teamMembers.length ? selected.teamMembers.join(', ') : 'Sem integrantes definidos'], ['Responsável', selected.responsible || '-'], ['Chamada', selected.attendance ? Object.entries(selected.attendance).map(([name, status]) => `${name}: ${status}`).join(' | ') : '-'], ['Justificativa', selected.teamNote || '-']];
+    if (activeTab === 'Equipe') return [['Equipe', Array.isArray(selected.teamMembers) && selected.teamMembers.length ? selected.teamMembers.join(', ') : 'Sem integrantes definidos'], ['Responsável', selected.responsible || '-'], ['Chamada', selected.attendance ? Object.entries(selected.attendance).map(([name, value]) => `${name}: ${typeof value === 'object' ? `${value.status}${value.note ? ` (${value.note})` : ''}` : value}`).join(' | ') : '-'], ['Justificativa', selected.teamNote || '-']];
     if (activeTab === 'Horários') return [['Data prevista', date(selected.date)], ['Início da operação', selected.operationStart || '-'], ['Fim da operação', selected.operationEnd || '-'], ['Janela', selected.window || '06:00 - 22:00']];
     if (activeTab === 'Ocorrências') return [['Status operacional', selected.status], ['Último registro', 'Ocorrências salvas no histórico do banco'], ['Ação rápida', 'Use Lançar ocorrência ou Solicitar correção']];
-    return [['Data', date(selected.date)], ['Transportador', selected.carrier], ['Serviço', selected.service], ['Produto', selected.product || '-'], ['Equipamento', selected.equipment || '-'], ['Posto', selected.location || 'ARCONDICIONADO - 0 un.'], ['Responsável', selected.responsible], ['Percentual', `${selected.progress || 0}%`], ['Prioridade', selected.priority]];
+    return [['Data', date(selected.date)], ['Transportador', selected.carrier], ['Serviço', selected.service], ['Produto', selected.product || '-'], ['Equipamento', selected.equipment || '-'], ['Container', selected.containerNumber || '-'], ['Placa', selected.trailerPlate || '-'], ['Posto', selected.location || 'ARCONDICIONADO - 0 un.'], ['Responsável', selected.responsible], ['Percentual', `${selected.progress || 0}%`], ['Prioridade', selected.priority]];
   };
   return (
     <>
@@ -1032,13 +1042,21 @@ function panelTitle(config, count) {
 
 function Editor({ title, fields, initial, onCancel, onSave }) {
   const [form, setForm] = useState(() => Object.fromEntries(fields.map(([name, , type]) => [name, ['permissions', 'employees'].includes(type) ? (initial?.[name] || (type === 'permissions' ? defaultUserPermissions(initial?.role) : [])) : initial?.[name] ?? ''])));
-  const change = (name, value, type) => setForm((old) => ({ ...old, [name]: type === 'number' ? Number(value || 0) : value }));
+  const change = (name, value, type) => setForm((old) => {
+    const next = { ...old, [name]: type === 'number' ? Number(value || 0) : value };
+    if (name === 'equipment') {
+      if (!normalize(value).includes('container')) next.containerNumber = '';
+      if (!normalize(value).includes('carreta')) next.trailerPlate = '';
+    }
+    return next;
+  });
   return (
     <div className="modal-backdrop">
       <div className="modal">
         <div className="modal-head"><h3>{title}</h3><button className="btn btn-sm" onClick={onCancel}>Fechar</button></div>
         <form className="modal-body" onSubmit={(e) => { e.preventDefault(); onSave(form); }}>
-          <div className="form-grid">{fields.map(([name, label, type = 'text', options]) => {
+          <div className="form-grid">{fields.map(([name, label, type = 'text', options, visible]) => {
+            if (visible && !visible(form)) return null;
             if (type === 'permissions') return <PermissionMatrix key={name} label={label} value={form[name]} onChange={(value) => change(name, value, type)} />;
             if (type === 'employees') return <EmployeePicker key={name} label={label} options={options || []} value={form[name]} onChange={(value) => change(name, value, type)} />;
             return <div className="form-field" key={name}><label>{label}</label>{type === 'select' ? <select value={form[name]} onChange={(e) => change(name, e.target.value, type)}>{options.map((o) => <option key={o || '-'} value={o}>{o || '-'}</option>)}</select> : type === 'textarea' ? <textarea value={form[name]} onChange={(e) => change(name, e.target.value, type)} /> : <input type={type} value={form[name]} onChange={(e) => change(name, e.target.value, type)} />}</div>;
@@ -1085,16 +1103,30 @@ function EmployeePicker({ label, options = [], value = [], onChange }) {
 
 function AttendanceModal({ order, onCancel, onSave }) {
   const members = Array.isArray(order.teamMembers) ? order.teamMembers : [];
-  const [attendance, setAttendance] = useState(() => Object.fromEntries(members.map((name) => [name, order.attendance?.[name] || 'Presente'])));
-  const change = (name, status) => setAttendance((old) => ({ ...old, [name]: status }));
+  const existing = order.attendance || {};
+  const readStatus = (name) => typeof existing[name] === 'object' ? existing[name].status : existing[name];
+  const readNote = (name) => typeof existing[name] === 'object' ? existing[name].note : '';
+  const [attendance, setAttendance] = useState(() => Object.fromEntries(members.map((name) => [name, { status: readStatus(name) || 'Presente', note: readNote(name) || '' }])));
+  const change = (name, patch) => setAttendance((old) => ({ ...old, [name]: { ...(old[name] || { status: 'Presente', note: '' }), ...patch } }));
+  const submit = (event) => {
+    event.preventDefault();
+    const missingNote = members.find((name) => {
+      const previous = readStatus(name) || 'Presente';
+      const current = attendance[name]?.status || 'Presente';
+      const changed = previous !== current;
+      return (current === 'Falta' || changed) && !String(attendance[name]?.note || '').trim();
+    });
+    if (missingNote) return alert(`Informe a observacao da chamada para ${missingNote}`);
+    return onSave(attendance);
+  };
   return (
     <div className="modal-backdrop">
       <div className="modal">
         <div className="modal-head"><h3>Chamada da equipe</h3><button className="btn btn-sm" onClick={onCancel}>Fechar</button></div>
-        <form className="modal-body" onSubmit={(event) => { event.preventDefault(); onSave(attendance); }}>
+        <form className="modal-body" onSubmit={submit}>
           <div className="permissions-grid">
             <div className="permissions-head">OS {order.number} - presença</div>
-            {members.map((name) => <div className="permissions-row" key={name}><div><b>{name}</b><span>Integrante da equipe</span></div><select value={attendance[name] || 'Presente'} onChange={(event) => change(name, event.target.value)}><option>Presente</option><option>Falta</option></select></div>)}
+            {members.map((name) => <div className="attendance-row" key={name}><div><b>{name}</b><span>Integrante da equipe</span></div><select value={attendance[name]?.status || 'Presente'} onChange={(event) => change(name, { status: event.target.value })}><option>Presente</option><option>Falta</option></select><input value={attendance[name]?.note || ''} onChange={(event) => change(name, { note: event.target.value })} placeholder="Observação obrigatória se faltar ou alterar presença" /></div>)}
             {!members.length && <div className="employee-picker"><span className="soft">Esta OS ainda nao tem integrantes definidos.</span></div>}
           </div>
           <div className="modal-actions"><button type="button" className="btn" onClick={onCancel}>Cancelar</button><button className="btn btn-primary">Salvar chamada</button></div>
