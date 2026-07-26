@@ -732,7 +732,7 @@ function Screen({ route, notify, settings, setSettings }) {
   if (route === 'schedules') return <Schedules notify={notify} editable={editable} />;
   if (route === 'users') return <Users notify={notify} editable={editable} />;
   if (crudConfigs[route]) return <CrudScreen config={crudConfigs[route]} notify={notify} editable={editable} />;
-  if (route === 'dashboard') return <Dashboard />;
+  if (route === 'dashboard') return <OperationsDashboard />;
   if (route === 'tower') return <Tower />;
   if (route === 'productivity') return <Productivity />;
   if (route === 'map') return <OperationalMap />;
@@ -745,15 +745,179 @@ function AccessDenied() {
   return <Panel title="Acesso restrito" padded><p>Seu usuario nao tem permissao para abrir esta tela.</p><p className="soft">Peça ao administrador para liberar acesso de visualizacao ou edicao em Usuarios & Perfis.</p></Panel>;
 }
 
-function Dashboard() {
-  const [summary, setSummary] = useState(null);
+function OperationsDashboard() {
   const [orders, setOrders] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [occurrences, setOccurrences] = useState([]);
+  const [month, setMonth] = useState(currentMonthValue());
   const [onlyOpen, setOnlyOpen] = useState(false);
-  useEffect(() => {
-    api('/api/dashboard/summary').then((p) => setSummary(p.data)).catch((error) => triggerAction(error.message));
-    api(workOrdersEndpoint()).then((p) => setOrders(listData(p))).catch((error) => triggerAction(error.message));
-  }, []);
+  const load = () => {
+    Promise.all([
+      api(workOrdersEndpoint(month)),
+      api('/api/employees'),
+      api('/api/occurrences').catch(() => ({ data: [] }))
+    ]).then(([orderPayload, employeePayload, occurrencePayload]) => {
+      setOrders(listData(orderPayload));
+      setEmployees(listData(employeePayload));
+      setOccurrences(listData(occurrencePayload));
+    }).catch((error) => triggerAction(error.message));
+  };
+  useEffect(load, [month]);
+  const bonusRules = [
+    { name: 'Equipe PA', base: 150, match: ['equipe pa', 'pa', 'conferente'] },
+    { name: 'Batedores', base: 8, match: ['batedor', 'batedores'] },
+    { name: 'Apoio', base: 5, match: ['apoio'] }
+  ];
+  const employeeByName = Object.fromEntries(employees.map((item) => [normalize(item.name), item]));
+  const criterionFor = (employee) => {
+    const team = normalize(employee?.team);
+    const role = normalize(employee?.role);
+    return bonusRules.find((rule) => rule.match.some((item) => team.includes(item) || (!team && role.includes(item)))) || { name: 'Sem criterio', base: 0 };
+  };
+  const discountFor = (absences) => absences <= 0 ? 1 : absences === 1 ? 0.75 : absences === 2 ? 0.5 : absences === 3 ? 0.25 : 0;
+  const memberEntries = orders.flatMap((order) => {
+    const members = Array.isArray(order.teamMembers) ? order.teamMembers : Object.keys(order.attendance || {});
+    return members.map((name) => {
+      const attendance = order.attendance?.[name];
+      const status = attendance ? (typeof attendance === 'object' ? attendance.status : attendance) : 'Pendente';
+      return { order, name, status };
+    });
+  });
+  const productivity = Object.values(memberEntries.reduce((acc, entry) => {
+    const key = normalize(entry.name);
+    const employee = employeeByName[key] || { name: entry.name, role: '-', team: '-' };
+    const criterion = criterionFor(employee);
+    acc[key] = acc[key] || { employee, criterion, os: 0, present: 0, absences: 0, pending: 0 };
+    acc[key].os += 1;
+    const status = normalize(entry.status);
+    if (status === 'falta') acc[key].absences += 1;
+    else if (status === 'pendente') acc[key].pending += 1;
+    else acc[key].present += 1;
+    return acc;
+  }, {})).map((item) => {
+    const factor = discountFor(item.absences);
+    return { ...item, factor, bonus: item.criterion.base * factor * item.present };
+  }).sort((a, b) => b.bonus - a.bonus || b.present - a.present);
+  const activeOrders = orders.filter((order) => normalize(order.status).includes('exec'));
+  const programmedOrders = orders.filter((order) => normalize(order.status).includes('program'));
+  const finalOrders = orders.filter((order) => isFinalStatus(order.status));
+  const totalAbsences = orders.reduce((sum, order) => sum + absenceCount(order), 0);
+  const pendingCalls = productivity.reduce((sum, item) => sum + item.pending, 0);
+  const totalBonus = productivity.reduce((sum, item) => sum + item.bonus, 0);
+  const openOccurrences = occurrences.filter((item) => !normalize(item.status).includes('resolvida'));
   const shownOrders = onlyOpen ? orders.filter((order) => !isFinalStatus(order.status)) : orders;
+  const exportRows = [
+    ['OS', 'Cliente', 'Servico', 'Responsavel', 'Integrantes', 'Status', 'Faltas', 'Data programada', 'Inicio', 'Fim'],
+    ...shownOrders.map((o) => [o.number, o.client, o.service, o.responsible, Array.isArray(o.teamMembers) ? o.teamMembers.join(', ') : '', o.status, absenceCount(o), o.date, o.operationStart, o.operationEnd])
+  ];
+  const productivityRows = productivity.slice(0, 8).map((item) => [item.employee.name, item.employee.team || '-', item.criterion.name, item.os, item.present, item.absences, `${Math.round(item.factor * 100)}%`, money(item.bonus)]);
+  const alertRows = [
+    ...orders.filter((order) => absenceCount(order) > 0).map((order) => [<Pill value="Falta" />, `OS ${order.number}`, `${absenceCount(order)} falta(s) na chamada`, order.client]),
+    ...orders.filter((order) => order.correctionRequested && !order.correctionApproved).map((order) => [<Pill value="Correcao" />, `OS ${order.number}`, 'Lider solicitou liberacao de correcao', order.client]),
+    ...openOccurrences.slice(0, 8).map((item) => [<Pill value={item.type || 'Ocorrencia'} />, `OS ${item.workOrder || '-'}`, item.description || '-', item.status || 'Aberta'])
+  ].slice(0, 10);
+
+  return (
+    <>
+      <PageHead title="Painel Corporativo" subtitle="Dashboard operacional com OS, andamento, faltas e produtividade dos colaboradores." ghostAction="Exportar" onGhostAction={() => downloadCsv('dashboard-operacional.csv', exportRows)} action="Atualizar agora" onAction={load} />
+      <div className="toolbar">
+        <div className="filter"><label>Periodo</label><input type="month" value={month} onChange={(event) => setMonth(event.target.value || currentMonthValue())} /></div>
+        <span className="spacer" /><span className="soft">Dados do mes filtrados no backend pela data programada da OS</span>
+      </div>
+      <div className="kpi-grid">
+        <Kpi icon="file" label="OS do mes" value={orders.length} delta={`${programmedOrders.length} programadas`} />
+        <Kpi icon="pulse" label="Em execucao" value={activeOrders.length} delta="operacoes abertas agora" />
+        <Kpi icon="check" label="Finalizadas" value={finalOrders.length} delta="concluidas no periodo" success />
+        <Kpi icon="alert" label="Faltas" value={totalAbsences} delta={`${pendingCalls} chamadas pendentes`} warning />
+      </div>
+      <div className="dash-grid">
+        <div className="panel">
+          <div className="panel-head"><h3>Operacao diaria</h3><div className="actions"><button className="btn btn-sm" onClick={() => setOnlyOpen((value) => !value)}>{onlyOpen ? 'Ver todas' : 'Filtrar abertas'}</button><button className="btn btn-sm btn-primary" onClick={() => { window.location.hash = '#/dailyOps'; }}>Abrir operacao</button></div></div>
+          <DataTable columns={['OS', 'Cliente', 'Servico', 'Responsavel', 'Status', 'Faltas', 'Programada']} rows={shownOrders.slice(0, 12).map((o) => [<span className="mono">{o.number}</span>, o.client, o.service || '-', o.responsible || '-', <Pill value={o.status} />, absenceCount(o), dateTime(o.date)])} />
+        </div>
+        <Panel title="Alertas da operacao" padded><DataTable columns={['Tipo', 'Origem', 'Registro', 'Status/Cliente']} rows={alertRows.length ? alertRows : [[<Pill value="OK" />, 'Operacao', 'Nenhum alerta no periodo', '-']]} /></Panel>
+      </div>
+      <div className="triple-grid">
+        <InfoPanel title="Bonus previsto" value={money(totalBonus)} sub="calculado pelas chamadas das OS"><Pill value={`${productivity.length} colaboradores`} /> <Pill value={`${totalAbsences} faltas`} /></InfoPanel>
+        <InfoPanel title="Equipe em operacao" value={new Set(activeOrders.flatMap((order) => Array.isArray(order.teamMembers) ? order.teamMembers : [])).size} sub="integrantes em OS em execucao"><div className="progress"><span style={{ width: `${Math.min(activeOrders.length * 18, 100)}%` }} /></div></InfoPanel>
+        <InfoPanel title="Ocorrencias abertas" value={openOccurrences.length} sub="registradas nas OS"><Pill value="Sininho admin" /> <Pill value="Operacao diaria" /></InfoPanel>
+      </div>
+      <Panel title="Produtividade dos colaboradores" padded><DataTable columns={['Colaborador', 'Equipe', 'Criterio', 'OS', 'Pres.', 'Faltas', '%', 'Bonus']} rows={productivityRows.length ? productivityRows : [['-', '-', '-', 0, 0, 0, '0%', money(0)]]} /></Panel>
+    </>
+  );
+}
+
+function Dashboard() {
+  const [orders, setOrders] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [occurrences, setOccurrences] = useState([]);
+  const [onlyOpen, setOnlyOpen] = useState(false);
+  const [month, setMonth] = useState(currentMonthValue());
+  const load = () => {
+    Promise.all([
+      api(workOrdersEndpoint(month)),
+      api('/api/employees'),
+      api('/api/occurrences').catch(() => ({ data: [] }))
+    ]).then(([orderPayload, employeePayload, occurrencePayload]) => {
+      setOrders(listData(orderPayload));
+      setEmployees(listData(employeePayload));
+      setOccurrences(listData(occurrencePayload));
+    }).catch((error) => triggerAction(error.message));
+  };
+  useEffect(load, [month]);
+  const bonusRules = [
+    { name: 'Equipe PA', base: 150, match: ['equipe pa', 'pa', 'conferente'] },
+    { name: 'Batedores', base: 8, match: ['batedor', 'batedores'] },
+    { name: 'Apoio', base: 5, match: ['apoio'] }
+  ];
+  const employeeByName = Object.fromEntries(employees.map((item) => [normalize(item.name), item]));
+  const criterionFor = (employee) => {
+    const team = normalize(employee?.team);
+    const role = normalize(employee?.role);
+    return bonusRules.find((rule) => rule.match.some((item) => team.includes(item) || (!team && role.includes(item)))) || { name: 'Sem criterio', base: 0 };
+  };
+  const discountFor = (absences) => absences <= 0 ? 1 : absences === 1 ? 0.75 : absences === 2 ? 0.5 : absences === 3 ? 0.25 : 0;
+  const memberEntries = orders.flatMap((order) => {
+    const members = Array.isArray(order.teamMembers) ? order.teamMembers : Object.keys(order.attendance || {});
+    return members.map((name) => {
+      const attendance = order.attendance?.[name];
+      const status = attendance ? (typeof attendance === 'object' ? attendance.status : attendance) : 'Pendente';
+      return { order, name, status };
+    });
+  });
+  const productivity = Object.values(memberEntries.reduce((acc, entry) => {
+    const key = normalize(entry.name);
+    const employee = employeeByName[key] || { name: entry.name, role: '-', team: '-' };
+    const criterion = criterionFor(employee);
+    acc[key] = acc[key] || { employee, criterion, os: 0, present: 0, absences: 0, pending: 0 };
+    acc[key].os += 1;
+    const status = normalize(entry.status);
+    if (status === 'falta') acc[key].absences += 1;
+    else if (status === 'pendente') acc[key].pending += 1;
+    else acc[key].present += 1;
+    return acc;
+  }, {})).map((item) => {
+    const factor = discountFor(item.absences);
+    return { ...item, factor, bonus: item.criterion.base * factor * item.present };
+  }).sort((a, b) => b.bonus - a.bonus || b.present - a.present);
+  const activeOrders = orders.filter((order) => normalize(order.status).includes('exec'));
+  const programmedOrders = orders.filter((order) => normalize(order.status).includes('program'));
+  const finalOrders = orders.filter((order) => isFinalStatus(order.status));
+  const totalAbsences = orders.reduce((sum, order) => sum + absenceCount(order), 0);
+  const pendingCalls = productivity.reduce((sum, item) => sum + item.pending, 0);
+  const totalBonus = productivity.reduce((sum, item) => sum + item.bonus, 0);
+  const openOccurrences = occurrences.filter((item) => !normalize(item.status).includes('resolvida'));
+  const shownOrders = onlyOpen ? orders.filter((order) => !isFinalStatus(order.status)) : orders;
+  const exportRows = [
+    ['OS', 'Cliente', 'Servico', 'Responsavel', 'Integrantes', 'Status', 'Faltas', 'Data programada', 'Inicio', 'Fim'],
+    ...shownOrders.map((o) => [o.number, o.client, o.service, o.responsible, Array.isArray(o.teamMembers) ? o.teamMembers.join(', ') : '', o.status, absenceCount(o), o.date, o.operationStart, o.operationEnd])
+  ];
+  const productivityRows = productivity.slice(0, 8).map((item) => [item.employee.name, item.employee.team || '-', item.criterion.name, item.os, item.present, item.absences, `${Math.round(item.factor * 100)}%`, money(item.bonus)]);
+  const alertRows = [
+    ...orders.filter((order) => absenceCount(order) > 0).map((order) => [<Pill value="Falta" />, `OS ${order.number}`, `${absenceCount(order)} falta(s) na chamada`, order.client]),
+    ...orders.filter((order) => order.correctionRequested && !order.correctionApproved).map((order) => [<Pill value="Correcao" />, `OS ${order.number}`, 'Lider solicitou liberacao de correcao', order.client]),
+    ...openOccurrences.slice(0, 8).map((item) => [<Pill value={item.type || 'Ocorrencia'} />, `OS ${item.workOrder || '-'}`, item.description || '-', item.status || 'Aberta'])
+  ].slice(0, 10);
   return (
     <>
       <PageHead title="Painel Corporativo" subtitle="Visão consolidada das operações, produtividade e faturamento." ghostAction="Exportar" onGhostAction={() => downloadCsv('painel-ordens-recentes.csv', [['OS', 'Cliente', 'Serviço', 'Equipamento', 'Equipe', 'Status', 'Data'], ...shownOrders.map((o) => [o.number, o.client, o.service, o.equipment, o.carrier, o.status, o.date])])} action="Atualizar agora" onAction={() => { triggerAction('Painel atualizado'); api('/api/dashboard/summary').then((p) => setSummary(p.data)).catch((error) => triggerAction(error.message)); api(workOrdersEndpoint()).then((p) => setOrders(listData(p))).catch((error) => triggerAction(error.message)); }} />
