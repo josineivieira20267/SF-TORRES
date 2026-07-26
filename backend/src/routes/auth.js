@@ -29,17 +29,20 @@ router.post('/login', async (req, res, next) => {
       return res.status(401).json({ error: { message: 'E-mail ou senha invalidos' } });
     }
 
-    const payload = {
+    const tokenPayload = {
       id: user.id,
       name: user.name,
       email: user.email,
       role: user.role,
       permissions: user.permissions || null,
-      displayRole: user.displayRole || null,
+      displayRole: user.displayRole || null
+    };
+    const userPayload = {
+      ...tokenPayload,
       profilePhoto: user.profilePhoto || null
     };
-    const token = jwt.sign(payload, env.JWT_SECRET, { expiresIn: '8h' });
-    return res.json({ data: { user: payload, token } });
+    const token = jwt.sign(tokenPayload, env.JWT_SECRET, { expiresIn: '8h' });
+    return res.json({ data: { user: userPayload, token } });
   } catch (error) {
     return next(error);
   }
