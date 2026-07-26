@@ -667,3 +667,34 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   .login-shell{grid-template-columns:1fr}
   .login-aside{display:none}
 }
+
+/* ---------- Dashboard operacional com graficos ----------- */
+.chart-donut-wrap{min-height:230px;display:grid;grid-template-columns:180px 1fr;align-items:center;gap:18px}
+.chart-donut{width:180px;height:180px;transform:rotate(-90deg)}
+.chart-donut circle{transition:stroke-dasharray .2s ease}
+.chart-donut text{transform:rotate(90deg);transform-origin:80px 80px;fill:var(--c-text)}
+.donut-value{font-size:30px;font-weight:700;font-variant-numeric:tabular-nums}
+.donut-sub{font-size:11px;fill:var(--c-text-soft);text-transform:uppercase}
+.chart-legend{display:grid;gap:10px;font-size:var(--fs-13);color:var(--c-text-muted)}
+.chart-legend span{display:flex;align-items:center;gap:8px}
+.chart-legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.chart-legend b{margin-left:auto;color:var(--c-text);font-variant-numeric:tabular-nums}
+.bar-chart{min-height:230px;display:grid;align-content:center;gap:12px}
+.bar-row{display:grid;grid-template-columns:minmax(120px,1.2fr) minmax(130px,2fr) 86px;align-items:center;gap:10px;font-size:var(--fs-13)}
+.bar-row span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar-row b{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.bar-track{height:12px;background:#EDF2F8;border:1px solid var(--c-border);border-radius:3px;overflow:hidden}
+.bar-track i{display:block;height:100%;background:linear-gradient(90deg,var(--c-primary),#0B6FB8)}
+.trend-chart{min-height:230px;display:grid;align-items:center}
+.trend-chart svg{width:100%;height:220px}
+.trend-chart path{fill:none;stroke:#D7E0EC;stroke-width:1.5}
+.trend-chart polyline{fill:none;stroke:var(--c-primary);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.trend-chart circle{fill:var(--c-accent);stroke:#FFFFFF;stroke-width:2}
+.trend-chart text{font-size:11px;fill:var(--c-text-soft)}
+.empty-chart{min-height:160px;display:grid;place-items:center;color:var(--c-text-soft);border:1px dashed var(--c-border-strong);border-radius:var(--radius-md)}
+
+@media (max-width:1100px){
+  .chart-donut-wrap{grid-template-columns:1fr;justify-items:center}
+  .bar-row{grid-template-columns:1fr}
+  .bar-row b{text-align:left}
+}

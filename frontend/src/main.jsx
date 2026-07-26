@@ -816,6 +816,16 @@ function OperationsDashboard() {
     ...orders.filter((order) => order.correctionRequested && !order.correctionApproved).map((order) => [<Pill value="Correcao" />, `OS ${order.number}`, 'Lider solicitou liberacao de correcao', order.client]),
     ...openOccurrences.slice(0, 8).map((item) => [<Pill value={item.type || 'Ocorrencia'} />, `OS ${item.workOrder || '-'}`, item.description || '-', item.status || 'Aberta'])
   ].slice(0, 10);
+  const statusChart = [
+    ['Programadas', programmedOrders.length],
+    ['Em execucao', activeOrders.length],
+    ['Finalizadas', finalOrders.length],
+    ['Ocorrencias', openOccurrences.length]
+  ].map(([label, value]) => ({ label, value }));
+  const bonusChart = productivity.slice(0, 7).map((item) => ({ label: item.employee.name, value: item.bonus }));
+  const absenceChart = productivity.filter((item) => item.absences > 0).slice(0, 7).map((item) => ({ label: item.employee.name, value: item.absences }));
+  const days = [...new Set(orders.map((order) => String(order.date || '').slice(0, 10)).filter(Boolean))].sort().slice(-10);
+  const trendChart = days.map((day) => ({ label: date(day).slice(0, 5), value: orders.filter((order) => String(order.date || '').slice(0, 10) === day).length }));
 
   return (
     <>
@@ -831,18 +841,22 @@ function OperationsDashboard() {
         <Kpi icon="alert" label="Faltas" value={totalAbsences} delta={`${pendingCalls} chamadas pendentes`} warning />
       </div>
       <div className="dash-grid">
+        <Panel title="Status das OS" padded><DonutChart data={statusChart} center={orders.length} sub="OS" /></Panel>
+        <Panel title="Bonus por colaborador" padded><BarChart data={bonusChart} format={money} /></Panel>
+      </div>
+      <div className="triple-grid">
+        <Panel title="OS por dia" padded><TrendChart data={trendChart} /></Panel>
+        <Panel title="Faltas por colaborador" padded><BarChart data={absenceChart} /></Panel>
+        <InfoPanel title="Bonus previsto" value={money(totalBonus)} sub="calculado pelas chamadas das OS"><Pill value={`${productivity.length} colaboradores`} /> <Pill value={`${totalAbsences} faltas`} /></InfoPanel>
+      </div>
+      <div className="dash-grid">
         <div className="panel">
           <div className="panel-head"><h3>Operacao diaria</h3><div className="actions"><button className="btn btn-sm" onClick={() => setOnlyOpen((value) => !value)}>{onlyOpen ? 'Ver todas' : 'Filtrar abertas'}</button><button className="btn btn-sm btn-primary" onClick={() => { window.location.hash = '#/dailyOps'; }}>Abrir operacao</button></div></div>
-          <DataTable columns={['OS', 'Cliente', 'Servico', 'Responsavel', 'Status', 'Faltas', 'Programada']} rows={shownOrders.slice(0, 12).map((o) => [<span className="mono">{o.number}</span>, o.client, o.service || '-', o.responsible || '-', <Pill value={o.status} />, absenceCount(o), dateTime(o.date)])} />
+          <DataTable columns={['OS', 'Cliente', 'Servico', 'Responsavel', 'Status', 'Faltas', 'Programada']} rows={shownOrders.slice(0, 8).map((o) => [<span className="mono">{o.number}</span>, o.client, o.service || '-', o.responsible || '-', <Pill value={o.status} />, absenceCount(o), dateTime(o.date)])} />
         </div>
         <Panel title="Alertas da operacao" padded><DataTable columns={['Tipo', 'Origem', 'Registro', 'Status/Cliente']} rows={alertRows.length ? alertRows : [[<Pill value="OK" />, 'Operacao', 'Nenhum alerta no periodo', '-']]} /></Panel>
       </div>
-      <div className="triple-grid">
-        <InfoPanel title="Bonus previsto" value={money(totalBonus)} sub="calculado pelas chamadas das OS"><Pill value={`${productivity.length} colaboradores`} /> <Pill value={`${totalAbsences} faltas`} /></InfoPanel>
-        <InfoPanel title="Equipe em operacao" value={new Set(activeOrders.flatMap((order) => Array.isArray(order.teamMembers) ? order.teamMembers : [])).size} sub="integrantes em OS em execucao"><div className="progress"><span style={{ width: `${Math.min(activeOrders.length * 18, 100)}%` }} /></div></InfoPanel>
-        <InfoPanel title="Ocorrencias abertas" value={openOccurrences.length} sub="registradas nas OS"><Pill value="Sininho admin" /> <Pill value="Operacao diaria" /></InfoPanel>
-      </div>
-      <Panel title="Produtividade dos colaboradores" padded><DataTable columns={['Colaborador', 'Equipe', 'Criterio', 'OS', 'Pres.', 'Faltas', '%', 'Bonus']} rows={productivityRows.length ? productivityRows : [['-', '-', '-', 0, 0, 0, '0%', money(0)]]} /></Panel>
+      <Panel title="Ranking de produtividade" padded><DataTable columns={['Colaborador', 'Equipe', 'Criterio', 'OS', 'Pres.', 'Faltas', '%', 'Bonus']} rows={productivityRows.length ? productivityRows : [['-', '-', '-', 0, 0, 0, '0%', money(0)]]} /></Panel>
     </>
   );
 }
@@ -1726,6 +1740,64 @@ function PageHead({ title, subtitle, action, ghostAction, ghostActions, onAction
 
 function Kpi({ icon = 'grid', label, value, delta, success, warning, danger }) {
   return <div className={`kpi ${success ? 'kpi-success' : ''} ${warning ? 'kpi-warning' : ''} ${danger ? 'kpi-danger' : ''}`}><div className="ico"><Icon name={icon} /></div><div><div className="label">{label}</div><div className="value">{value}</div><div className="delta">{delta}</div></div></div>;
+}
+
+function DonutChart({ data = [], center, sub }) {
+  const total = data.reduce((sum, item) => sum + Number(item.value || 0), 0) || 1;
+  let offset = 25;
+  const colors = ['#1B3A6B', '#0B6FB8', '#1F8A4C', '#C77700', '#B3261E'];
+  return (
+    <div className="chart-donut-wrap">
+      <svg viewBox="0 0 160 160" className="chart-donut">
+        <circle cx="80" cy="80" r="54" fill="none" stroke="#EDF2F8" strokeWidth="24" />
+        {data.map((item, index) => {
+          const dash = (Number(item.value || 0) / total) * 100;
+          const circle = <circle key={item.label} cx="80" cy="80" r="54" fill="none" stroke={colors[index % colors.length]} strokeWidth="24" strokeDasharray={`${dash} ${100 - dash}`} strokeDashoffset={offset} pathLength="100" />;
+          offset -= dash;
+          return circle;
+        })}
+        <text x="80" y="78" textAnchor="middle" className="donut-value">{center}</text>
+        <text x="80" y="98" textAnchor="middle" className="donut-sub">{sub}</text>
+      </svg>
+      <div className="chart-legend">{data.map((item, index) => <span key={item.label}><i style={{ background: colors[index % colors.length] }} />{item.label}: <b>{item.value}</b></span>)}</div>
+    </div>
+  );
+}
+
+function BarChart({ data = [], valueKey = 'value', labelKey = 'label', format = (value) => value }) {
+  const max = Math.max(...data.map((item) => Number(item[valueKey] || 0)), 1);
+  return (
+    <div className="bar-chart">
+      {data.map((item) => {
+        const value = Number(item[valueKey] || 0);
+        return <div className="bar-row" key={item[labelKey]}><span>{item[labelKey]}</span><div className="bar-track"><i style={{ width: `${Math.max((value / max) * 100, value > 0 ? 5 : 0)}%` }} /></div><b>{format(value)}</b></div>;
+      })}
+      {!data.length && <div className="empty-chart">Sem dados no periodo</div>}
+    </div>
+  );
+}
+
+function TrendChart({ data = [] }) {
+  const max = Math.max(...data.map((item) => item.value), 1);
+  const points = data.map((item, index) => {
+    const x = data.length <= 1 ? 20 : 20 + (index * 280) / (data.length - 1);
+    const y = 120 - (item.value / max) * 86;
+    return `${x},${y}`;
+  }).join(' ');
+  return (
+    <div className="trend-chart">
+      <svg viewBox="0 0 320 140">
+        <path d="M20 120 H300" />
+        <path d="M20 32 V120" />
+        <polyline points={points} />
+        {data.map((item, index) => {
+          const x = data.length <= 1 ? 20 : 20 + (index * 280) / (data.length - 1);
+          const y = 120 - (item.value / max) * 86;
+          return <g key={item.label}><circle cx={x} cy={y} r="4" /><text x={x} y="136" textAnchor="middle">{item.label}</text></g>;
+        })}
+      </svg>
+    </div>
+  );
 }
 
 function Icon({ name }) {
