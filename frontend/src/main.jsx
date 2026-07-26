@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 import './system.css';
+import stLogoTransparent from './assets/sf-torres-logo-transparent.png';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3333';
 
@@ -602,6 +603,7 @@ function Login({ settings, onLogin }) {
   const [password, setPassword] = useState('admin123');
   const [message, setMessage] = useState('Acesso restrito a colaboradores autorizados. As ações são auditadas conforme LGPD.');
   const [loading, setLoading] = useState(false);
+  const loginPrimaryLogo = stLogoTransparent;
 
   async function submit(event) {
     event.preventDefault();
@@ -630,7 +632,7 @@ function Login({ settings, onLogin }) {
     <div className="login-shell">
       <aside className="login-aside">
         <div className="login-logo-stage">
-          <div className="login-logo-card login-logo-st"><LogoST full /></div>
+          <div className="login-logo-card login-logo-st"><LogoST src={loginPrimaryLogo} /></div>
           <div className="login-logo-card login-logo-sm"><LogoSM src={settings.secondaryLogo} /></div>
         </div>
         <footer>© 2026 SF TORRES · ST Serviços de Logística · CNPJ 00.000.000/0001-00</footer>
@@ -638,7 +640,7 @@ function Login({ settings, onLogin }) {
       <main className="login-main">
         <div className="login-card">
           <div className="brand-line">
-            <div className="mark login-mini-logo"><LogoST /></div>
+            <div className="mark login-mini-logo"><LogoST src={loginPrimaryLogo} dark /></div>
             <div><div className="eyebrow">Centro Operacional</div><div className="brand-name">{settings.fantasyName}</div></div>
           </div>
           <h1>Acesse sua conta</h1>
@@ -1889,27 +1891,8 @@ function Icon({ name }) {
   return <svg {...common}>{icons[name] || icons.grid}</svg>;
 }
 
-function LogoST({ src, full = false }) {
+function LogoST({ src }) {
   if (src) return <img src={src} alt="Logo ST" className="custom-logo custom-logo-st" />;
-  if (full) {
-    return (
-      <svg viewBox="0 0 280 170" className="logo-st-full" aria-label="ST Serviços de Logística">
-        <defs>
-          <linearGradient id="stBlue" x1="0" x2="1" y1="0" y2="1">
-            <stop offset="0" stopColor="#2547D7" />
-            <stop offset="1" stopColor="#071B63" />
-          </linearGradient>
-        </defs>
-        <circle cx="140" cy="30" r="25" fill="url(#stBlue)" stroke="#FFFFFF" strokeWidth="3" />
-        <path d="M108 60 Q140 82 172 60" fill="none" stroke="#FFFFFF" strokeWidth="5" />
-        <path d="M66 83 Q92 53 124 55 L113 95 Q89 94 67 116 Z" fill="url(#stBlue)" stroke="#FFFFFF" strokeWidth="3" />
-        <path d="M156 55 Q188 53 214 83 L213 116 Q191 94 167 95 Z" fill="url(#stBlue)" stroke="#FFFFFF" strokeWidth="3" />
-        <path d="M94 96 Q140 68 186 96 L178 131 Q140 103 102 131 Z" fill="#FFFFFF" opacity=".97" />
-        <text x="140" y="121" textAnchor="middle" fontFamily="Georgia, 'Times New Roman', serif" fontWeight="900" fontSize="62" fill="#102C82" stroke="#FFFFFF" strokeWidth="1.6">ST</text>
-        <text x="140" y="154" textAnchor="middle" fontFamily="Segoe UI,Arial,sans-serif" fontWeight="900" fontSize="22" fill="#FFFFFF" letterSpacing="1">SERVICOS DE LOGISTICA</text>
-      </svg>
-    );
-  }
   return <svg viewBox="0 0 56 56" width="28" height="28"><circle cx="28" cy="14" r="8" fill="#0F2447" /><path d="M14 38 Q28 22 42 38 L37 46 Q28 36 19 46 Z" fill="#0F2447" /><text x="14" y="44" fontFamily="Segoe UI,Arial,sans-serif" fontWeight="800" fontSize="18" fill="#FFFFFF">ST</text></svg>;
 }
 

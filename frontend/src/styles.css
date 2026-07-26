@@ -588,7 +588,7 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 }
 .login-logo-st{padding:0}
 .login-logo-st svg,.login-logo-st img{
-  max-width:280px;
+  max-width:220px;
   max-height:170px;
 }
 .login-logo-sm svg,.login-logo-sm img{
