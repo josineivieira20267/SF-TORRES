@@ -629,22 +629,16 @@ function Login({ settings, onLogin }) {
   return (
     <div className="login-shell">
       <aside className="login-aside">
-        <div className="logo-area"><LogoSM src={settings.secondaryLogo} /></div>
-        <div className="copy">
-          <h2>Centro Operacional<br />{settings.fantasyName}</h2>
-          <p>Plataforma corporativa de gestão de operações de logística, limpeza e conservação. Controle ordens de serviço, equipes, equipamentos, medições e faturamento em um único ambiente.</p>
-        </div>
-        <div className="badges">
-          <div className="b"><b>100%</b><span>Operacional</span></div>
-          <div className="b"><b>8</b><span>Módulos ativos</span></div>
-          <div className="b"><b>API</b><span>Conectada</span></div>
+        <div className="login-logo-stage">
+          <div className="login-logo-card login-logo-st"><LogoST src={settings.primaryLogo} /></div>
+          <div className="login-logo-card login-logo-sm"><LogoSM src={settings.secondaryLogo} /></div>
         </div>
         <footer>© 2026 SF TORRES · ST Serviços de Logística · CNPJ 00.000.000/0001-00</footer>
       </aside>
       <main className="login-main">
         <div className="login-card">
           <div className="brand-line">
-            <div className="mark"><LogoST src={settings.primaryLogo} dark /></div>
+            <div className="mark login-mini-logo"><LogoST src={settings.primaryLogo} dark /></div>
             <div><div className="eyebrow">Centro Operacional</div><div className="brand-name">{settings.fantasyName}</div></div>
           </div>
           <h1>Acesse sua conta</h1>
