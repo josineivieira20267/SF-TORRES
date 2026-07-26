@@ -301,6 +301,10 @@ function formatPersonName(value) {
     .join(' ');
 }
 
+function formatPersonNameInput(value) {
+  return String(value || '').toLowerCase().replace(/\S+/g, (part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`);
+}
+
 function cpfDigits(value) {
   return String(value || '').replace(/\D/g, '').slice(0, 11);
 }
@@ -1565,7 +1569,7 @@ function panelTitle(config, count) {
 function Editor({ title, fields, initial, onCancel, onSave }) {
   const [form, setForm] = useState(() => Object.fromEntries(fields.map(([name, , type]) => [name, ['permissions', 'employees'].includes(type) ? (initial?.[name] || (type === 'permissions' ? defaultUserPermissions(initial?.role) : [])) : initial?.[name] ?? ''])));
   const change = (name, value, type) => setForm((old) => {
-    const formatted = type === 'number' ? Number(value || 0) : type === 'cpf' ? formatCpf(value) : type === 'personName' ? formatPersonName(value) : value;
+    const formatted = type === 'number' ? Number(value || 0) : type === 'cpf' ? formatCpf(value) : type === 'personName' ? formatPersonNameInput(value) : value;
     const next = { ...old, [name]: formatted };
     if (name === 'equipment') {
       if (!normalize(value).includes('container')) next.containerNumber = '';
