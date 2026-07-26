@@ -750,7 +750,6 @@ function OperationsDashboard() {
   const [employees, setEmployees] = useState([]);
   const [occurrences, setOccurrences] = useState([]);
   const [month, setMonth] = useState(currentMonthValue());
-  const [onlyOpen, setOnlyOpen] = useState(false);
   const load = () => {
     Promise.all([
       api(workOrdersEndpoint(month)),
@@ -805,17 +804,11 @@ function OperationsDashboard() {
   const pendingCalls = productivity.reduce((sum, item) => sum + item.pending, 0);
   const totalBonus = productivity.reduce((sum, item) => sum + item.bonus, 0);
   const openOccurrences = occurrences.filter((item) => !normalize(item.status).includes('resolvida'));
-  const shownOrders = onlyOpen ? orders.filter((order) => !isFinalStatus(order.status)) : orders;
   const exportRows = [
     ['OS', 'Cliente', 'Servico', 'Responsavel', 'Integrantes', 'Status', 'Faltas', 'Data programada', 'Inicio', 'Fim'],
-    ...shownOrders.map((o) => [o.number, o.client, o.service, o.responsible, Array.isArray(o.teamMembers) ? o.teamMembers.join(', ') : '', o.status, absenceCount(o), o.date, o.operationStart, o.operationEnd])
+    ...orders.map((o) => [o.number, o.client, o.service, o.responsible, Array.isArray(o.teamMembers) ? o.teamMembers.join(', ') : '', o.status, absenceCount(o), o.date, o.operationStart, o.operationEnd])
   ];
   const productivityRows = productivity.slice(0, 8).map((item) => [item.employee.name, item.employee.team || '-', item.criterion.name, item.os, item.present, item.absences, `${Math.round(item.factor * 100)}%`, money(item.bonus)]);
-  const alertRows = [
-    ...orders.filter((order) => absenceCount(order) > 0).map((order) => [<Pill value="Falta" />, `OS ${order.number}`, `${absenceCount(order)} falta(s) na chamada`, order.client]),
-    ...orders.filter((order) => order.correctionRequested && !order.correctionApproved).map((order) => [<Pill value="Correcao" />, `OS ${order.number}`, 'Lider solicitou liberacao de correcao', order.client]),
-    ...openOccurrences.slice(0, 8).map((item) => [<Pill value={item.type || 'Ocorrencia'} />, `OS ${item.workOrder || '-'}`, item.description || '-', item.status || 'Aberta'])
-  ].slice(0, 10);
   const statusChart = [
     ['Programadas', programmedOrders.length],
     ['Em execucao', activeOrders.length],
@@ -826,6 +819,24 @@ function OperationsDashboard() {
   const absenceChart = productivity.filter((item) => item.absences > 0).slice(0, 7).map((item) => ({ label: item.employee.name, value: item.absences }));
   const days = [...new Set(orders.map((order) => String(order.date || '').slice(0, 10)).filter(Boolean))].sort().slice(-10);
   const trendChart = days.map((day) => ({ label: date(day).slice(0, 5), value: orders.filter((order) => String(order.date || '').slice(0, 10) === day).length }));
+  const countBy = (items, readLabel) => Object.values(items.reduce((acc, item) => {
+    const label = readLabel(item) || 'Nao informado';
+    acc[label] = acc[label] || { label, value: 0 };
+    acc[label].value += 1;
+    return acc;
+  }, {})).sort((a, b) => b.value - a.value);
+  const clientChart = countBy(orders, (order) => order.client).slice(0, 7);
+  const serviceChart = countBy(orders, (order) => order.service).slice(0, 7);
+  const productChart = countBy(orders.filter((order) => order.product), (order) => order.product).slice(0, 7);
+  const durationHours = (order) => {
+    if (!order.operationStart || !order.operationEnd) return 0;
+    const start = new Date(String(order.operationStart).replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1'));
+    const end = new Date(String(order.operationEnd).replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1'));
+    const diff = end - start;
+    return Number.isFinite(diff) && diff > 0 ? diff / 36e5 : 0;
+  };
+  const durationData = orders.filter((order) => durationHours(order) > 0).slice(0, 8).map((order) => ({ label: `OS ${order.number}`, value: durationHours(order) }));
+  const avgDuration = durationData.length ? durationData.reduce((sum, item) => sum + item.value, 0) / durationData.length : 0;
 
   return (
     <>
@@ -850,11 +861,12 @@ function OperationsDashboard() {
         <InfoPanel title="Bonus previsto" value={money(totalBonus)} sub="calculado pelas chamadas das OS"><Pill value={`${productivity.length} colaboradores`} /> <Pill value={`${totalAbsences} faltas`} /></InfoPanel>
       </div>
       <div className="dash-grid">
-        <div className="panel">
-          <div className="panel-head"><h3>Operacao diaria</h3><div className="actions"><button className="btn btn-sm" onClick={() => setOnlyOpen((value) => !value)}>{onlyOpen ? 'Ver todas' : 'Filtrar abertas'}</button><button className="btn btn-sm btn-primary" onClick={() => { window.location.hash = '#/dailyOps'; }}>Abrir operacao</button></div></div>
-          <DataTable columns={['OS', 'Cliente', 'Servico', 'Responsavel', 'Status', 'Faltas', 'Programada']} rows={shownOrders.slice(0, 8).map((o) => [<span className="mono">{o.number}</span>, o.client, o.service || '-', o.responsible || '-', <Pill value={o.status} />, absenceCount(o), dateTime(o.date)])} />
-        </div>
-        <Panel title="Alertas da operacao" padded><DataTable columns={['Tipo', 'Origem', 'Registro', 'Status/Cliente']} rows={alertRows.length ? alertRows : [[<Pill value="OK" />, 'Operacao', 'Nenhum alerta no periodo', '-']]} /></Panel>
+        <Panel title="OS por cliente" padded><BarChart data={clientChart} /></Panel>
+        <Panel title="Tipos de servico" padded><DonutChart data={serviceChart} center={orders.length} sub="servicos" /></Panel>
+      </div>
+      <div className="dash-grid">
+        <Panel title="Produtos movimentados" padded><BarChart data={productChart} /></Panel>
+        <Panel title={`Tempo de operacao - media ${avgDuration.toFixed(1)}h`} padded><BarChart data={durationData} format={(value) => `${value.toFixed(1)}h`} /></Panel>
       </div>
       <Panel title="Ranking de produtividade" padded><DataTable columns={['Colaborador', 'Equipe', 'Criterio', 'OS', 'Pres.', 'Faltas', '%', 'Bonus']} rows={productivityRows.length ? productivityRows : [['-', '-', '-', 0, 0, 0, '0%', money(0)]]} /></Panel>
     </>
