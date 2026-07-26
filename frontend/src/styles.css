@@ -568,13 +568,15 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   position:relative;
   z-index:1;
   display:grid;
-  place-items:center;
-  gap:28px;
+  grid-template-columns:minmax(170px,250px) minmax(260px,390px);
+  align-items:center;
+  justify-content:center;
+  gap:42px;
   min-height:520px;
 }
 .login-logo-card{
-  width:min(440px,80%);
-  min-height:150px;
+  width:100%;
+  min-height:190px;
   display:grid;
   place-items:center;
 }
@@ -584,13 +586,20 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   max-height:190px;
   object-fit:contain;
 }
+.login-logo-st{
+  background:rgba(255,255,255,.96);
+  border:1px solid rgba(255,255,255,.72);
+  border-radius:10px;
+  padding:22px;
+  box-shadow:0 18px 45px rgba(4,15,35,.16);
+}
 .login-logo-st svg,.login-logo-st img{
-  max-width:170px;
-  max-height:150px;
+  max-width:220px;
+  max-height:170px;
 }
 .login-logo-sm svg,.login-logo-sm img{
-  max-width:360px;
-  max-height:190px;
+  max-width:390px;
+  max-height:220px;
 }
 
 .login-main{display:grid;place-items:center;padding:32px;background:var(--c-bg)}
@@ -602,8 +611,9 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 .login-card .brand-line{display:flex;align-items:center;gap:10px;margin-bottom:8px}
 .login-card .brand-line .mark{
   width:48px;height:48px;border-radius:var(--radius-sm);
-  background:var(--c-side);display:grid;place-items:center;
+  background:#FFFFFF;display:grid;place-items:center;
   padding:5px;
+  border:1px solid var(--c-border);
 }
 .login-card .brand-line .mark svg,.login-card .brand-line .mark img{width:100%;height:100%;object-fit:contain}
 .login-card h1{

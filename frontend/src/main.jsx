@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 import './system.css';
+import stLogoTransparent from './assets/sf-torres-logo-transparent.png';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3333';
 
@@ -602,6 +603,7 @@ function Login({ settings, onLogin }) {
   const [password, setPassword] = useState('admin123');
   const [message, setMessage] = useState('Acesso restrito a colaboradores autorizados. As ações são auditadas conforme LGPD.');
   const [loading, setLoading] = useState(false);
+  const loginPrimaryLogo = stLogoTransparent;
 
   async function submit(event) {
     event.preventDefault();
@@ -630,7 +632,7 @@ function Login({ settings, onLogin }) {
     <div className="login-shell">
       <aside className="login-aside">
         <div className="login-logo-stage">
-          <div className="login-logo-card login-logo-st"><LogoST src={settings.primaryLogo} /></div>
+          <div className="login-logo-card login-logo-st"><LogoST src={loginPrimaryLogo} /></div>
           <div className="login-logo-card login-logo-sm"><LogoSM src={settings.secondaryLogo} /></div>
         </div>
         <footer>© 2026 SF TORRES · ST Serviços de Logística · CNPJ 00.000.000/0001-00</footer>
@@ -638,7 +640,7 @@ function Login({ settings, onLogin }) {
       <main className="login-main">
         <div className="login-card">
           <div className="brand-line">
-            <div className="mark login-mini-logo"><LogoST src={settings.primaryLogo} dark /></div>
+            <div className="mark login-mini-logo"><LogoST src={loginPrimaryLogo} dark /></div>
             <div><div className="eyebrow">Centro Operacional</div><div className="brand-name">{settings.fantasyName}</div></div>
           </div>
           <h1>Acesse sua conta</h1>
