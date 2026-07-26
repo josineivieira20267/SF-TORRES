@@ -243,6 +243,13 @@ a:hover{text-decoration:underline}
 .topbar .who .meta{line-height:1.1}
 .topbar .who .meta b{font-size:12.5px;color:var(--c-text)}
 .topbar .who .meta span{font-size:11px;color:var(--c-text-soft)}
+.topbar .who-name-only{
+  min-height:30px;
+  padding:0 4px;
+  font-size:12.5px;
+  font-weight:700;
+  color:var(--c-text);
+}
 
 /* ---------- Conteúdo ------------------------------------ */
 .main{
