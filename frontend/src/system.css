@@ -45,6 +45,41 @@
 .top-logo{display:flex;align-items:center;gap:8px;max-height:34px}
 .top-logo .custom-logo,.top-logo svg{max-width:76px;max-height:28px;width:auto;height:auto}
 .action-modal{max-width:680px}
+.profile-modal{max-width:560px}
+.profile-editor{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  padding:12px;
+  margin-bottom:14px;
+  background:var(--c-surface-2);
+  border:1px solid var(--c-border);
+  border-radius:var(--radius-sm);
+}
+.profile-photo{
+  width:76px;
+  height:76px;
+  border-radius:50%;
+  display:grid;
+  place-items:center;
+  flex-shrink:0;
+  background:var(--c-primary);
+  color:#FFFFFF;
+  font-size:22px;
+  font-weight:800;
+  overflow:hidden;
+  border:3px solid #FFFFFF;
+  box-shadow:0 1px 5px rgba(15,36,71,.16);
+}
+.profile-photo img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+.profile-photo-actions{min-width:0;flex:1}
+.profile-photo-actions b{display:block;font-size:15px}
+.profile-photo-actions span{display:block;font-size:12px;color:var(--c-text-soft);margin:2px 0 10px}
+.profile-photo-actions .actions{display:flex;gap:8px;flex-wrap:wrap}
 .compact-list{grid-template-columns:repeat(2,1fr);margin-top:12px}
 .compact-list .section-card{padding:10px}
 .permissions-grid{grid-column:1/-1;border:1px solid var(--c-border);border-radius:var(--radius-sm);overflow:hidden;background:#FFFFFF}

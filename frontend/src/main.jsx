@@ -326,6 +326,20 @@ function readStoredSettings() {
   }
 }
 
+function readStoredProfile() {
+  try {
+    const user = currentUser();
+    const profile = JSON.parse(localStorage.getItem('sfTorresProfile') || '{}');
+    return {
+      name: profile.name || user.name || 'Administrador SF',
+      role: profile.role || user.role || 'Administrador',
+      photo: profile.photo || ''
+    };
+  } catch {
+    return { name: 'Administrador SF', role: 'Administrador', photo: '' };
+  }
+}
+
 function storeSettings(settings) {
   localStorage.setItem('sfTorresSettings', JSON.stringify(settings));
 }
@@ -438,6 +452,7 @@ function App() {
   const [route, setRoute] = useState(() => localStorage.getItem('sfTorresToken') ? cleanRoute(window.location.hash) : 'login');
   const [toast, setToast] = useState('');
   const [settings, setSettings] = useState(readStoredSettings);
+  const [profile, setProfile] = useState(readStoredProfile);
   const [panel, setPanel] = useState(null);
 
   useEffect(() => {
@@ -454,6 +469,10 @@ function App() {
     applySystemSettings(settings);
     storeSettings(settings);
   }, [settings]);
+
+  useEffect(() => {
+    if (authenticated) setProfile(readStoredProfile());
+  }, [authenticated]);
 
   useEffect(() => {
     if (!localStorage.getItem('sfTorresToken')) return;
@@ -483,6 +502,15 @@ function App() {
     setRoute('login');
   };
 
+  const saveProfile = (data) => {
+    const user = currentUser();
+    const nextProfile = { name: data.name || user.name || 'Administrador SF', role: data.role || user.role || 'Usuário', photo: data.photo || '' };
+    localStorage.setItem('sfTorresProfile', JSON.stringify(nextProfile));
+    setProfile(nextProfile);
+    setPanel(null);
+    notify('Perfil atualizado');
+  };
+
   const goAfterLogin = (user) => {
     setAuthenticated(true);
     const requestedRoute = requestedRouteFromHash();
@@ -497,8 +525,8 @@ function App() {
 
   return (
     <div className="app">
-      <Sidebar route={route} setRoute={setRoute} settings={settings} onLogout={goLogin} />
-      <Topbar route={route} settings={settings} openPanel={setPanel} />
+      <Sidebar route={route} setRoute={setRoute} settings={settings} profile={profile} onProfile={() => setPanel('profile')} onLogout={goLogin} />
+      <Topbar route={route} settings={settings} profile={profile} openPanel={setPanel} />
       <main className="main">
         <div className="page">
           <ErrorBoundary resetKey={route}>
@@ -506,7 +534,8 @@ function App() {
           </ErrorBoundary>
         </div>
       </main>
-      {panel && <ActionPanel type={panel} setRoute={setRoute} onClose={() => setPanel(null)} />}
+      {panel === 'profile' && <ProfileModal profile={profile} onCancel={() => setPanel(null)} onSave={saveProfile} />}
+      {panel && panel !== 'profile' && <ActionPanel type={panel} setRoute={setRoute} onClose={() => setPanel(null)} />}
       <div className={`sf-toast ${toast ? 'show' : ''}`}>{toast}</div>
     </div>
   );
@@ -578,7 +607,58 @@ function Login({ settings, onLogin }) {
   );
 }
 
-function Sidebar({ route, setRoute, settings, onLogout }) {
+function profileInitials(name = 'SF') {
+  const parts = String(name || 'SF').trim().split(/\s+/).filter(Boolean);
+  return (parts.length > 1 ? `${parts[0][0]}${parts[parts.length - 1][0]}` : parts[0]?.slice(0, 2) || 'SF').toUpperCase();
+}
+
+function UserAvatar({ profile, className = '' }) {
+  return (
+    <div className={className}>
+      {profile?.photo ? <img src={profile.photo} alt={profile.name || 'Perfil'} /> : profileInitials(profile?.name)}
+    </div>
+  );
+}
+
+function ProfileModal({ profile, onCancel, onSave }) {
+  const [form, setForm] = useState(profile);
+  const inputRef = useRef(null);
+  const choosePhoto = () => inputRef.current?.click();
+  const changePhoto = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const photo = await fileToDataUrl(file);
+    setForm((old) => ({ ...old, photo }));
+  };
+  return (
+    <div className="modal-backdrop">
+      <div className="modal profile-modal">
+        <div className="modal-head"><h3>Editar perfil</h3><button className="btn btn-sm" onClick={onCancel}>Fechar</button></div>
+        <div className="modal-body">
+          <div className="profile-editor">
+            <UserAvatar profile={form} className="profile-photo" />
+            <div className="profile-photo-actions">
+              <b>{form.name || 'Usuário'}</b>
+              <span>Foto exibida no menu e na barra superior.</span>
+              <input ref={inputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={changePhoto} />
+              <div className="actions">
+                <button type="button" className="btn btn-sm" onClick={choosePhoto}>Trocar foto</button>
+                {form.photo && <button type="button" className="btn btn-sm" onClick={() => setForm((old) => ({ ...old, photo: '' }))}>Remover</button>}
+              </div>
+            </div>
+          </div>
+          <div className="form-grid">
+            <div className="form-field"><label>Nome exibido</label><input value={form.name || ''} onChange={(event) => setForm((old) => ({ ...old, name: event.target.value }))} /></div>
+            <div className="form-field"><label>Perfil</label><input value={form.role || ''} onChange={(event) => setForm((old) => ({ ...old, role: event.target.value }))} /></div>
+          </div>
+          <div className="modal-actions"><button className="btn" onClick={onCancel}>Cancelar</button><button className="btn btn-primary" onClick={() => onSave(form)}>Salvar perfil</button></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Sidebar({ route, setRoute, settings, profile, onProfile, onLogout }) {
   const groups = [
     ['Principal', [['dashboard', 'PR', 'Principal']]],
     ['Operações', [['tower', 'TO', 'Torre Operacional'], ['dailyOps', 'OD', 'Operação Diária'], ['schedules', 'PD', 'Programação de Equipes']]],
@@ -609,17 +689,17 @@ function Sidebar({ route, setRoute, settings, onLogout }) {
           );
         })}
       </nav>
-      <div className="user-card">
-        <div className="avatar">SF</div><div className="info"><b>{user.name || 'Administrador SF'}</b><span>{user.email || '@sftorres'}</span></div>
-        <button className="logout" onClick={onLogout}>↪</button>
+      <div className="user-card" onClick={onProfile} title="Editar perfil">
+        <UserAvatar profile={profile} className="avatar" />
+        <div className="info"><b>{profile.name || user.name || 'Administrador SF'}</b><span>{profile.role || user.role || 'Usuário do sistema'}</span></div>
+        <button className="logout" onClick={(event) => { event.stopPropagation(); onLogout(); }} title="Sair">↪</button>
       </div>
     </aside>
   );
 }
 
-function Topbar({ route, settings, openPanel }) {
+function Topbar({ route, settings, profile, openPanel }) {
   const def = routes[route] || routes.dailyOps;
-  const user = JSON.parse(localStorage.getItem('sfTorresUser') || '{}');
   return (
     <header className="topbar">
       <div className="crumbs"><span className="crumb-icon"><Icon name="grid" /></span><span>Painel Corporativo</span><span className="sep">›</span><span>{def.group}</span><span className="sep">›</span><span className="here">{def.title}</span></div>
@@ -630,7 +710,7 @@ function Topbar({ route, settings, openPanel }) {
         <span className="topbar-divider" />
         <button className="btn-icon" title="Ajuda" onClick={() => openPanel('help')}><Icon name="help" /></button>
         {settings.topbarLogo !== 'none' && <div className="top-logo">{settings.topbarLogo !== 'sm' && <LogoST src={settings.primaryLogo} />}{settings.topbarLogo !== 'st' && <LogoSM small src={settings.secondaryLogo} />}</div>}
-        <div className="who"><div className="ava">SF</div><div className="meta"><b>{user.name}</b><span>{user.email}</span></div></div>
+        <button className="who" onClick={() => openPanel('profile')} title="Editar perfil"><UserAvatar profile={profile} className="ava" /><div className="meta"><b>{profile.name}</b><span>{profile.role}</span></div></button>
       </div>
     </header>
   );
