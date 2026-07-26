@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
-const { env } = require('./utils/env');
+const { env, normalizeOrigin } = require('./utils/env');
 const { errorHandler, notFound } = require('./middlewares/error');
 const authRoutes = require('./routes/auth');
 const resourceRoutes = require('./routes/resources');
@@ -11,9 +11,22 @@ const userRoutes = require('./routes/users');
 const settingsRoutes = require('./routes/settings');
 
 const app = express();
+const allowedOrigins = new Set(env.CORS_ORIGIN.map(normalizeOrigin));
+const corsOptions = {
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+
+    const normalized = normalizeOrigin(origin);
+    return callback(null, allowedOrigins.has(normalized));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
 
 app.use(helmet());
-app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '1mb' }));
 app.use(morgan('dev'));
 
