@@ -217,7 +217,8 @@ function api(path, options = {}) {
     const text = await response.text();
     const payload = text ? JSON.parse(text) : null;
     if (response.status === 401) {
-      localStorage.clear();
+      localStorage.removeItem('sfTorresToken');
+      localStorage.removeItem('sfTorresUser');
       window.location.hash = '#/login';
       throw new Error('Sessão expirada');
     }
@@ -331,9 +332,9 @@ function readStoredProfile() {
     const user = currentUser();
     const profile = JSON.parse(localStorage.getItem('sfTorresProfile') || '{}');
     return {
-      name: profile.name || user.name || 'Administrador SF',
-      role: profile.role || user.role || 'Administrador',
-      photo: profile.photo || ''
+      name: user.name || profile.name || 'Administrador SF',
+      role: user.displayRole || profile.role || user.role || 'Administrador',
+      photo: user.profilePhoto || profile.photo || ''
     };
   } catch {
     return { name: 'Administrador SF', role: 'Administrador', photo: '' };
@@ -495,17 +496,24 @@ function App() {
   }, []);
 
   const goLogin = () => {
-    localStorage.clear();
+    localStorage.removeItem('sfTorresToken');
+    localStorage.removeItem('sfTorresUser');
     setAuthenticated(false);
     setPanel(null);
     window.location.hash = '#/login';
     setRoute('login');
   };
 
-  const saveProfile = (data) => {
+  const saveProfile = async (data) => {
     const user = currentUser();
     const nextProfile = { name: data.name || user.name || 'Administrador SF', role: data.role || user.role || 'Usuário', photo: data.photo || '' };
+    const payload = await api(`/api/users/${user.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ name: nextProfile.name, displayRole: nextProfile.role, profilePhoto: nextProfile.photo })
+    });
+    const updatedUser = { ...user, ...(payload.data || {}) };
     localStorage.setItem('sfTorresProfile', JSON.stringify(nextProfile));
+    localStorage.setItem('sfTorresUser', JSON.stringify(updatedUser));
     setProfile(nextProfile);
     setPanel(null);
     notify('Perfil atualizado');

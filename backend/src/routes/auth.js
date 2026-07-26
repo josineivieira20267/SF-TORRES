@@ -29,7 +29,15 @@ router.post('/login', async (req, res, next) => {
       return res.status(401).json({ error: { message: 'E-mail ou senha invalidos' } });
     }
 
-    const payload = { id: user.id, name: user.name, email: user.email, role: user.role, permissions: user.permissions || null };
+    const payload = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      permissions: user.permissions || null,
+      displayRole: user.displayRole || null,
+      profilePhoto: user.profilePhoto || null
+    };
     const token = jwt.sign(payload, env.JWT_SECRET, { expiresIn: '8h' });
     return res.json({ data: { user: payload, token } });
   } catch (error) {
