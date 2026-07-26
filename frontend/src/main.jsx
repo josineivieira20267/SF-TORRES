@@ -718,7 +718,7 @@ function Topbar({ route, settings, profile, openPanel }) {
         <span className="topbar-divider" />
         <button className="btn-icon" title="Ajuda" onClick={() => openPanel('help')}><Icon name="help" /></button>
         {settings.topbarLogo !== 'none' && <div className="top-logo">{settings.topbarLogo !== 'sm' && <LogoST src={settings.primaryLogo} />}{settings.topbarLogo !== 'st' && <LogoSM small src={settings.secondaryLogo} />}</div>}
-        <button className="who who-name-only" onClick={() => openPanel('profile')} title="Editar perfil"><b>{profile.name}</b></button>
+        <button className="who who-name-only" onClick={() => openPanel('profile')} title="Editar perfil"><UserAvatar profile={profile} className="ava" /><b>{profile.name}</b></button>
       </div>
     </header>
   );

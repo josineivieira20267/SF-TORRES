@@ -245,7 +245,7 @@ a:hover{text-decoration:underline}
 .topbar .who .meta span{font-size:11px;color:var(--c-text-soft)}
 .topbar .who-name-only{
   min-height:30px;
-  padding:0 4px;
+  padding:0 6px;
   font-size:12.5px;
   font-weight:700;
   color:var(--c-text);
