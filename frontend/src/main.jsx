@@ -125,8 +125,8 @@ const crudConfigs = {
     panelTitle: 'Funcionários',
     toolbar: [
       ['Buscar', 'Nome, CPF, função...', 'input'],
-      ['Função', ['Todas', 'Auxiliar', 'Líder de turno'], 'select'],
-      ['Equipe', ['Todas', 'Conferente', 'Apoio', 'Batedor'], 'select'],
+      ['Função', ['Todas', 'Auxiliar', 'Líder'], 'select'],
+      ['Equipe', ['Todas', 'Equipe PA', 'Conferente', 'Apoio', 'Batedor'], 'select'],
       ['Status', ['Todos', 'Ativo', 'Férias', 'Afastado'], 'select']
     ],
     columns: [
@@ -135,9 +135,20 @@ const crudConfigs = {
       { label: 'Admissão', render: (i) => date(i.admissionDate) }, { label: 'Status', render: (i) => <Pill value={i.status} /> }
     ],
     fields: [
-      ['code', 'Código'], ['name', 'Nome'], ['cpf', 'CPF'], ['role', 'Função', 'select', ['Auxiliar', 'Líder de turno']], ['team', 'Equipe', 'select', ['Conferente', 'Apoio', 'Batedor']],
-      ['admissionDate', 'Admissão', 'date'], ['status', 'Status', 'select', ['Ativo', 'Férias', 'Afastado', 'Cadastro']]
-    ]
+      ['code', 'Código', 'text', null, null, true],
+      ['name', 'Nome', 'personName', null, null, true],
+      ['cpf', 'CPF', 'cpf', null, null, true],
+      ['role', 'Função', 'select', ['', 'Auxiliar', 'Líder'], null, true],
+      ['team', 'Equipe', 'select', ['', 'Equipe PA', 'Conferente', 'Apoio', 'Batedor'], null, true],
+      ['admissionDate', 'Admissão', 'date', null, null, true],
+      ['status', 'Status', 'select', ['', 'Ativo', 'Férias', 'Afastado', 'Cadastro'], null, true]
+    ],
+    beforeSave: (data) => ({
+      ...data,
+      name: formatPersonName(data.name),
+      cpf: formatCpf(data.cpf),
+      role: normalize(data.role).includes('lider') ? 'Líder' : data.role
+    })
   },
   services: {
     title: 'Serviços',
@@ -279,6 +290,39 @@ function money(value) {
 
 function normalize(value) {
   return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function formatPersonName(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .map((part) => part ? `${part.charAt(0).toUpperCase()}${part.slice(1)}` : '')
+    .join(' ');
+}
+
+function cpfDigits(value) {
+  return String(value || '').replace(/\D/g, '').slice(0, 11);
+}
+
+function formatCpf(value) {
+  const digits = cpfDigits(value);
+  return digits
+    .replace(/^(\d{3})(\d)/, '$1.$2')
+    .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/^(\d{3})\.(\d{3})\.(\d{3})(\d)/, '$1.$2.$3-$4');
+}
+
+function isValidCpf(value) {
+  const digits = cpfDigits(value);
+  if (digits.length !== 11 || /^(\d)\1+$/.test(digits)) return false;
+  const calc = (size) => {
+    let sum = 0;
+    for (let i = 0; i < size; i += 1) sum += Number(digits[i]) * (size + 1 - i);
+    const mod = (sum * 10) % 11;
+    return mod === 10 ? 0 : mod;
+  };
+  return calc(9) === Number(digits[9]) && calc(10) === Number(digits[10]);
 }
 
 function displayValue(value) {
@@ -1485,11 +1529,13 @@ function CrudScreen({ config, notify, beforeTable, editable = true }) {
     const key = fieldMap[label];
     if (!value || value === 'Todos' || value === 'Todas') return list;
     if (!key) return list.filter((item) => normalize(Object.values(item).join(' ')).includes(normalize(value)));
+    if (key === 'role') return list.filter((item) => normalize(item[key]).includes(normalize(value)));
     return list.filter((item) => normalize(item[key]) === normalize(value));
   }, items);
   const save = async (data) => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
-    await api(modal?.id ? `${config.endpoint}/${modal.id}` : config.endpoint, { method: modal?.id ? 'PUT' : 'POST', body: JSON.stringify(data) });
+    const payload = config.beforeSave ? config.beforeSave(data) : data;
+    await api(modal?.id ? `${config.endpoint}/${modal.id}` : config.endpoint, { method: modal?.id ? 'PUT' : 'POST', body: JSON.stringify(payload) });
     setModal(null); notify('Registro salvo'); load();
   };
   const remove = async (item) => {
@@ -1519,7 +1565,8 @@ function panelTitle(config, count) {
 function Editor({ title, fields, initial, onCancel, onSave }) {
   const [form, setForm] = useState(() => Object.fromEntries(fields.map(([name, , type]) => [name, ['permissions', 'employees'].includes(type) ? (initial?.[name] || (type === 'permissions' ? defaultUserPermissions(initial?.role) : [])) : initial?.[name] ?? ''])));
   const change = (name, value, type) => setForm((old) => {
-    const next = { ...old, [name]: type === 'number' ? Number(value || 0) : value };
+    const formatted = type === 'number' ? Number(value || 0) : type === 'cpf' ? formatCpf(value) : type === 'personName' ? formatPersonName(value) : value;
+    const next = { ...old, [name]: formatted };
     if (name === 'equipment') {
       if (!normalize(value).includes('container')) next.containerNumber = '';
       if (!normalize(value).includes('carreta')) next.trailerPlate = '';
@@ -1528,11 +1575,13 @@ function Editor({ title, fields, initial, onCancel, onSave }) {
   });
   const isVisible = (visible) => !visible || visible(form);
   const isRequired = (required) => typeof required === 'function' ? required(form) : Boolean(required);
-  const isEmpty = (value) => Array.isArray(value) ? value.length === 0 : String(value ?? '').trim() === '';
+  const isEmpty = (value) => Array.isArray(value) ? value.length === 0 : ['', '-'].includes(String(value ?? '').trim());
   const submit = (event) => {
     event.preventDefault();
     const missing = fields.find(([name, label, , , visible, required]) => isVisible(visible) && isRequired(required) && isEmpty(form[name]));
     if (missing) return alert(`Preencha o campo obrigatorio: ${missing[1]}`);
+    const invalidCpf = fields.find(([name, label, type, , visible]) => isVisible(visible) && type === 'cpf' && !isValidCpf(form[name]));
+    if (invalidCpf) return alert(`Informe um CPF valido: ${invalidCpf[1]}`);
     return onSave(form);
   };
   return (
@@ -1544,7 +1593,7 @@ function Editor({ title, fields, initial, onCancel, onSave }) {
             if (!isVisible(visible)) return null;
             if (type === 'permissions') return <PermissionMatrix key={name} label={label} value={form[name]} onChange={(value) => change(name, value, type)} />;
             if (type === 'employees') return <EmployeePicker key={name} label={`${label}${isRequired(required) ? ' *' : ''}`} options={options || []} value={form[name]} onChange={(value) => change(name, value, type)} />;
-            return <div className="form-field" key={name}><label>{label}{isRequired(required) ? ' *' : ''}</label>{type === 'select' ? <select value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)}>{options.map((o) => <option key={o || '-'} value={o}>{o || '-'}</option>)}</select> : type === 'textarea' ? <textarea value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)} /> : <input type={type} value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)} />}</div>;
+            return <div className="form-field" key={name}><label>{label}{isRequired(required) ? ' *' : ''}</label>{type === 'select' ? <select value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)}>{options.map((o) => <option key={o || '-'} value={o}>{o || '-'}</option>)}</select> : type === 'textarea' ? <textarea value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)} /> : <input type={['cpf', 'personName'].includes(type) ? 'text' : type} value={form[name]} required={isRequired(required)} maxLength={type === 'cpf' ? 14 : undefined} onChange={(e) => change(name, e.target.value, type)} />}</div>;
           })}</div>
           <div className="modal-actions"><button type="button" className="btn" onClick={onCancel}>Cancelar</button><button className="btn btn-primary">Salvar</button></div>
         </form>
