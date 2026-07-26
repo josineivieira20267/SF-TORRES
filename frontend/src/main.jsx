@@ -88,6 +88,30 @@ function isOpenQueueStatus(status) {
   return ['programado', 'rascunho', 'enviada', 'aprovada'].includes(normalize(status));
 }
 
+const bonusRules = [
+  { key: 'pa', name: 'Equipe PA', base: 150, mode: 'monthly', match: ['equipe pa', 'pa'] },
+  { key: 'batedores', name: 'Batedores', base: 8, mode: 'per-os', match: ['batedor', 'batedores', 'conferente'] },
+  { key: 'apoio', name: 'Apoio', base: 5, mode: 'per-os', match: ['apoio'] }
+];
+
+function bonusCriterionFor(employee) {
+  const team = normalize(employee?.team);
+  const role = normalize(employee?.role);
+  const byTeam = bonusRules.find((rule) => rule.match.some((item) => team.includes(item)));
+  if (byTeam) return byTeam;
+  return bonusRules.find((rule) => rule.match.some((item) => role.includes(item))) || { key: 'none', name: 'Sem criterio', base: 0, mode: 'per-os', match: [] };
+}
+
+function bonusDiscountFor(absences) {
+  return absences <= 0 ? 1 : absences === 1 ? 0.75 : absences === 2 ? 0.5 : absences === 3 ? 0.25 : 0;
+}
+
+function bonusAmountFor(summary) {
+  const factor = bonusDiscountFor(summary.absences);
+  const paidUnits = summary.criterion.mode === 'monthly' ? (summary.present > 0 ? 1 : 0) : summary.present;
+  return summary.criterion.base * factor * paidUnits;
+}
+
 const occurrenceFields = [
   ['type', 'Tipo', 'select', ['Operacional', 'Segurança', 'Atraso', 'Equipamento', 'Correção']],
   ['description', 'Descrição', 'textarea'],
@@ -806,18 +830,8 @@ function OperationsDashboard() {
     }).catch((error) => triggerAction(error.message));
   };
   useEffect(load, [month]);
-  const bonusRules = [
-    { name: 'Equipe PA', base: 150, match: ['equipe pa', 'pa', 'conferente'] },
-    { name: 'Batedores', base: 8, match: ['batedor', 'batedores'] },
-    { name: 'Apoio', base: 5, match: ['apoio'] }
-  ];
   const employeeByName = Object.fromEntries(employees.map((item) => [normalize(item.name), item]));
-  const criterionFor = (employee) => {
-    const team = normalize(employee?.team);
-    const role = normalize(employee?.role);
-    return bonusRules.find((rule) => rule.match.some((item) => team.includes(item) || (!team && role.includes(item)))) || { name: 'Sem criterio', base: 0 };
-  };
-  const discountFor = (absences) => absences <= 0 ? 1 : absences === 1 ? 0.75 : absences === 2 ? 0.5 : absences === 3 ? 0.25 : 0;
+  const criterionFor = bonusCriterionFor;
   const memberEntries = orders.flatMap((order) => {
     const members = Array.isArray(order.teamMembers) ? order.teamMembers : Object.keys(order.attendance || {});
     return members.map((name) => {
@@ -838,8 +852,8 @@ function OperationsDashboard() {
     else acc[key].present += 1;
     return acc;
   }, {})).map((item) => {
-    const factor = discountFor(item.absences);
-    return { ...item, factor, bonus: item.criterion.base * factor * item.present };
+    const factor = bonusDiscountFor(item.absences);
+    return { ...item, factor, bonus: bonusAmountFor(item) };
   }).sort((a, b) => b.bonus - a.bonus || b.present - a.present);
   const activeOrders = orders.filter((order) => normalize(order.status).includes('exec'));
   const programmedOrders = orders.filter((order) => normalize(order.status).includes('program'));
@@ -942,6 +956,7 @@ function Dashboard() {
   ];
   const employeeByName = Object.fromEntries(employees.map((item) => [normalize(item.name), item]));
   const criterionFor = (employee) => {
+    return bonusCriterionFor(employee);
     const team = normalize(employee?.team);
     const role = normalize(employee?.role);
     return bonusRules.find((rule) => rule.match.some((item) => team.includes(item) || (!team && role.includes(item)))) || { name: 'Sem criterio', base: 0 };
@@ -1146,11 +1161,6 @@ function Productivity() {
     api('/api/employees').then((payload) => setEmployees(listData(payload))).catch((error) => triggerAction(error.message));
   }, []);
   const employeeByName = Object.fromEntries(employees.map((item) => [normalize(item.name), item]));
-  const bonusRules = [
-    { key: 'pa', name: 'Equipe PA', base: 150, match: ['equipe pa', 'pa', 'conferente'] },
-    { key: 'batedores', name: 'Batedores', base: 8, match: ['batedor', 'batedores'] },
-    { key: 'apoio', name: 'Apoio', base: 5, match: ['apoio'] }
-  ];
   const criterionFor = (employee) => {
     const team = normalize(employee?.team);
     const role = normalize(employee?.role);
@@ -1195,21 +1205,21 @@ function Productivity() {
   const productivityRows = byEmployee.map((item) => {
     const factor = discountFor(item.absences);
     const adjustedValue = item.criterion.base * factor;
-    const total = adjustedValue * item.present;
+    const total = bonusAmountFor(item);
     return [item.employee.name, item.employee.role || '-', item.employee.team || '-', item.criterion.name, item.os, item.present, item.absences, money(adjustedValue), `${Math.round(factor * 100)}%`, money(total)];
   });
   const osRows = filteredEntries.map(({ order, name, status }) => {
     const employee = employeeByName[normalize(name)] || { name, role: '-', team: '-' };
     const criterion = criterionFor(employee);
     const employeeSummary = byEmployee.find((item) => normalize(item.employee.name) === normalize(name));
-    const payable = normalize(status) === 'falta' || normalize(status) === 'pendente' ? 0 : criterion.base * discountFor(employeeSummary?.absences || 0);
+    const payable = normalize(status) === 'falta' || normalize(status) === 'pendente' || criterion.mode === 'monthly' ? 0 : criterion.base * discountFor(employeeSummary?.absences || 0);
     return [order.number, dateTime(order.date), order.client, name, employee.team || '-', criterion.name, <Pill value={status} />, money(payable)];
   });
   const totalAbsences = byEmployee.reduce((sum, item) => sum + item.absences, 0);
   const pendingCalls = byEmployee.reduce((sum, item) => sum + item.pending, 0);
-  const totalBonus = byEmployee.reduce((sum, item) => sum + (item.criterion.base * discountFor(item.absences) * item.present), 0);
+  const totalBonus = byEmployee.reduce((sum, item) => sum + bonusAmountFor(item), 0);
   const exportRows = [['Colaborador', 'Função', 'Equipe cadastro', 'Critério', 'OS', 'Presenças', 'Faltas', 'Valor base', 'Percentual', 'Total'], ...productivityRows.map((row) => row.map((cell) => displayText(cell)))];
-  return <><PageHead title="Produtividade dos colaboradores" subtitle="Apuração mensal por OS, chamada, faltas e critérios de bonificação." ghostActions={[compare ? 'Ocultar critérios' : 'Ver critérios', showOsLaunches ? 'Ocultar lançamentos' : 'Ver lançamentos por OS']} onGhostAction={(label) => label.includes('critério') || label.includes('critérios') ? setCompare((value) => !value) : setShowOsLaunches((value) => !value)} action="Exportar relatório" onAction={() => downloadCsv('produtividade-colaboradores.csv', exportRows)} /><div className="toolbar"><div className="filter"><label>Buscar</label><input value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="OS, cliente, colaborador..." /></div><div className="filter"><label>Colaborador</label><select value={filters.employee} onChange={(event) => setFilters((old) => ({ ...old, employee: event.target.value }))}>{employeeOptions.map((name) => <option key={name}>{name}</option>)}</select></div><div className="filter"><label>Critério</label><select value={filters.criterion} onChange={(event) => setFilters((old) => ({ ...old, criterion: event.target.value }))}><option>Todos</option><option>Equipe PA</option><option>Batedores</option><option>Apoio</option><option>Sem critério</option></select></div><div className="filter"><label>Chamada</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Presente</option><option>Falta</option><option>Pendente</option></select></div><span className="spacer" /><span className="soft">{filteredEntries.length} lançamentos</span></div><div className="kpi-grid"><Kpi icon="users" label="Colaboradores avaliados" value={byEmployee.length} delta="com OS no filtro" success /><Kpi icon="file" label="OS apuradas" value={new Set(filteredEntries.map((entry) => entry.order.id || entry.order.number)).size} delta="mês atual filtrado no banco" /><Kpi icon="alert" label="Faltas registradas" value={totalAbsences} delta={`${pendingCalls} chamadas pendentes`} warning /><Kpi icon="money" label="Bônus previsto" value={money(totalBonus)} delta="conforme critérios" /></div>{compare && <Panel title="Critérios de bonificação" padded><DataTable columns={['Equipe/Função', 'Valor integral', '1 ausência', '2 ausências', '3 ausências', '4+ ausências']} rows={bonusRules.map(ruleRow)} /></Panel>}<Panel title="Produtividade por colaborador" padded><DataTable columns={['Colaborador', 'Função', 'Equipe cadastro', 'Critério', 'OS', 'Pres.', 'Faltas', 'Valor OS', '%', 'Total']} rows={productivityRows} /></Panel>{showOsLaunches && <Panel title="Lançamentos por OS" padded><DataTable columns={['OS', 'Data', 'Cliente', 'Colaborador', 'Equipe', 'Critério', 'Chamada', 'Valor']} rows={osRows} /></Panel>}</>;
+  return <><PageHead title="Produtividade dos colaboradores" subtitle="Apuração mensal por OS, chamada, faltas e critérios de bonificação." ghostActions={[compare ? 'Ocultar critérios' : 'Ver critérios', showOsLaunches ? 'Ocultar lançamentos' : 'Ver lançamentos por OS']} onGhostAction={(label) => label.includes('critério') || label.includes('critérios') ? setCompare((value) => !value) : setShowOsLaunches((value) => !value)} action="Exportar relatório" onAction={() => downloadCsv('produtividade-colaboradores.csv', exportRows)} /><div className="toolbar"><div className="filter"><label>Buscar</label><input value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="OS, cliente, colaborador..." /></div><div className="filter"><label>Colaborador</label><select value={filters.employee} onChange={(event) => setFilters((old) => ({ ...old, employee: event.target.value }))}>{employeeOptions.map((name) => <option key={name}>{name}</option>)}</select></div><div className="filter"><label>Critério</label><select value={filters.criterion} onChange={(event) => setFilters((old) => ({ ...old, criterion: event.target.value }))}><option>Todos</option><option>Equipe PA</option><option>Batedores</option><option>Apoio</option><option>Sem critério</option></select></div><div className="filter"><label>Chamada</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Presente</option><option>Falta</option><option>Pendente</option></select></div><span className="spacer" /><span className="soft">{filteredEntries.length} lançamentos</span></div><div className="kpi-grid"><Kpi icon="users" label="Colaboradores avaliados" value={byEmployee.length} delta="com OS no filtro" success /><Kpi icon="file" label="OS apuradas" value={new Set(filteredEntries.map((entry) => entry.order.id || entry.order.number)).size} delta="mês atual filtrado no banco" /><Kpi icon="alert" label="Faltas registradas" value={totalAbsences} delta={`${pendingCalls} chamadas pendentes`} warning /><Kpi icon="money" label="Bônus previsto" value={money(totalBonus)} delta="conforme critérios" /></div>{compare && <Panel title="Critérios de bonificação" padded><DataTable columns={['Equipe/Função', 'Valor integral', '1 ausência', '2 ausências', '3 ausências', '4+ ausências']} rows={bonusRules.map(ruleRow)} /></Panel>}<Panel title="Produtividade por colaborador" padded><DataTable columns={['Colaborador', 'Função', 'Equipe cadastro', 'Critério', 'OS', 'Pres.', 'Faltas', 'Valor base', '%', 'Total']} rows={productivityRows} /></Panel>{showOsLaunches && <Panel title="Lançamentos por OS" padded><DataTable columns={['OS', 'Data', 'Cliente', 'Colaborador', 'Equipe', 'Critério', 'Chamada', 'Valor']} rows={osRows} /></Panel>}</>;
 }
 
 function OperationalMap() {
