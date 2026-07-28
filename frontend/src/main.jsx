@@ -423,7 +423,7 @@ function triggerAction(label) {
 
 function downloadCsv(filename, rows) {
   const csv = rows.map((row) => row.map((cell) => `"${String(cell ?? '').replaceAll('"', '""')}"`).join(';')).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob(['\ufeff', csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -791,7 +791,7 @@ function Sidebar({ route, setRoute, settings, profile, onProfile, onLogout }) {
   };
   return (
     <aside className="sidebar">
-      <div className="brand"><div className="brand-mark"><LogoST src={settings.primaryLogo} /></div><div className="brand-text"><strong>{settings.fantasyName}</strong><span>Centro Operacional</span></div></div>
+      <div className="brand"><div className="brand-text"><strong>{settings.fantasyName}</strong><span>Centro Operacional</span></div></div>
       <div className="search"><span>⌕</span><input placeholder="Buscar módulo, tela ou ação..." /></div>
       <nav className="nav">
         {groups.map(([title, items]) => {
@@ -1343,11 +1343,93 @@ function Reports() {
   ];
   const [selected, setSelected] = useState(cards[0]);
   const [config, setConfig] = useState(false);
+  const reportModels = {
+    'Ordens de Serviço': {
+      filename: 'ordens-de-servico.csv',
+      columns: [
+        ['OS', (row) => row.number],
+        ['Cliente', (row) => row.client],
+        ['Serviço', (row) => row.service],
+        ['Equipamento', (row) => row.equipment],
+        ['Produto', (row) => row.product],
+        ['Local', (row) => row.location],
+        ['Responsável', (row) => row.responsible],
+        ['Status', (row) => row.status],
+        ['Data programada', (row) => dateTime(row.date)],
+        ['Início da operação', (row) => dateTime(row.operationStart)],
+        ['Fim da operação', (row) => dateTime(row.operationEnd)],
+        ['Percentual', (row) => `${row.progress || 0}%`]
+      ]
+    },
+    'Produtividade por Equipe': {
+      filename: 'produtividade-por-equipe.csv',
+      columns: [
+        ['OS', (row) => row.number],
+        ['Cliente', (row) => row.client],
+        ['Serviço', (row) => row.service],
+        ['Equipe / Transportador', (row) => row.carrier],
+        ['Integrantes', (row) => Array.isArray(row.teamMembers) ? row.teamMembers.join(', ') : ''],
+        ['Status', (row) => row.status],
+        ['Faltas', (row) => absenceCount(row)],
+        ['Data programada', (row) => dateTime(row.date)],
+        ['Início', (row) => dateTime(row.operationStart)],
+        ['Fim', (row) => dateTime(row.operationEnd)]
+      ]
+    },
+    'Faturamento por Cliente': {
+      filename: 'faturamento-por-cliente.csv',
+      columns: [
+        ['Número', (row) => row.number],
+        ['Cliente', (row) => row.client],
+        ['OS', (row) => row.workOrder],
+        ['Período', (row) => row.period],
+        ['Quantidade', (row) => row.quantity],
+        ['Valor unitário', (row) => money(row.unitPrice)],
+        ['Valor total', (row) => money(row.total)],
+        ['Status', (row) => row.status]
+      ]
+    },
+    'Ocorrências Operacionais': {
+      filename: 'ocorrencias-operacionais.csv',
+      columns: [
+        ['OS', (row) => row.workOrder],
+        ['Tipo', (row) => row.type],
+        ['Descrição', (row) => row.description],
+        ['Status', (row) => row.status],
+        ['Data / Hora', (row) => occurrenceTime(row)]
+      ]
+    },
+    'Movimentação de Pessoal': {
+      filename: 'movimentacao-de-pessoal.csv',
+      columns: [
+        ['Nome', (row) => row.name],
+        ['CPF', (row) => row.cpf],
+        ['Função', (row) => row.role],
+        ['Equipe', (row) => row.team],
+        ['Base', (row) => row.base],
+        ['Admissão', (row) => date(row.admissionDate)],
+        ['Status', (row) => row.status]
+      ]
+    },
+    Equipamentos: {
+      filename: 'equipamentos.csv',
+      columns: [
+        ['Código', (row) => row.code],
+        ['Tipo', (row) => row.type],
+        ['Modelo / Descrição', (row) => row.model],
+        ['Capacidade', (row) => row.capacity],
+        ['Última manutenção', (row) => date(row.lastMaintenance)],
+        ['Status', (row) => row.status]
+      ]
+    }
+  };
   const generate = async (card = selected) => {
     const payload = await api(card[2] === '/api/workOrders' ? workOrdersEndpoint() : card[2]);
     const rows = listData(payload);
-    const keys = [...new Set(rows.flatMap((row) => Object.keys(row).filter((key) => !['id', 'createdAt', 'updatedAt'].includes(key))))];
-    downloadCsv(`${card[0].toLowerCase().replaceAll(' ', '-')}.csv`, [keys, ...rows.map((row) => keys.map((key) => row[key]))]);
+    const model = reportModels[card[0]];
+    const headers = model.columns.map(([label]) => label);
+    const body = rows.map((row) => model.columns.map(([, render]) => render(row) ?? '-'));
+    downloadCsv(model.filename, [headers, ...body]);
   };
   return <><PageHead title="Relatórios" subtitle="Modelos de relatórios prontos e exportação em PDF, XLSX e CSV." ghostAction="Configurar modelos" onGhostAction={() => setConfig(true)} action="Gerar relatório" onAction={() => generate()} /><div className="section-list">{cards.map(([title, text, endpoint], index) => <div className={`section-card ${selected[0] === title ? 'selected-card' : ''}`} key={title} onClick={() => setSelected([title, text, endpoint])} onDoubleClick={() => generate([title, text, endpoint])}><div className="ico"><Icon name={['file', 'clock', 'money', 'box', 'users', 'monitor'][index]} /></div><div><h4>{title}</h4><p>{text}</p></div></div>)}</div>{config && <Editor title="Configurar modelo de relatório" fields={[['name', 'Modelo'], ['format', 'Formato', 'select', ['CSV', 'XLSX', 'PDF']], ['period', 'Período', 'select', ['Hoje', 'Esta semana', 'Este mês', 'Personalizado']]]} initial={{ name: selected[0], format: 'CSV', period: 'Este mês' }} onCancel={() => setConfig(false)} onSave={(data) => { localStorage.setItem('sfTorresReportConfig', JSON.stringify(data)); setConfig(false); triggerAction('Modelo de relatório salvo'); }} />}</>;
 }
@@ -1783,34 +1865,51 @@ function Placeholder({ route }) {
 function ActionPanel({ type, setRoute, onClose }) {
   const [q, setQ] = useState('');
   const [notifications, setNotifications] = useState([]);
+  const user = currentUser();
+  const dismissedKey = `sfTorresDismissedNotifications:${user.email || user.name || 'anon'}`;
   const routeEntries = Object.entries(routes).filter(([key, item]) => canView(key) && normalize(item.title + item.group).includes(normalize(q)));
+  const readDismissed = () => {
+    try {
+      return JSON.parse(localStorage.getItem(dismissedKey) || '[]');
+    } catch {
+      return [];
+    }
+  };
+  const notificationId = (item) => item.id || `${item.workOrder}-${item.type}-${item.description}-${item.createdAt || item.updatedAt || ''}`;
+  const dismissNotification = (id) => {
+    const next = [...new Set([...readDismissed(), id])];
+    localStorage.setItem(dismissedKey, JSON.stringify(next));
+    setNotifications((old) => old.filter((item) => item.id !== id));
+  };
+  const clearNotifications = () => {
+    const ids = notifications.map((item) => item.id);
+    localStorage.setItem(dismissedKey, JSON.stringify([...new Set([...readDismissed(), ...ids])]));
+    setNotifications([]);
+  };
   useEffect(() => {
     if (type !== 'notifications') return;
     Promise.all([
       api('/api/occurrences').catch(() => ({ data: [] })),
       api(workOrdersEndpoint()).catch(() => ({ data: [] }))
     ]).then(([occurrencePayload, orderPayload]) => {
+      const dismissed = new Set(readDismissed());
+      const orders = listData(orderPayload);
+      const isLeader = normalize(user.role).includes('lider');
+      const belongsToUser = (occurrence) => {
+        if (!isLeader) return true;
+        const order = orders.find((item) => String(item.number) === String(occurrence.workOrder));
+        if (!order) return false;
+        const haystack = normalize(`${order.responsible} ${order.carrier}`);
+        return haystack.includes(normalize(user.name)) || haystack.includes(normalize(user.email));
+      };
       const occurrenceAlerts = listData(occurrencePayload)
         .filter((item) => !normalize(item.status).includes('resolvida'))
-        .map((item) => ({ tag: item.type || 'OCO', title: `Ocorrência na OS ${item.workOrder || '-'}`, text: `${item.description || '-'} · ${item.status || 'Aberta'}` }));
-      const correctionAlerts = listData(orderPayload)
-        .filter((item) => item.correctionRequested && !item.correctionApproved)
-        .map((item) => ({ tag: 'COR', title: `Correção solicitada · OS ${item.number}`, text: `${item.client || '-'} aguardando liberação administrativa` }));
-      const noteAlerts = listData(orderPayload).flatMap((item) => {
-        const notes = [];
-        if (item.teamNote) notes.push({ tag: 'OBS', title: `Observação de equipe · OS ${item.number}`, text: item.teamNote });
-        if (item.attendance) {
-          Object.entries(item.attendance).forEach(([name, value]) => {
-            const note = typeof value === 'object' ? value.note : '';
-            const status = typeof value === 'object' ? value.status : value;
-            if (note) notes.push({ tag: 'OBS', title: `${name} · ${status || 'Chamada'} · OS ${item.number}`, text: note });
-          });
-        }
-        return notes;
-      });
-      setNotifications([...correctionAlerts, ...occurrenceAlerts, ...noteAlerts].slice(0, 20));
+        .filter(belongsToUser)
+        .map((item) => ({ id: notificationId(item), tag: item.type || 'OCO', title: `Ocorrência na OS ${item.workOrder || '-'}`, text: `${item.description || '-'} · ${item.status || 'Aberta'}` }))
+        .filter((item) => !dismissed.has(item.id));
+      setNotifications(occurrenceAlerts.slice(0, 50));
     });
-  }, [type]);
+  }, [type, dismissedKey]);
   const openRoute = (key) => {
     window.location.hash = `#/${key}`;
     setRoute(key);
@@ -1821,7 +1920,7 @@ function ActionPanel({ type, setRoute, onClose }) {
       <div className="form-field"><label>Pesquisar módulo</label><input value={q} onChange={(e) => setQ(e.target.value)} autoFocus placeholder="Digite cliente, OS, usuário, relatório..." /></div>
       <div className="section-list compact-list">{routeEntries.map(([key, item]) => <div className="section-card" key={key} onClick={() => openRoute(key)}><div className="ico"><Icon name="grid" /></div><div><h4>{item.title}</h4><p>{item.group}</p></div></div>)}</div>
     </>,
-    notifications: <ul className="activity">{notifications.length ? notifications.map((item, index) => <li key={`${item.title}-${index}`}><Pill value={item.tag} /><div><b>{item.title}</b><span>{item.text}</span></div></li>) : <li><Pill value="OK" /><div><b>Nenhuma notificação operacional</b><span>Ocorrências, observações e solicitações de correção aparecerão aqui.</span></div></li>}</ul>,
+    notifications: <><div className="notification-tools"><span className="soft">{notifications.length} ocorrência(s)</span>{notifications.length > 0 && <button className="btn btn-sm" onClick={clearNotifications}>Limpar minhas notificações</button>}</div><ul className="activity">{notifications.length ? notifications.map((item) => <li key={item.id}><Pill value={item.tag} /><div><b>{item.title}</b><span>{item.text}</span></div><button className="btn btn-sm" onClick={() => dismissNotification(item.id)}>Excluir</button></li>) : <li><Pill value="OK" /><div><b>Nenhuma ocorrência pendente</b><span>Somente ocorrências reais vinculadas ao seu usuário aparecerão aqui.</span></div></li>}</ul></>,
     messages: <ul className="activity"><li><Pill value="Torre" /><div><b>Equipe de campo solicitou correção</b><span>Abra Operação Diária para tratar ocorrência.</span></div></li><li><Pill value="Financeiro" /><div><b>Relatório mensal disponível</b><span>Gere CSV em Relatórios ou Medição.</span></div></li></ul>,
     help: <div className="panel-body"><p><b>Fluxos principais:</b></p><p className="soft">Cadastros gravam no banco. Configurações aplicam marca/cores e salvam no Postgres. Relatórios exportam CSV. Operação diária cria OS e registra ocorrências.</p><p className="soft">Use o menu lateral ou a pesquisa para trocar de tela sem recarregar.</p></div>
   };
