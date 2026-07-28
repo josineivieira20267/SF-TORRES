@@ -279,6 +279,22 @@ function dateTime(value) {
   return time ? `${formattedDate}, ${time}` : formattedDate;
 }
 
+function occurrenceTime(item) {
+  const value = item?.createdAt || item?.date || item?.updatedAt;
+  if (!value) return 'Sem data registrada';
+  const parsed = new Date(value);
+  if (String(value).includes('T') && !Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+  return dateTime(value);
+}
+
 function pad2(value) {
   return String(value).padStart(2, '0');
 }
@@ -371,6 +387,11 @@ function displayText(value) {
     return entries.length ? entries.map(([key, item]) => `${key}: ${displayText(item)}`).join(' | ') : '-';
   }
   return String(value);
+}
+
+function occurrenceDetail(item) {
+  const time = occurrenceTime(item);
+  return <><span>{item.description || '-'}</span><small className="occurrence-time">{time}</small></>;
 }
 
 function listData(payload) {
@@ -1093,10 +1114,10 @@ function Schedules({ notify, editable = true }) {
   const requestLeaderCorrection = async (order) => {
     if (order.correctionRequested && !order.correctionApproved) return notify('Correção já solicitada ao administrativo');
     await updateOrder(order, { correctionRequested: true, correctionApproved: false }, 'Solicitacao de correcao enviada ao administrativo');
-    await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ workOrder: order.number, type: 'Correção', description: `Líder solicitou correção após conclusão da OS`, status: 'Aguardando liberação' }) });
+    await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ workOrder: order.number, type: 'Correção', description: `Líder solicitou correção após conclusão da OS`, status: 'Aguardando liberação', createdAt: new Date().toISOString() }) });
   };
   const saveLeaderOccurrence = async (data) => {
-    await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ ...data, workOrder: occurrenceModal.number, status: data.status || 'Aberta' }) });
+    await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ ...data, workOrder: occurrenceModal.number, status: data.status || 'Aberta', createdAt: new Date().toISOString() }) });
     notify('Ocorrência lançada na OS');
     setOccurrenceModal(null);
   };
@@ -1445,7 +1466,7 @@ function DailyOps({ notify, editable = true }) {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     if (!selected) return;
     await api(`/api/workOrders/${selected.id}`, { method: 'PUT', body: JSON.stringify({ ...selected, correctionApproved: true }) });
-    await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ workOrder: selected.number, type: 'Correção', description: 'Correção liberada pela administração para edição do líder', status: 'Liberada' }) });
+    await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ workOrder: selected.number, type: 'Correção', description: 'Correção liberada pela administração para edição do líder', status: 'Liberada', createdAt: new Date().toISOString() }) });
     notify('Correção liberada para o líder');
     load();
   };
@@ -1455,7 +1476,7 @@ function DailyOps({ notify, editable = true }) {
     setOccurrenceModal(selected);
   };
   const saveOccurrence = async (data) => {
-    await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ ...data, workOrder: occurrenceModal.number, status: data.status || 'Aberta' }) });
+    await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ ...data, workOrder: occurrenceModal.number, status: data.status || 'Aberta', createdAt: new Date().toISOString() }) });
     notify('Ocorrência registrada no banco');
     setOccurrenceModal(null);
     loadOccurrences();
@@ -1468,7 +1489,7 @@ function DailyOps({ notify, editable = true }) {
     if (activeTab === 'Ocorrências') return [
       ['Status operacional', selected.status],
       ['Solicitação de correção', selected.correctionRequested ? (selected.correctionApproved ? 'Liberada' : 'Aguardando liberação') : 'Sem solicitação'],
-      ...selectedOccurrences.map((item) => [`${item.type || 'Ocorrência'} · ${item.status || '-'}`, item.description || '-']),
+      ...selectedOccurrences.map((item) => [`${item.type || 'Ocorrência'} · ${item.status || '-'}`, occurrenceDetail(item)]),
       ...(selectedOccurrences.length ? [] : [['Ocorrências', 'Nenhuma ocorrência lançada para esta OS']])
     ];
     return [['Data programada', dateTime(selected.date)], ['Criado por', selected.createdBy || '-'], ['Transportador', selected.carrier], ['Serviço', selected.service], ['Produto', selected.product || '-'], ['Equipamento', selected.equipment || '-'], ['Container', selected.containerNumber || '-'], ['Placa', selected.trailerPlate || '-'], ['Local', selected.location || '-'], ['Responsável', selected.responsible], ['Percentual', `${selected.progress || 0}%`], ['Prioridade', selected.priority]];

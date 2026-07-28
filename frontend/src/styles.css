@@ -461,6 +461,10 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 .detail .pane-body .field-row:last-child{border-bottom:none}
 .detail .pane-body .field-row b{color:var(--c-text-muted);font-weight:500}
 .detail .pane-body .field-row span{color:var(--c-text)}
+.detail .pane-body .field-row .occurrence-time{
+  display:block;margin-top:4px;color:var(--c-text-soft);
+  font-size:var(--fs-12);font-variant-numeric:tabular-nums;
+}
 
 .tabs{
   display:flex;align-items:center;gap:0;
