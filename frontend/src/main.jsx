@@ -663,8 +663,8 @@ function App() {
 }
 
 function Login({ settings, onLogin }) {
-  const [email, setEmail] = useState('admin@sftorres.local');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [message, setMessage] = useState('Acesso restrito a colaboradores autorizados. As ações são auditadas conforme LGPD.');
   const [loading, setLoading] = useState(false);
   const loginPrimaryLogo = stLogoTransparent;
@@ -709,11 +709,11 @@ function Login({ settings, onLogin }) {
           </div>
           <h1>Acesse sua conta</h1>
           <p className="subtitle">Use suas credenciais corporativas para entrar no ambiente operacional.</p>
-          <form className="login-form" onSubmit={submit}>
-            <div className="form-field"><label>Usuário ou e-mail</label><input value={email} onChange={(e) => setEmail(e.target.value)} /></div>
-            <div className="form-field"><label>Senha</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></div>
+          <form className="login-form" onSubmit={submit} autoComplete="off">
+            <div className="form-field"><label>Usuário ou e-mail</label><input value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" /></div>
+            <div className="form-field"><label>Senha</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" /></div>
             <div className="form-field"><label>Empresa / Filial</label><select><option>SF TORRES - Matriz Manaus/AM</option><option>ST Serviços de Logística - Filial</option></select></div>
-            <div className="aux"><label className="row"><input type="checkbox" defaultChecked /> Manter conectado</label><a href="#/login">Esqueci minha senha</a></div>
+            <div className="aux"><label className="row"><input type="checkbox" /> Manter conectado</label><a href="#/login">Esqueci minha senha</a></div>
             <button className="btn btn-primary" disabled={loading}>{loading ? 'Entrando...' : 'Entrar no sistema'}</button>
           </form>
           <div className="login-foot">{message}</div>
@@ -1478,8 +1478,7 @@ function DailyOps({ notify, editable = true }) {
     ['product', 'Produto'],
     ['operationStart', 'Início da operação', 'datetime-local'],
     ['operationEnd', 'Fim da operação', 'datetime-local'],
-    ['progress', 'Percentual', 'number'],
-    ['priority', 'Prioridade', 'select', ['Baixa', 'Normal', 'Alta', 'Crítica']]
+    ['progress', 'Percentual', 'number']
   ];
   const clientOptions = ['Todos', ...Array.from(new Set(items.map((item) => item.client).filter(Boolean)))];
   const matchesPeriod = (item) => {
@@ -1526,7 +1525,7 @@ function DailyOps({ notify, editable = true }) {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     const user = currentUser();
     if (items.some((item) => item.id !== modal?.id && normalize(item.number) === normalize(data.number))) return notify('Ja existe uma OS com este numero');
-    const payload = modal?.id ? data : { ...data, createdBy: data.createdBy || user.name || user.email || 'Administrador SF' };
+    const payload = modal?.id ? data : { ...data, progress: data.progress || 0, createdBy: data.createdBy || user.name || user.email || 'Administrador SF' };
     await api(modal?.id ? `/api/workOrders/${modal.id}` : '/api/workOrders', { method: modal?.id ? 'PUT' : 'POST', body: JSON.stringify(payload) });
     setModal(null); notify('OS salva'); load();
   };
@@ -1567,11 +1566,11 @@ function DailyOps({ notify, editable = true }) {
       ...selectedOccurrences.map((item) => [`${item.type || 'Ocorrência'} · ${item.status || '-'}`, occurrenceDetail(item)]),
       ...(selectedOccurrences.length ? [] : [['Ocorrências', 'Nenhuma ocorrência lançada para esta OS']])
     ];
-    return [['Data programada', dateTime(selected.date)], ['Criado por', selected.createdBy || '-'], ['Transportador', selected.carrier], ['Serviço', selected.service], ['Produto', selected.product || '-'], ['Equipamento', selected.equipment || '-'], ['Container', selected.containerNumber || '-'], ['Placa', selected.trailerPlate || '-'], ['Local', selected.location || '-'], ['Responsável', selected.responsible], ['Percentual', `${selected.progress || 0}%`], ['Prioridade', selected.priority]];
+    return [['Data programada', dateTime(selected.date)], ['Criado por', selected.createdBy || '-'], ['Transportador', selected.carrier], ['Serviço', selected.service], ['Produto', selected.product || '-'], ['Equipamento', selected.equipment || '-'], ['Container', selected.containerNumber || '-'], ['Placa', selected.trailerPlate || '-'], ['Local', selected.location || '-'], ['Responsável', selected.responsible], ['Percentual', `${selected.progress || 0}%`]];
   };
   return (
     <>
-      <PageHead title="Operação Diária" subtitle="Gestão detalhada das OS com filtros, confirmação de equipe, horários e ocorrências." ghostActions={['Histórico', 'Exportar planilha']} onGhostAction={(label) => label === 'Histórico' ? setHistoryOpen(true) : exportFiltered()} action="Nova OS" onAction={() => setModal({ status: 'Programado' })} />
+      <PageHead title="Operação Diária" subtitle="Gestão detalhada das OS com filtros, confirmação de equipe, horários e ocorrências." ghostActions={['Histórico', 'Exportar planilha']} onGhostAction={(label) => label === 'Histórico' ? setHistoryOpen(true) : exportFiltered()} action="Nova OS" onAction={() => setModal({ status: 'Programado', progress: 0 })} />
       <div className="toolbar">
         <div className="filter"><label>Buscar</label><input type="text" value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="OS, cliente, equipamento..." /></div>
         <div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Programado</option><option>Em execucao</option><option>Finalizado</option><option>Cancelado</option></select></div>

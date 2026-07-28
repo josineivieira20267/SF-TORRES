@@ -102,13 +102,13 @@ a:hover{text-decoration:underline}
   height:52px;
 }
 .brand .brand-mark{
-  width:38px;height:38px;background:#FFFFFF;border-radius:var(--radius-sm);
+  width:38px;height:38px;border-radius:var(--radius-sm);
   display:grid;place-items:center;
-  border:1px solid rgba(255,255,255,.85);
-  box-shadow:0 2px 8px rgba(0,0,0,.16);
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.14);
   overflow:hidden;
 }
-.brand .brand-mark svg,.brand .brand-mark img{width:30px;height:30px;object-fit:contain}
+.brand .brand-mark svg,.brand .brand-mark img{width:34px;height:34px;object-fit:contain}
 .brand .brand-text{display:flex;flex-direction:column;line-height:1.05}
 .brand .brand-text strong{font-size:var(--fs-14);font-weight:800;letter-spacing:.4px;color:#FFFFFF}
 .brand .brand-text span{font-size:10.5px;color:var(--c-side-muted);letter-spacing:.5px;text-transform:uppercase}
