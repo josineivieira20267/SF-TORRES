@@ -645,7 +645,7 @@ function App() {
   }
 
   return (
-    <div className="app">
+    <div className={`app app-route-${route}`}>
       <Sidebar route={route} setRoute={setRoute} settings={settings} profile={profile} onProfile={() => setPanel('profile')} onLogout={goLogin} />
       <Topbar route={route} settings={settings} profile={profile} openPanel={setPanel} />
       <main className="main">
@@ -1171,11 +1171,58 @@ function Schedules({ notify, editable = true }) {
       </div>
     );
   };
+  const mobileActions = (item) => {
+    if (!editable) return <span className="soft">Somente leitura</span>;
+    const done = isFinalStatus(item.status);
+    if (done && !item.correctionApproved) return <button className="btn schedule-touch-action" onClick={() => requestLeaderCorrection(item)}>{item.correctionRequested ? 'Correção solicitada' : 'Solicitar correção'}</button>;
+    return (
+      <div className="schedule-card-actions">
+        <button className="btn schedule-touch-action" onClick={() => setAttendanceModal(item)}>Chamada</button>
+        <button className="btn schedule-touch-action" onClick={() => setOperationModal(item)}>Editar</button>
+        {item.operationStart && !item.operationEnd && <button className="btn btn-success schedule-touch-action" onClick={() => setOccurrenceModal(item)}>Ocorrência</button>}
+        {!item.operationStart && !done && <button className="btn btn-success schedule-touch-action primary-touch" onClick={() => markStart(item)}>Iniciar</button>}
+        {item.operationStart && !item.operationEnd && !done && <button className="btn btn-primary schedule-touch-action primary-touch" onClick={() => markEnd(item)}>Finalizar</button>}
+      </div>
+    );
+  };
+  const scheduleCard = (item) => {
+    const members = Array.isArray(item.teamMembers) && item.teamMembers.length ? item.teamMembers : [];
+    const active = normalize(item.status).includes('exec');
+    return (
+      <article className={`schedule-card ${active ? 'is-active' : ''}`} key={item.id || item.number}>
+        <div className="schedule-card-top">
+          <div>
+            <span className="schedule-os">OS {item.number}</span>
+            <h3>{item.client || '-'}</h3>
+          </div>
+          <Pill value={item.status} />
+        </div>
+        <div className="schedule-main-info">
+          <div><span>Servico</span><b>{item.service || '-'}</b></div>
+          <div><span>Produto</span><b>{item.product || '-'}</b></div>
+          <div><span>Data</span><b>{dateTime(item.date)}</b></div>
+          <div><span>Inicio</span><b>{item.operationStart || '-'}</b></div>
+        </div>
+        <div className="schedule-members">
+          <span>Equipe</span>
+          <p>{members.length ? members.join(', ') : 'Sem integrantes definidos'}</p>
+        </div>
+        {mobileActions(item)}
+      </article>
+    );
+  };
   const rows = loading ? [['Carregando OS do banco...', '', '', '', '', '', '', '', '', '']] : visibleOrders.map((item) => [<span className="mono">{item.number}</span>, item.client, item.service || '-', item.product || '-', Array.isArray(item.teamMembers) && item.teamMembers.length ? item.teamMembers.join(', ') : '-', <span className="soft">{dateTime(item.date)}</span>, <Pill value={item.status} />, <span className="soft">{item.operationStart || '-'}</span>, <span className="soft">{item.operationEnd || '-'}</span>, leaderActions(item)]);
   return (
     <>
       <PageHead title="Programação de Equipes" subtitle="Fila de OS criadas pela administração para o líder vincular e acompanhar pelo próprio usuário." ghostAction="Exportar OS" onGhostAction={exportRows} action="Atualizar" onAction={load} />
-      <div className="toolbar">
+      <div className="schedule-mobile-head">
+        <div>
+          <span>{user.name || user.email || 'Líder'}</span>
+          <h2>Minhas OS</h2>
+        </div>
+        <button className="btn btn-primary" onClick={load}>Atualizar</button>
+      </div>
+      <div className="toolbar schedule-toolbar">
         <div className="filter"><label>Buscar</label><input type="text" value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="OS, cliente, equipamento..." /></div>
         <div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Programado</option><option>Em execucao</option><option>Finalizado</option><option>Cancelado</option></select></div>
         <span className="spacer" /><span className="soft">{visibleOrders.length} OS para este usuario</span>
@@ -1186,7 +1233,11 @@ function Schedules({ notify, editable = true }) {
         <Kpi icon="home" label="Em campo" value={visibleOrders.filter((item) => item.status === 'Em execucao').length} delta="em execucao" />
         <Kpi icon="check" label="Finalizadas" value={visibleOrders.filter((item) => item.status === 'Finalizado').length} delta="finalizadas" success />
       </div>
-      <Panel title="OS direcionadas ao lider" actions={<Pill value={user.name || user.email || 'usuario'} />}><DataTable columns={['OS', 'Cliente', 'Servico', 'Produto', 'Integrantes', 'Data programada', 'Status', 'Inicio', 'Fim', 'Acao']} rows={rows} /></Panel>
+      <div className="schedule-mobile-list">
+        {loading ? <div className="empty-chart">Carregando OS do banco...</div> : visibleOrders.map(scheduleCard)}
+        {!loading && !visibleOrders.length && <div className="empty-chart">Nenhuma OS encontrada</div>}
+      </div>
+      <div className="schedule-table-panel"><Panel title="OS direcionadas ao lider" actions={<Pill value={user.name || user.email || 'usuario'} />}><DataTable columns={['OS', 'Cliente', 'Servico', 'Produto', 'Integrantes', 'Data programada', 'Status', 'Inicio', 'Fim', 'Acao']} rows={rows} /></Panel></div>
       {attendanceModal && <AttendanceModal order={attendanceModal} onCancel={() => setAttendanceModal(null)} onSave={(attendance) => updateOrder(attendanceModal, { attendance }, 'Chamada salva na OS')} />}
       {operationModal && <Editor title="Editar operacao da OS" fields={[['carrier', 'Transportador', 'text', null, null, true], ['location', 'Local', 'text', null, null, true], ['product', 'Produto', 'text', null, null, true], ['equipment', 'Equipamento', 'select', equipmentOptions, null, true], ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')], ['trailerPlate', 'Placa da carreta', 'text', null, (form) => normalize(form.equipment).includes('carreta')], ['teamMembers', 'Incluir integrantes da equipe', 'employees', employeeOptions, () => absenceCount(operationModal) > 0], ['teamNote', 'Observacao obrigatoria ao alterar equipe', 'textarea', null, () => absenceCount(operationModal) > 0], ['progress', 'Percentual', 'number', null, null, true]]} initial={operationModal} onCancel={() => setOperationModal(null)} onSave={saveOperationEdit} />}
       {occurrenceModal && <Editor title={`Lançar ocorrência · OS ${occurrenceModal.number}`} fields={occurrenceFields} initial={{ workOrder: occurrenceModal.number, type: 'Operacional', status: 'Aberta' }} onCancel={() => setOccurrenceModal(null)} onSave={saveLeaderOccurrence} />}
