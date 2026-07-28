@@ -295,6 +295,25 @@ function occurrenceTime(item) {
   return dateTime(value);
 }
 
+function timestampValue(value) {
+  if (!value) return 0;
+  const raw = String(value);
+  const brDate = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:,?\s+(\d{2}):(\d{2}))?/);
+  const parsed = brDate
+    ? new Date(`${brDate[3]}-${brDate[2]}-${brDate[1]}T${brDate[4] || '00'}:${brDate[5] || '00'}:00`)
+    : new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+}
+
+function occurrenceBelongsToOrder(occurrence, order) {
+  if (!occurrence || !order || String(occurrence.workOrder) !== String(order.number)) return false;
+  const orderCreatedAt = timestampValue(order.createdAt);
+  if (!orderCreatedAt) return true;
+  const occurrenceCreatedAt = timestampValue(occurrence.createdAt || occurrence.date || occurrence.updatedAt);
+  if (!occurrenceCreatedAt) return false;
+  return occurrenceCreatedAt >= orderCreatedAt - 60000;
+}
+
 function pad2(value) {
   return String(value).padStart(2, '0');
 }
@@ -883,21 +902,27 @@ function OperationsDashboard() {
   const pendingCalls = productivity.reduce((sum, item) => sum + item.pending, 0);
   const totalBonus = productivity.reduce((sum, item) => sum + item.bonus, 0);
   const openOccurrences = occurrences.filter((item) => !normalize(item.status).includes('resolvida'));
+  const totalOrders = orders.length;
+  const pendingAndAbsences = programmedOrders.length + pendingCalls + totalAbsences;
+  const totalAttendances = productivity.reduce((sum, item) => sum + item.present + item.absences + item.pending, 0);
+  const productivityRate = totalAttendances ? Math.round((productivity.reduce((sum, item) => sum + item.present, 0) / totalAttendances) * 1000) / 10 : 0;
   const exportRows = [
     ['OS', 'Cliente', 'Servico', 'Responsavel', 'Integrantes', 'Status', 'Faltas', 'Data programada', 'Inicio', 'Fim'],
     ...orders.map((o) => [o.number, o.client, o.service, o.responsible, Array.isArray(o.teamMembers) ? o.teamMembers.join(', ') : '', o.status, absenceCount(o), o.date, o.operationStart, o.operationEnd])
   ];
-  const productivityRows = productivity.slice(0, 8).map((item) => [item.employee.name, item.employee.team || '-', item.criterion.name, item.os, item.present, item.absences, `${Math.round(item.factor * 100)}%`, money(item.bonus)]);
+  const productivityRows = productivity.slice(0, 8).map((item, index) => [index + 1, <EmployeeCell item={item} />, item.employee.team || '-', item.criterion.name, item.os, item.present, item.absences, <ProgressValue value={Math.round(item.factor * 100)} />, money(item.bonus)]);
   const statusChart = [
-    ['Programadas', programmedOrders.length],
-    ['Em execucao', activeOrders.length],
     ['Finalizadas', finalOrders.length],
+    ['Em execucao', activeOrders.length],
+    ['Pendentes', programmedOrders.length],
+    ['Faltas', totalAbsences],
     ['Ocorrencias', openOccurrences.length]
   ].map(([label, value]) => ({ label, value }));
-  const bonusChart = productivity.slice(0, 7).map((item) => ({ label: item.employee.name, value: item.bonus }));
-  const absenceChart = productivity.filter((item) => item.absences > 0).slice(0, 7).map((item) => ({ label: item.employee.name, value: item.absences }));
-  const days = [...new Set(orders.map((order) => String(order.date || '').slice(0, 10)).filter(Boolean))].sort().slice(-10);
-  const trendChart = days.map((day) => ({ label: date(day).slice(0, 5), value: orders.filter((order) => String(order.date || '').slice(0, 10) === day).length }));
+  const monthStart = new Date(`${month}-01T00:00:00`);
+  const monthDays = Number.isNaN(monthStart.getTime()) ? 31 : new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0).getDate();
+  const days = Array.from({ length: monthDays }, (_, index) => `${month}-${pad2(index + 1)}`);
+  const dailyOrders = days.map((day) => ({ label: date(day).slice(0, 5), value: orders.filter((order) => String(order.date || '').slice(0, 10) === day).length }));
+  const trendChart = dailyOrders.filter((_, index) => index % Math.max(Math.ceil(monthDays / 12), 1) === 0 || index === monthDays - 1);
   const countBy = (items, readLabel) => Object.values(items.reduce((acc, item) => {
     const label = readLabel(item) || 'Nao informado';
     acc[label] = acc[label] || { label, value: 0 };
@@ -905,8 +930,7 @@ function OperationsDashboard() {
     return acc;
   }, {})).sort((a, b) => b.value - a.value);
   const clientChart = countBy(orders, (order) => order.client).slice(0, 7);
-  const serviceChart = countBy(orders, (order) => order.service).slice(0, 7);
-  const productChart = countBy(orders.filter((order) => order.product), (order) => order.product).slice(0, 7);
+  const ranking = productivity.slice(0, 6).map((item, index) => ({ ...item, label: item.employee.name, value: item.present, percent: Math.round(item.factor * 100), index: index + 1 }));
   const durationHours = (order) => {
     if (!order.operationStart || !order.operationEnd) return 0;
     const start = new Date(String(order.operationStart).replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1'));
@@ -914,40 +938,39 @@ function OperationsDashboard() {
     const diff = end - start;
     return Number.isFinite(diff) && diff > 0 ? diff / 36e5 : 0;
   };
-  const durationData = orders.filter((order) => durationHours(order) > 0).slice(0, 8).map((order) => ({ label: `OS ${order.number}`, value: durationHours(order) }));
-  const avgDuration = durationData.length ? durationData.reduce((sum, item) => sum + item.value, 0) / durationData.length : 0;
+  const durationData = orders.map(durationHours).filter((value) => value > 0);
+  const avgDuration = durationData.length ? durationData.reduce((sum, value) => sum + value, 0) / durationData.length : 0;
+  const formatDuration = (hours) => {
+    const totalMinutes = Math.round(Number(hours || 0) * 60);
+    return `${Math.floor(totalMinutes / 60)}h ${pad2(totalMinutes % 60)}m`;
+  };
+  const percentOfTotal = (value) => totalOrders ? `${Math.round((Number(value || 0) / totalOrders) * 1000) / 10}% do total` : '0% do total';
 
   return (
     <>
-      <PageHead title="Painel Corporativo" subtitle="Dashboard operacional com OS, andamento, faltas e produtividade dos colaboradores." ghostAction="Exportar" onGhostAction={() => downloadCsv('dashboard-operacional.csv', exportRows)} action="Atualizar agora" onAction={load} />
+      <PageHead title="Painel Corporativo" subtitle="Indicadores executivos das ordens de serviço, ocorrências e produtividade." ghostAction="Exportar" onGhostAction={() => downloadCsv('dashboard-operacional.csv', exportRows)} action="Atualizar agora" onAction={load} />
       <div className="toolbar">
         <div className="filter"><label>Periodo</label><input type="month" value={month} onChange={(event) => setMonth(event.target.value || currentMonthValue())} /></div>
         <span className="spacer" /><span className="soft">Dados do mes filtrados no backend pela data programada da OS</span>
       </div>
-      <div className="kpi-grid">
-        <Kpi icon="file" label="OS do mes" value={orders.length} delta={`${programmedOrders.length} programadas`} />
-        <Kpi icon="pulse" label="Em execucao" value={activeOrders.length} delta="operacoes abertas agora" />
-        <Kpi icon="check" label="Finalizadas" value={finalOrders.length} delta="concluidas no periodo" success />
-        <Kpi icon="alert" label="Faltas" value={totalAbsences} delta={`${pendingCalls} chamadas pendentes`} warning />
+      <div className="metric-grid">
+        <MetricCard icon="file" label="Total de OS" value={totalOrders} sub="100% do periodo" color="#4466E8" progress={100} />
+        <MetricCard icon="pulse" label="Em execucao" value={activeOrders.length} sub={percentOfTotal(activeOrders.length)} color="#395BDB" progress={totalOrders ? activeOrders.length / totalOrders * 100 : 0} />
+        <MetricCard icon="check" label="Finalizadas" value={finalOrders.length} sub={percentOfTotal(finalOrders.length)} color="#08A86B" progress={totalOrders ? finalOrders.length / totalOrders * 100 : 0} />
+        <MetricCard icon="clock" label="Pendentes / Faltas" value={pendingAndAbsences} sub={`${pendingCalls} pendentes na chamada`} color="#F29A1F" progress={totalOrders ? pendingAndAbsences / Math.max(totalOrders, pendingAndAbsences) * 100 : 0} />
+        <MetricCard icon="chart" label="Produtividade" value={`${productivityRate.toFixed(1)}%`} sub="Indice de desempenho" color="#7048E8" progress={productivityRate} />
+        <MetricCard icon="clock" label="Tempo medio" value={formatDuration(avgDuration)} sub="Por OS finalizada" color="#2598B8" progress={Math.min((avgDuration / 8) * 100, 100)} />
       </div>
-      <div className="dash-grid">
-        <Panel title="Status das OS" padded><DonutChart data={statusChart} center={orders.length} sub="OS" /></Panel>
-        <Panel title="Bonus por colaborador" padded><BarChart data={bonusChart} format={money} /></Panel>
+      <div className="dashboard-showcase">
+        <Panel title="Evolucao das OS" actions={<select className="panel-select"><option>Diario</option><option>Semanal</option></select>} padded><TrendChart data={trendChart} /></Panel>
+        <Panel title="Status das Operacoes" padded><DonutChart data={statusChart} center={totalOrders} sub="Total de OS" /></Panel>
+        <Panel title="OS por dia" padded><ColumnChart data={dailyOrders} /></Panel>
       </div>
-      <div className="triple-grid">
-        <Panel title="OS por dia" padded><TrendChart data={trendChart} /></Panel>
-        <Panel title="Faltas por colaborador" padded><BarChart data={absenceChart} /></Panel>
-        <InfoPanel title="Bonus previsto" value={money(totalBonus)} sub="calculado pelas chamadas das OS"><Pill value={`${productivity.length} colaboradores`} /> <Pill value={`${totalAbsences} faltas`} /></InfoPanel>
+      <div className="dashboard-rank-grid">
+        <Panel title="Ranking de colaboradores por finalizacoes" actions={<select className="panel-select"><option>Finalizadas</option><option>Presencas</option></select>} padded><RankingBars data={ranking} /></Panel>
+        <Panel title="OS por cliente" actions={<select className="panel-select"><option>Todos</option><option>Top 5</option></select>} padded><BarChart data={clientChart} /></Panel>
       </div>
-      <div className="dash-grid">
-        <Panel title="OS por cliente" padded><BarChart data={clientChart} /></Panel>
-        <Panel title="Tipos de servico" padded><DonutChart data={serviceChart} center={orders.length} sub="servicos" /></Panel>
-      </div>
-      <div className="dash-grid">
-        <Panel title="Produtos movimentados" padded><BarChart data={productChart} /></Panel>
-        <Panel title={`Tempo de operacao - media ${avgDuration.toFixed(1)}h`} padded><BarChart data={durationData} format={(value) => `${value.toFixed(1)}h`} /></Panel>
-      </div>
-      <Panel title="Ranking de produtividade" padded><DataTable columns={['Colaborador', 'Equipe', 'Criterio', 'OS', 'Pres.', 'Faltas', '%', 'Bonus']} rows={productivityRows.length ? productivityRows : [['-', '-', '-', 0, 0, 0, '0%', money(0)]]} /></Panel>
+      <Panel title="Ranking geral de produtividade" padded><DataTable columns={['#', 'Colaborador', 'Equipe', 'Criterio', 'OS', 'Finalizadas', 'Faltas', '% Produtividade', 'Bonus Previsto']} rows={productivityRows.length ? productivityRows : [[1, '-', '-', '-', 0, 0, 0, <ProgressValue value={0} />, money(0)]]} /></Panel>
     </>
   );
 }
@@ -1451,6 +1474,7 @@ function DailyOps({ notify, editable = true }) {
   const save = async (data) => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     const user = currentUser();
+    if (items.some((item) => item.id !== modal?.id && normalize(item.number) === normalize(data.number))) return notify('Ja existe uma OS com este numero');
     const payload = modal?.id ? data : { ...data, createdBy: data.createdBy || user.name || user.email || 'Administrador SF' };
     await api(modal?.id ? `/api/workOrders/${modal.id}` : '/api/workOrders', { method: modal?.id ? 'PUT' : 'POST', body: JSON.stringify(payload) });
     setModal(null); notify('OS salva'); load();
@@ -1481,7 +1505,7 @@ function DailyOps({ notify, editable = true }) {
     setOccurrenceModal(null);
     loadOccurrences();
   };
-  const selectedOccurrences = selected ? occurrences.filter((item) => String(item.workOrder) === String(selected.number)) : [];
+  const selectedOccurrences = selected ? occurrences.filter((item) => occurrenceBelongsToOrder(item, selected)) : [];
   const detailContent = () => {
     if (!selected) return null;
     if (activeTab === 'Equipe') return [['Equipe', Array.isArray(selected.teamMembers) && selected.teamMembers.length ? selected.teamMembers.join(', ') : 'Sem integrantes definidos'], ['Responsável', selected.responsible || '-'], ['Chamada', selected.attendance ? Object.entries(selected.attendance).map(([name, value]) => `${name}: ${typeof value === 'object' ? `${value.status}${value.note ? ` (${value.note})` : ''}` : value}`).join(' | ') : '-'], ['Justificativa', selected.teamNote || '-']];
@@ -1834,10 +1858,34 @@ function Kpi({ icon = 'grid', label, value, delta, success, warning, danger }) {
   return <div className={`kpi ${success ? 'kpi-success' : ''} ${warning ? 'kpi-warning' : ''} ${danger ? 'kpi-danger' : ''}`}><div className="ico"><Icon name={icon} /></div><div><div className="label">{label}</div><div className="value">{value}</div><div className="delta">{delta}</div></div></div>;
 }
 
+function MetricCard({ icon = 'grid', label, value, sub, color = '#1B3A6B', progress = 0 }) {
+  const width = Math.max(0, Math.min(Number(progress || 0), 100));
+  return (
+    <div className="metric-card" style={{ '--metric-color': color }}>
+      <div className="metric-icon"><Icon name={icon} /></div>
+      <div className="metric-copy">
+        <span>{label}</span>
+        <b>{value}</b>
+        <small>{sub}</small>
+      </div>
+      <div className="metric-progress"><i style={{ width: `${width}%` }} /></div>
+    </div>
+  );
+}
+
+function EmployeeCell({ item }) {
+  return <div className="employee-cell"><UserAvatar profile={{ name: item.employee.name, photo: item.employee.photo }} className="mini-avatar" /><span>{item.employee.name}</span></div>;
+}
+
+function ProgressValue({ value }) {
+  const width = Math.max(0, Math.min(Number(value || 0), 100));
+  return <div className="progress-value"><div className="progress-line"><i style={{ width: `${width}%` }} /></div><b>{width}%</b></div>;
+}
+
 function DonutChart({ data = [], center, sub }) {
   const total = data.reduce((sum, item) => sum + Number(item.value || 0), 0) || 1;
   let offset = 25;
-  const colors = ['#1B3A6B', '#0B6FB8', '#1F8A4C', '#C77700', '#B3261E'];
+  const colors = ['#08A86B', '#4466E8', '#F29A1F', '#E64D5E', '#2598B8'];
   return (
     <div className="chart-donut-wrap">
       <svg viewBox="0 0 160 160" className="chart-donut">
@@ -1865,6 +1913,48 @@ function BarChart({ data = [], valueKey = 'value', labelKey = 'label', format = 
         return <div className="bar-row" key={item[labelKey]}><span>{item[labelKey]}</span><div className="bar-track"><i style={{ width: `${Math.max((value / max) * 100, value > 0 ? 5 : 0)}%` }} /></div><b>{format(value)}</b></div>;
       })}
       {!data.length && <div className="empty-chart">Sem dados no periodo</div>}
+    </div>
+  );
+}
+
+function RankingBars({ data = [] }) {
+  const max = Math.max(...data.map((item) => Number(item.value || 0)), 1);
+  return (
+    <div className="ranking-bars">
+      {data.map((item) => {
+        const width = Math.max((Number(item.value || 0) / max) * 100, item.value > 0 ? 5 : 0);
+        return (
+          <div className="ranking-row" key={item.employee.name}>
+            <span className="rank-number">{item.index}</span>
+            <EmployeeCell item={item} />
+            <div className="rank-track"><i style={{ width: `${width}%` }} /></div>
+            <b>{item.value} ({item.percent}%)</b>
+          </div>
+        );
+      })}
+      {!data.length && <div className="empty-chart">Sem dados no periodo</div>}
+    </div>
+  );
+}
+
+function ColumnChart({ data = [] }) {
+  const max = Math.max(...data.map((item) => Number(item.value || 0)), 1);
+  return (
+    <div className="column-chart">
+      <svg viewBox="0 0 420 180" preserveAspectRatio="none">
+        {[0, 1, 2, 3].map((item) => <path key={item} d={`M24 ${150 - item * 38} H408`} />)}
+        {data.map((item, index) => {
+          const barWidth = Math.max(4, 340 / Math.max(data.length, 1) - 3);
+          const x = 42 + index * (340 / Math.max(data.length, 1));
+          const height = Math.max((Number(item.value || 0) / max) * 116, item.value > 0 ? 4 : 1);
+          return <rect key={item.label} x={x} y={150 - height} width={barWidth} height={height} rx="2" />;
+        })}
+        {data.filter((_, index) => index % Math.max(Math.ceil(data.length / 6), 1) === 0 || index === data.length - 1).map((item, index, labels) => {
+          const originalIndex = data.findIndex((entry) => entry.label === item.label);
+          const x = 42 + originalIndex * (340 / Math.max(data.length, 1));
+          return <text key={`${item.label}-${index}`} x={x} y="170" textAnchor={index === labels.length - 1 ? 'end' : 'middle'}>{item.label}</text>;
+        })}
+      </svg>
     </div>
   );
 }

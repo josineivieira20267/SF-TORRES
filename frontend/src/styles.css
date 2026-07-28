@@ -694,6 +694,34 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 }
 
 /* ---------- Dashboard operacional com graficos ----------- */
+.metric-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:14px}
+.metric-card{
+  min-height:94px;background:var(--c-surface);border:1px solid var(--c-border);
+  border-radius:var(--radius-md);padding:14px;display:grid;
+  grid-template-columns:42px 1fr;gap:10px;align-items:start;
+  box-shadow:0 8px 22px rgba(15,36,71,.05);
+}
+.metric-icon{
+  width:38px;height:38px;border-radius:50%;display:grid;place-items:center;
+  background:var(--metric-color);color:#FFFFFF;
+}
+.metric-copy{min-width:0}
+.metric-copy span{
+  display:block;color:var(--c-text-muted);font-size:11.5px;font-weight:600;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.metric-copy b{display:block;margin-top:3px;color:var(--c-text);font-size:24px;line-height:1;font-variant-numeric:tabular-nums}
+.metric-copy small{display:block;margin-top:6px;color:var(--c-text-soft);font-size:11px}
+.metric-progress{
+  grid-column:1 / -1;height:4px;border-radius:999px;background:#E8EEF6;overflow:hidden;margin-top:2px;
+}
+.metric-progress i{display:block;height:100%;background:var(--metric-color);border-radius:999px}
+.dashboard-showcase{display:grid;grid-template-columns:1.35fr 1fr 1.35fr;gap:12px;margin-bottom:14px}
+.dashboard-rank-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.panel-select{
+  height:28px;border:1px solid var(--c-border);border-radius:var(--radius-sm);
+  background:#FFFFFF;color:var(--c-text-muted);font-size:12px;padding:0 8px;
+}
 .chart-donut-wrap{min-height:230px;display:grid;grid-template-columns:180px 1fr;align-items:center;gap:18px}
 .chart-donut{width:180px;height:180px;transform:rotate(-90deg)}
 .chart-donut circle{transition:stroke-dasharray .2s ease}
@@ -704,22 +732,52 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 .chart-legend span{display:flex;align-items:center;gap:8px}
 .chart-legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
 .chart-legend b{margin-left:auto;color:var(--c-text);font-variant-numeric:tabular-nums}
-.bar-chart{min-height:230px;display:grid;align-content:center;gap:12px}
+.bar-chart{min-height:230px;display:grid;align-content:center;gap:13px}
 .bar-row{display:grid;grid-template-columns:minmax(120px,1.2fr) minmax(130px,2fr) 86px;align-items:center;gap:10px;font-size:var(--fs-13)}
 .bar-row span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bar-row b{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
-.bar-track{height:12px;background:#EDF2F8;border:1px solid var(--c-border);border-radius:3px;overflow:hidden}
-.bar-track i{display:block;height:100%;background:linear-gradient(90deg,var(--c-primary),#0B6FB8)}
+.bar-track{height:8px;background:#E8EEF6;border-radius:999px;overflow:hidden}
+.bar-track i{display:block;height:100%;background:#4466E8;border-radius:999px}
 .trend-chart{min-height:230px;display:grid;align-items:center}
 .trend-chart svg{width:100%;height:220px}
 .trend-chart path{fill:none;stroke:#D7E0EC;stroke-width:1.5}
-.trend-chart polyline{fill:none;stroke:var(--c-primary);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
-.trend-chart circle{fill:var(--c-accent);stroke:#FFFFFF;stroke-width:2}
+.trend-chart polyline{fill:none;stroke:#4466E8;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.trend-chart circle{fill:#4466E8;stroke:#FFFFFF;stroke-width:2}
 .trend-chart text{font-size:11px;fill:var(--c-text-soft)}
+.column-chart{min-height:230px;display:grid;align-items:center}
+.column-chart svg{width:100%;height:220px}
+.column-chart path{stroke:#D7E0EC;stroke-width:1;fill:none}
+.column-chart rect{fill:#4466E8}
+.column-chart text{font-size:10px;fill:var(--c-text-soft)}
+.ranking-bars{min-height:230px;display:grid;align-content:center;gap:10px}
+.ranking-row{
+  display:grid;grid-template-columns:22px minmax(145px,1fr) minmax(150px,2fr) 76px;
+  align-items:center;gap:10px;font-size:var(--fs-13);
+}
+.rank-number{color:var(--c-text-muted);font-variant-numeric:tabular-nums}
+.rank-track{height:8px;background:#E8EEF6;border-radius:999px;overflow:hidden}
+.rank-track i{display:block;height:100%;background:#4466E8;border-radius:999px}
+.ranking-row b{text-align:right;font-size:12px;font-variant-numeric:tabular-nums}
+.employee-cell{display:flex;align-items:center;gap:8px;min-width:0}
+.employee-cell span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini-avatar{
+  width:24px;height:24px;border-radius:50%;display:grid;place-items:center;flex:0 0 auto;
+  background:#E8EEF6;color:var(--c-primary);font-size:10px;font-weight:700;overflow:hidden;
+}
+.mini-avatar img{width:100%;height:100%;object-fit:cover}
+.progress-value{display:flex;align-items:center;gap:10px;min-width:150px}
+.progress-line{height:8px;min-width:90px;flex:1;background:#E8EEF6;border-radius:999px;overflow:hidden}
+.progress-line i{display:block;height:100%;background:#08A86B;border-radius:999px}
+.progress-value b{min-width:38px;text-align:right;font-variant-numeric:tabular-nums}
 .empty-chart{min-height:160px;display:grid;place-items:center;color:var(--c-text-soft);border:1px dashed var(--c-border-strong);border-radius:var(--radius-md)}
 
 @media (max-width:1100px){
+  .metric-grid{grid-template-columns:repeat(2,1fr)}
+  .dashboard-showcase,.dashboard-rank-grid{grid-template-columns:1fr}
   .chart-donut-wrap{grid-template-columns:1fr;justify-items:center}
   .bar-row{grid-template-columns:1fr}
   .bar-row b{text-align:left}
+  .ranking-row{grid-template-columns:22px 1fr}
+  .rank-track,.ranking-row b{grid-column:2}
+  .ranking-row b{text-align:left}
 }
