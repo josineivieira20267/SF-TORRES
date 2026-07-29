@@ -104,11 +104,12 @@ a:hover{text-decoration:underline}
 .brand .brand-emblem{
   width:36px;height:36px;display:grid;place-items:center;flex:0 0 auto;
   border-radius:50%;
-  background:radial-gradient(circle at 50% 45%,rgba(255,255,255,.16),rgba(255,255,255,.03) 64%,transparent 68%);
+  background:#FFFFFF;
+  border:2px solid rgba(255,255,255,.28);
+  box-shadow:0 3px 10px rgba(0,0,0,.22);
 }
 .brand .brand-emblem img{
-  width:32px;height:32px;object-fit:contain;
-  filter:drop-shadow(0 1px 2px rgba(0,0,0,.22));
+  width:28px;height:28px;object-fit:contain;
 }
 .brand .brand-mark{
   width:38px;height:38px;border-radius:var(--radius-sm);
