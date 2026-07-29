@@ -791,7 +791,7 @@ function Sidebar({ route, setRoute, settings, profile, onProfile, onLogout }) {
   };
   return (
     <aside className="sidebar">
-      <div className="brand"><div className="brand-text"><strong>{settings.fantasyName}</strong><span>Centro Operacional</span></div></div>
+      <div className="brand"><div className="brand-emblem"><img src={stLogoTransparent} alt="SF Torres" /></div><div className="brand-text"><strong>{settings.fantasyName}</strong><span>Centro Operacional</span></div></div>
       <div className="search"><span>⌕</span><input placeholder="Buscar módulo, tela ou ação..." /></div>
       <nav className="nav">
         {groups.map(([title, items]) => {
