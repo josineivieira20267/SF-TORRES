@@ -871,7 +871,7 @@ function OperationsDashboard() {
       .catch((error) => triggerAction(error.message))
       .finally(() => setLoading(false));
   };
-  useEffect(load, [month]);
+  useEffect(() => { load(); }, [month]);
   const totalOrders = summary?.workOrders?.total || 0;
   const activeOrders = summary?.workOrders?.active || 0;
   const finalOrders = summary?.workOrders?.final || 0;
@@ -972,7 +972,7 @@ function Schedules({ notify, editable = true }) {
   const [operationModal, setOperationModal] = useState(null);
   const [occurrenceModal, setOccurrenceModal] = useState(null);
   const load = () => { setLoading(true); api(workOrdersEndpoint()).then((p) => setItems(listData(p))).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
-  useEffect(load, []);
+  useEffect(() => { load(); }, []);
   useEffect(() => {
     api('/api/employees').then((payload) => setEmployees(listData(payload))).catch(() => {});
     api('/api/equipment').then((payload) => setEquipment(listData(payload))).catch(() => {});
@@ -1290,7 +1290,7 @@ function Users({ notify, editable = true }) {
 
 function Settings({ notify, settings, setSettings, editable = true }) {
   const [form, setForm] = useState(settings);
-  useEffect(() => setForm(settings), [settings]);
+  useEffect(() => { setForm(settings); }, [settings]);
   const change = (key, value) => setForm((old) => {
     const next = { ...old, [key]: value };
     setSettings(next);
@@ -1422,8 +1422,8 @@ function DailyOps({ notify, editable = true }) {
   const counts = useMemo(() => filteredItems.reduce((acc, item) => ({ ...acc, [item.status]: (acc[item.status] || 0) + 1 }), {}), [filteredItems]);
   const load = () => { setLoading(true); api(workOrdersEndpoint()).then((p) => { const data = listData(p); setItems(data); setSelectedId((old) => old || data[0]?.id || ''); }).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
   const loadOccurrences = () => api('/api/occurrences').then((p) => setOccurrences(listData(p))).catch(() => setOccurrences([]));
-  useEffect(load, []);
-  useEffect(loadOccurrences, []);
+  useEffect(() => { load(); }, []);
+  useEffect(() => { loadOccurrences(); }, []);
   useEffect(() => {
     api('/api/clients').then((payload) => setClients(listData(payload))).catch(() => {});
     api('/api/equipment').then((payload) => setEquipment(listData(payload))).catch(() => {});
@@ -1528,7 +1528,7 @@ function CrudScreen({ config, notify, beforeTable, editable = true }) {
     setLoading(true);
     api(`${config.endpoint}${q ? `${separator}q=${encodeURIComponent(q)}` : ''}`).then((p) => setItems(listData(p))).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false));
   };
-  useEffect(load, [q, config.endpoint]);
+  useEffect(() => { load(); }, [q, config.endpoint]);
   const fieldMap = { Função: 'role', Equipe: 'team', Status: 'status', Tipo: 'type' };
   const displayItems = (config.toolbar || []).reduce((list, [label]) => {
     const value = toolbarFilters[label];
