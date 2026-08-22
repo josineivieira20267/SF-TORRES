@@ -378,22 +378,6 @@ const crudPages = {
       { name: 'capacity', label: 'Capacidade' }, { name: 'lastMaintenance', label: 'Ultima manutencao', type: 'date' },
       { name: 'status', label: 'Status', type: 'select', options: ['Disponivel', 'Em uso', 'Manutencao'] }
     ]
-  },
-  locations: {
-    title: 'Locações & Áreas',
-    subtitle: 'Cadastro de pátios, bases, portos e áreas operacionais vinculadas aos contratos.',
-    newLabel: 'Nova locação',
-    editTitle: 'Editar locação',
-    endpoint: '/api/locations',
-    columns: [
-      { label: 'Código', key: 'code', mono: true }, { label: 'Descrição', key: 'description' }, { label: 'Cliente', key: 'client' },
-      { label: 'Endereço', key: 'address' }, { label: 'Área (m²)', key: 'areaM2', right: true }, { label: 'Status', key: 'status', render: (item) => statusPill(item.status) }
-    ],
-    fields: [
-      { name: 'code', label: 'Codigo' }, { name: 'description', label: 'Descricao' }, { name: 'client', label: 'Cliente' },
-      { name: 'address', label: 'Endereco', full: true }, { name: 'areaM2', label: 'Area m2', type: 'number' },
-      { name: 'status', label: 'Status', type: 'select', options: ['Operacional', 'Inativo', 'Manutencao'] }
-    ]
   }
 };
 

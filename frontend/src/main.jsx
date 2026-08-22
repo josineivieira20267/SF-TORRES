@@ -32,13 +32,10 @@ const routes = {
   schedules: { title: 'Programação de Equipes', group: 'Operações' },
   productivity: { title: 'Produtividade', group: 'Gestão' },
   employees: { title: 'Funcionários', group: 'Gestão' },
-  map: { title: 'Mapa Operacional', group: 'Gestão' },
-  measurement: { title: 'Medição & Faturamento', group: 'Movimentações' },
   reports: { title: 'Relatórios', group: 'Movimentações' },
   clients: { title: 'Clientes', group: 'Cadastros' },
   services: { title: 'Serviços', group: 'Cadastros' },
   equipment: { title: 'Equipamentos', group: 'Cadastros' },
-  locations: { title: 'Locações & Áreas', group: 'Cadastros' },
   users: { title: 'Usuários & Perfis', group: 'Administração' },
   settings: { title: 'Configurações', group: 'Administração' }
 };
@@ -207,36 +204,6 @@ const crudConfigs = {
       { label: 'Status', render: (i) => <Pill value={i.status} /> }
     ],
     fields: [['code', 'Código'], ['type', 'Tipo'], ['model', 'Marca / Modelo'], ['capacity', 'Capacidade'], ['lastMaintenance', 'Última manutenção', 'date'], ['status', 'Status', 'select', ['Disponível', 'Em uso', 'Manutenção']]]
-  },
-  locations: {
-    title: 'Locações & Áreas',
-    subtitle: 'Cadastro de pátios, bases, portos e áreas operacionais vinculadas aos contratos.',
-    endpoint: '/api/locations',
-    newLabel: 'Nova locação',
-    ghostLabel: 'Importar',
-    panelTitle: 'Locações',
-    noToolbar: true,
-    columns: [
-      { label: 'Código', key: 'code', mono: true }, { label: 'Descrição', key: 'description' }, { label: 'Cliente', key: 'client' },
-      { label: 'Endereço', key: 'address' }, { label: 'Área (m²)', key: 'areaM2', right: true },
-      { label: 'Status', render: (i) => <Pill value={i.status} /> }
-    ],
-    fields: [['code', 'Código'], ['description', 'Descrição'], ['client', 'Cliente'], ['address', 'Endereço'], ['areaM2', 'Área m²', 'number'], ['status', 'Status', 'select', ['Operacional', 'Inativo', 'Manutenção']]]
-  },
-  measurement: {
-    title: 'Medição & Faturamento',
-    subtitle: 'Fechamento de medições por OS para composição de faturamento por cliente.',
-    endpoint: '/api/measurements',
-    newLabel: 'Nova medição',
-    ghostLabel: 'Exportar NF',
-    panelTitle: 'Medições do mês',
-    columns: [
-      { label: '#', key: 'number', mono: true }, { label: 'Cliente', key: 'client' }, { label: 'OS', key: 'workOrder', mono: true },
-      { label: 'Período', key: 'period' }, { label: 'Qtd.', key: 'quantity', right: true },
-      { label: 'Unitário', render: (i) => money(i.unitPrice), right: true }, { label: 'Total', render: (i) => money(i.total), right: true },
-      { label: 'Status', render: (i) => <Pill value={i.status} /> }
-    ],
-    fields: [['number', 'Número'], ['client', 'Cliente'], ['workOrder', 'OS'], ['period', 'Período'], ['quantity', 'Quantidade', 'number'], ['unitPrice', 'Unitário', 'number'], ['total', 'Total', 'number'], ['status', 'Status', 'select', ['Fechada', 'Pendente', 'Cancelada']]]
   }
 };
 
@@ -778,9 +745,9 @@ function Sidebar({ route, setRoute, settings, profile, onProfile, onLogout }) {
   const groups = [
     ['Principal', [['dashboard', 'PR', 'Principal']]],
     ['Operações', [['tower', 'TO', 'Torre Operacional'], ['dailyOps', 'OD', 'Operação Diária'], ['schedules', 'PD', 'Programação de Equipes']]],
-    ['Gestão', [['productivity', 'PD', 'Produtividade'], ['employees', 'FE', 'Funcionários'], ['map', 'MP', 'Mapa Operacional']]],
-    ['Movimentações', [['measurement', 'MS', 'Medição & Faturamento'], ['reports', 'RP', 'Relatórios']]],
-    ['Cadastros', [['clients', 'CL', 'Clientes'], ['services', 'SV', 'Serviços'], ['equipment', 'EQ', 'Equipamentos'], ['locations', 'LC', 'Locações & Áreas']]],
+    ['Gestão', [['productivity', 'PD', 'Produtividade'], ['employees', 'FE', 'Funcionários']]],
+    ['Movimentações', [['reports', 'RP', 'Relatórios']]],
+    ['Cadastros', [['clients', 'CL', 'Clientes'], ['services', 'SV', 'Serviços'], ['equipment', 'EQ', 'Equipamentos']]],
     ['Administração', [['users', 'AD', 'Usuários & Perfis'], ['settings', 'CF', 'Configurações']]]
   ];
   const user = currentUser();
@@ -836,14 +803,12 @@ function Screen({ route, notify, settings, setSettings }) {
   const editable = canEdit(route);
   if (!canView(route)) return <AccessDenied />;
   if (route === 'dailyOps') return <DailyOps notify={notify} editable={editable} />;
-  if (route === 'measurement') return <Measurement notify={notify} editable={editable} />;
   if (route === 'schedules') return <Schedules notify={notify} editable={editable} />;
   if (route === 'users') return <Users notify={notify} editable={editable} />;
   if (crudConfigs[route]) return <CrudScreen config={crudConfigs[route]} notify={notify} editable={editable} />;
   if (route === 'dashboard') return <OperationsDashboard />;
   if (route === 'tower') return <Tower />;
   if (route === 'productivity') return <Productivity />;
-  if (route === 'map') return <OperationalMap />;
   if (route === 'reports') return <Reports />;
   if (route === 'settings') return <Settings notify={notify} settings={settings} setSettings={setSettings} editable={editable} />;
   return <Placeholder route={route} />;
@@ -1317,26 +1282,10 @@ function Productivity() {
   return <><PageHead title="Produtividade dos colaboradores" subtitle="Apuração mensal por OS, chamada, faltas e critérios de bonificação." ghostActions={[compare ? 'Ocultar critérios' : 'Ver critérios', showOsLaunches ? 'Ocultar lançamentos' : 'Ver lançamentos por OS']} onGhostAction={(label) => label.includes('critério') || label.includes('critérios') ? setCompare((value) => !value) : setShowOsLaunches((value) => !value)} action="Exportar relatório" onAction={() => downloadCsv('produtividade-colaboradores.csv', exportRows)} /><div className="toolbar"><div className="filter"><label>Buscar</label><input value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="OS, cliente, colaborador..." /></div><div className="filter"><label>Colaborador</label><select value={filters.employee} onChange={(event) => setFilters((old) => ({ ...old, employee: event.target.value }))}>{employeeOptions.map((name) => <option key={name}>{name}</option>)}</select></div><div className="filter"><label>Critério</label><select value={filters.criterion} onChange={(event) => setFilters((old) => ({ ...old, criterion: event.target.value }))}><option>Todos</option><option>Equipe PA</option><option>Batedores</option><option>Apoio</option><option>Sem critério</option></select></div><div className="filter"><label>Chamada</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Presente</option><option>Falta</option><option>Pendente</option></select></div><span className="spacer" /><span className="soft">{filteredEntries.length} lançamentos</span></div><div className="kpi-grid"><Kpi icon="users" label="Colaboradores avaliados" value={byEmployee.length} delta="com OS no filtro" success /><Kpi icon="file" label="OS apuradas" value={new Set(filteredEntries.map((entry) => entry.order.id || entry.order.number)).size} delta="mês atual filtrado no banco" /><Kpi icon="alert" label="Faltas registradas" value={totalAbsences} delta={`${pendingCalls} chamadas pendentes`} warning /><Kpi icon="money" label="Bônus previsto" value={money(totalBonus)} delta="conforme critérios" /></div>{compare && <Panel title="Critérios de bonificação" padded><DataTable columns={['Equipe/Função', 'Valor integral', '1 ausência', '2 ausências', '3 ausências', '4+ ausências']} rows={bonusRules.map(ruleRow)} /></Panel>}<Panel title="Produtividade por colaborador" padded><DataTable columns={['Colaborador', 'Função', 'Equipe cadastro', 'Critério', 'OS', 'Pres.', 'Faltas', 'Valor base', '%', 'Total']} rows={productivityRows} /></Panel>{showOsLaunches && <Panel title="Lançamentos por OS" padded><DataTable columns={['OS', 'Data', 'Cliente', 'Colaborador', 'Equipe', 'Critério', 'Chamada', 'Valor']} rows={osRows} /></Panel>}</>;
 }
 
-function OperationalMap() {
-  const [layer, setLayer] = useState('ruas');
-  const [centered, setCentered] = useState(false);
-  const [locations, setLocations] = useState([]);
-  const [orders, setOrders] = useState([]);
-  const load = () => {
-    api('/api/locations').then((payload) => setLocations(listData(payload))).catch((error) => triggerAction(error.message));
-    api(workOrdersEndpoint()).then((payload) => setOrders(listData(payload))).catch((error) => triggerAction(error.message));
-  };
-  useEffect(load, []);
-  const points = (locations.length ? locations : [{ description: 'Pátio 3 - SEMP TCL', status: 'Operacional' }, { description: 'Pátio 2', status: 'Fila' }, { description: 'Porto CSF', status: 'Alerta' }]).slice(0, 5);
-  const colors = ['#1F8A4C', '#C77700', '#B3261E', '#0B6FB8', '#1B3A6B'];
-  return <><PageHead title="Mapa Operacional" subtitle="Visualização georreferenciada das operações em andamento e pátios ativos." ghostAction="Centralizar" onGhostAction={() => setCentered(true)} action="Atualizar mapa" onAction={load} /><div className="map-grid"><Panel title={`Mapa · Manaus / AM · ${layer === 'ruas' ? 'Ruas' : 'Satélite'}`} actions={<><button className={`btn btn-sm ${layer === 'satelite' ? 'btn-primary' : ''}`} onClick={() => setLayer('satelite')}>Satélite</button><button className={`btn btn-sm ${layer === 'ruas' ? 'btn-primary' : ''}`} onClick={() => setLayer('ruas')}>Ruas</button></>}><svg viewBox="0 0 1100 520" className={`map-svg map-${layer} ${centered ? 'map-centered' : ''}`}><defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="#D9E2EC" strokeWidth="1" /></pattern></defs><rect width="1100" height="520" fill={layer === 'ruas' ? 'url(#grid)' : '#D9E4D4'} /><path d="M0 320 C 200 280, 380 360, 620 310 S 980 280, 1100 320 L 1100 400 C 980 380, 800 420, 580 380 S 240 360, 0 400 Z" fill={layer === 'ruas' ? '#BFD8E5' : '#96B88D'} />{points.map((point, index) => <MapPoint key={point.id || point.description} x={160 + index * 180} y={110 + (index % 2) * 42} w="190" h="120" title={point.description || point.code} status={`${orders.filter((order) => order.location === point.description).length} OS · ${point.status || 'Operacional'}`} color={colors[index]} />)}<path d="M 290 160 Q 430 90 590 170 T 910 140" stroke="#1B3A6B" strokeWidth="3" fill="none" strokeDasharray="6 4" /></svg></Panel><Panel title="Pontos monitorados"><ul className="activity">{points.map((point, index) => <li key={point.id || point.description}><Pill value={point.status || 'OK'} /><div><b>{point.description || point.code}</b><span>{orders.filter((order) => order.location === point.description).length} OS vinculadas · camada {layer}</span></div></li>)}</ul></Panel></div></>;
-}
-
 function Reports() {
   const cards = [
     ['Ordens de Serviço', 'Listagem detalhada com filtros por período, cliente, status e equipamento.', '/api/workOrders'],
     ['Produtividade por Equipe', 'Indicadores de t/h, eficiência, OS concluídas e tempo médio.', '/api/workOrders'],
-    ['Faturamento por Cliente', 'Totalizadores por cliente, contrato e centro de custo.', '/api/measurements'],
     ['Ocorrências Operacionais', 'Histórico de incidentes por tipo, equipe e local, com SLA.', '/api/occurrences'],
     ['Movimentação de Pessoal', 'Admissões, desligamentos, férias, afastamentos por período.', '/api/employees'],
     ['Equipamentos', 'Utilização, manutenções e vida útil por container/veículo.', '/api/equipment']
@@ -1374,19 +1323,6 @@ function Reports() {
         ['Data programada', (row) => dateTime(row.date)],
         ['Início', (row) => dateTime(row.operationStart)],
         ['Fim', (row) => dateTime(row.operationEnd)]
-      ]
-    },
-    'Faturamento por Cliente': {
-      filename: 'faturamento-por-cliente.csv',
-      columns: [
-        ['Número', (row) => row.number],
-        ['Cliente', (row) => row.client],
-        ['OS', (row) => row.workOrder],
-        ['Período', (row) => row.period],
-        ['Quantidade', (row) => row.quantity],
-        ['Valor unitário', (row) => money(row.unitPrice)],
-        ['Valor total', (row) => money(row.total)],
-        ['Status', (row) => row.status]
       ]
     },
     'Ocorrências Operacionais': {
@@ -1681,23 +1617,6 @@ function DailyOps({ notify, editable = true }) {
   );
 }
 
-function Measurement({ notify, editable = true }) {
-  const [pendingOnly, setPendingOnly] = useState(false);
-  return <>
-    <CrudScreen
-      config={{
-        ...crudConfigs.measurement,
-        endpoint: `/api/measurements${pendingOnly ? '?status=Pendente' : ''}`,
-        noToolbar: true,
-        panelActions: ({ items, load }) => <><button className="btn btn-sm" onClick={() => setPendingOnly((value) => !value)}>{pendingOnly ? 'Ver todas' : 'Filtrar pendentes'}</button><button className="btn btn-sm btn-primary" onClick={async () => { if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela'); const pending = items.find((item) => item.status === 'Pendente') || items[0]; if (!pending) return notify('Nenhuma medição para fechar'); await api(`/api/measurements/${pending.id}`, { method: 'PUT', body: JSON.stringify({ ...pending, status: 'Fechada' }) }); notify('Medição fechada no banco'); load(); }}>Fechar medição</button></>
-      }}
-      notify={notify}
-      editable={editable}
-      beforeTable={<div className="kpi-grid"><Kpi icon="money" label="Faturado (mês)" value="R$ 184.250" delta="+12% MoM" success /><Kpi icon="clock" label="A faturar" value="R$ 42.180" delta="4 medições" /><Kpi icon="alert" label="Pendentes" value="02" delta="aguardando cliente" warning /><Kpi icon="check" label="Medições fechadas" value="38" delta="no mês" /></div>}
-    />
-  </>;
-}
-
 function CrudScreen({ config, notify, beforeTable, editable = true }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1921,7 +1840,7 @@ function ActionPanel({ type, setRoute, onClose }) {
       <div className="section-list compact-list">{routeEntries.map(([key, item]) => <div className="section-card" key={key} onClick={() => openRoute(key)}><div className="ico"><Icon name="grid" /></div><div><h4>{item.title}</h4><p>{item.group}</p></div></div>)}</div>
     </>,
     notifications: <><div className="notification-tools"><span className="soft">{notifications.length} ocorrência(s)</span>{notifications.length > 0 && <button className="btn btn-sm" onClick={clearNotifications}>Limpar minhas notificações</button>}</div><ul className="activity">{notifications.length ? notifications.map((item) => <li key={item.id}><Pill value={item.tag} /><div><b>{item.title}</b><span>{item.text}</span></div><button className="btn btn-sm" onClick={() => dismissNotification(item.id)}>Excluir</button></li>) : <li><Pill value="OK" /><div><b>Nenhuma ocorrência pendente</b><span>Somente ocorrências reais vinculadas ao seu usuário aparecerão aqui.</span></div></li>}</ul></>,
-    messages: <ul className="activity"><li><Pill value="Torre" /><div><b>Equipe de campo solicitou correção</b><span>Abra Operação Diária para tratar ocorrência.</span></div></li><li><Pill value="Financeiro" /><div><b>Relatório mensal disponível</b><span>Gere CSV em Relatórios ou Medição.</span></div></li></ul>,
+    messages: <ul className="activity"><li><Pill value="Torre" /><div><b>Equipe de campo solicitou correção</b><span>Abra Operação Diária para tratar ocorrência.</span></div></li><li><Pill value="Financeiro" /><div><b>Relatório mensal disponível</b><span>Gere CSV em Relatórios.</span></div></li></ul>,
     help: <div className="panel-body"><p><b>Fluxos principais:</b></p><p className="soft">Cadastros gravam no banco. Configurações aplicam marca/cores e salvam no Postgres. Relatórios exportam CSV. Operação diária cria OS e registra ocorrências.</p><p className="soft">Use o menu lateral ou a pesquisa para trocar de tela sem recarregar.</p></div>
   };
   const titles = { search: 'Pesquisa', notifications: 'Notificações', messages: 'Mensagens', help: 'Ajuda' };
@@ -1952,7 +1871,6 @@ function ActivityPanel() {
   const items = [
     ['OS', 'OS 0007-159 aprovada por Administrador SF', 'há 18 min · Operação Diária'],
     ['EQ', 'Equipamento HAMU2997067 vinculado à OS', 'há 1h · Cadastros'],
-    ['MS', 'Medição #043 fechada - R$ 18.420,00', 'há 3h · Medição & Faturamento'],
     ['PD', 'Programação semanal de equipes publicada', 'há 6h · Programação']
   ];
   return <Panel title="Atividades recentes" actions={<span className="soft">Últimas 24h</span>}><ul className="activity">{items.map(([tag, text, time]) => <li key={text}><Pill value={tag} /><div><b>{text}</b><span>{time}</span></div></li>)}</ul></Panel>;
@@ -1960,11 +1878,6 @@ function ActivityPanel() {
 
 function InfoPanel({ title, value, sub, children }) {
   return <div className="panel"><div className="panel-head"><h3>{title}</h3></div><div className="panel-body"><div className="big-number">{value}</div><div className="soft">{sub}</div><div className="inline-pills">{children}</div></div></div>;
-}
-
-function MapPoint({ x, y, w, h, title, status, color }) {
-  const cx = x + w / 2;
-  return <g><rect x={x} y={y} width={w} height={h} fill={color} opacity=".16" stroke={color} strokeWidth="2" /><text x={cx} y={y + h / 2 + 5} textAnchor="middle" fontSize="13" fontWeight="700" fill="#0F2447">{title}</text><circle cx={cx} cy={y + 40} r="9" fill={color} stroke="#FFFFFF" strokeWidth="2" /><text x={cx} y={y + 62} textAnchor="middle" fontSize="10" fill={color}>{status}</text></g>;
 }
 
 function Field({ label, value, type = 'text', full, onChange }) {

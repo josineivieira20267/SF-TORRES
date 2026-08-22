@@ -11,13 +11,10 @@ const ROUTES = {
   schedules:    { title:'Programação de Equipes', crumb:['Painel Corporativo','Operações','Programação de Equipes'], file:'pages/schedules.html' },
   productivity: { title:'Produtividade', crumb:['Painel Corporativo','Gestão','Produtividade'], file:'pages/productivity.html' },
   employees:    { title:'Funcionários', crumb:['Painel Corporativo','Gestão','Funcionários'], file:'pages/employees.html' },
-  map:          { title:'Mapa Operacional', crumb:['Painel Corporativo','Gestão','Mapa Operacional'], file:'pages/map.html' },
-  measurement:  { title:'Medição & Faturamento', crumb:['Painel Corporativo','Movimentações','Medição & Faturamento'], file:'pages/measurement.html' },
   reports:      { title:'Relatórios', crumb:['Painel Corporativo','Movimentações','Relatórios'], file:'pages/reports.html' },
   clients:      { title:'Clientes', crumb:['Painel Corporativo','Cadastros','Clientes'], file:'pages/clients.html' },
   services:     { title:'Serviços', crumb:['Painel Corporativo','Cadastros','Serviços'], file:'pages/services.html' },
   equipment:    { title:'Equipamentos', crumb:['Painel Corporativo','Cadastros','Equipamentos'], file:'pages/equipment.html' },
-  locations:    { title:'Locações & Áreas', crumb:['Painel Corporativo','Cadastros','Locações & Áreas'], file:'pages/locations.html' },
   users:        { title:'Usuários & Perfis', crumb:['Painel Corporativo','Administração','Usuários & Perfis'], file:'pages/users.html' },
   settings:     { title:'Configurações', crumb:['Painel Corporativo','Administração','Configurações'], file:'pages/settings.html' }
 };

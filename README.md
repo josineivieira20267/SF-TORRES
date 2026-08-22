@@ -25,13 +25,10 @@ sf_v2/
 │   ├── schedules.html     # Programação de Equipes
 │   ├── productivity.html  # Indicadores
 │   ├── employees.html     # Cadastro de funcionários
-│   ├── map.html           # Mapa Operacional
-│   ├── measurement.html   # Medição & Faturamento
 │   ├── reports.html       # Relatórios (atalhos)
 │   ├── clients.html       # Cadastro de clientes
 │   ├── services.html      # Tipos de serviço
 │   ├── equipment.html     # Equipamentos
-│   ├── locations.html     # Locações & Áreas
 │   ├── users.html         # Usuários & Perfis
 │   └── settings.html      # ⚙️ Configurações
 ├── index.html             # Shell principal (sidebar + topbar + view)
@@ -134,9 +131,9 @@ A sidebar segue o agrupamento:
 
 - **Principal** — Painel Corporativo
 - **Operações** — Torre, Operação Diária, Programação de Equipes
-- **Gestão** — Produtividade, Funcionários, Mapa Operacional
-- **Movimentações** — Medição & Faturamento, Relatórios
-- **Cadastros** — Clientes, Serviços, Equipamentos, Locações & Áreas
+- **Gestão** — Produtividade, Funcionários
+- **Movimentações** — Relatórios
+- **Cadastros** — Clientes, Serviços, Equipamentos
 - **Administração** — Usuários & Perfis, **Configurações**
 
 A topbar mostra o caminho atual (breadcrumbs), busca rápida, notificações e perfil do usuário.
