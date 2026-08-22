@@ -63,6 +63,15 @@ function canView(route, user = currentUser()) {
   return permissionFor(route, user) !== 'none';
 }
 
+function isLeaderUser(user = currentUser()) {
+  return normalize(user.role).includes('lider');
+}
+
+function canApproveAttendance(user = currentUser()) {
+  const role = normalize(user.role);
+  return role.includes('administrador') || role.includes('operacional');
+}
+
 function canEdit(route, user = currentUser()) {
   return permissionFor(route, user) === 'edit';
 }
@@ -70,6 +79,7 @@ function canEdit(route, user = currentUser()) {
 function defaultUserPermissions(role = 'Operacional') {
   if (role === 'Administrador') return { ...defaultAdminPermissions };
   if (normalize(role).includes('lider')) return { schedules: 'edit', leaderAttendance: 'edit' };
+  if (normalize(role).includes('operacional')) return { dashboard: 'view', dailyOps: 'view', leaderAttendance: 'edit' };
   return { dashboard: 'view', dailyOps: 'view' };
 }
 
@@ -1231,6 +1241,8 @@ function Schedules({ notify, editable = true }) {
 
 function LeaderAttendance({ notify, editable = true }) {
   const user = currentUser();
+  const leaderProfile = isLeaderUser(user);
+  const approverProfile = canApproveAttendance(user);
   const [dateValue, setDateValue] = useState(localDateValue(new Date()));
   const [query, setQuery] = useState('');
   const [payload, setPayload] = useState(null);
@@ -1261,12 +1273,47 @@ function LeaderAttendance({ notify, editable = true }) {
     }));
     setPayload(response.data);
   };
+  const requestCorrection = async (item) => {
+    if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
+    const response = await withBusy(() => api('/api/leader-attendance/corrections', {
+      method: 'PUT',
+      body: JSON.stringify({ date: dateValue, q: query, name: item.name })
+    }));
+    setPayload(response.data);
+    notify('Solicitação de correção enviada');
+  };
+  const approveCorrection = async (item) => {
+    if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
+    const response = await withBusy(() => api('/api/leader-attendance/corrections/approve', {
+      method: 'PUT',
+      body: JSON.stringify({ date: dateValue, q: query, name: item.name })
+    }));
+    setPayload(response.data);
+    notify('Correção liberada para o líder');
+  };
+  const canLeaderChange = (item) => !leaderProfile || !item.status || item.correctionRequest?.status === 'Aprovada';
+  const markActions = (item, compact = false) => {
+    const buttonClass = compact ? 'btn' : 'btn btn-sm';
+    if (leaderProfile && !canLeaderChange(item)) {
+      if (item.correctionRequest?.status === 'Pendente') return <button className={`${buttonClass}`} disabled>Correção solicitada</button>;
+      return <button className={`${buttonClass}`} onClick={() => requestCorrection(item)} disabled={!editable}>Solicitar correção</button>;
+    }
+    if (approverProfile && item.correctionRequest?.status === 'Pendente') {
+      return <button className={`${buttonClass} btn-primary`} onClick={() => approveCorrection(item)} disabled={!editable}>Aprovar correção</button>;
+    }
+    return (
+      <>
+        <button className={`${buttonClass} btn-success`} onClick={() => mark(item, 'Presente')} disabled={!editable}>Presente</button>
+        <button className={`${buttonClass} btn-danger`} onClick={() => mark(item, 'Falta')} disabled={!editable}>Falta</button>
+      </>
+    );
+  };
   const rows = loading ? null : employees.map((item) => [
     <b>{item.name}</b>,
     item.role || '-',
     item.team || '-',
     item.status ? <Pill value={item.status} /> : <span className="soft">Sem marcação</span>,
-    <div className="inline-actions"><button className="btn btn-sm btn-success" onClick={() => mark(item, 'Presente')} disabled={!editable}>Presente</button><button className="btn btn-sm btn-danger" onClick={() => mark(item, 'Falta')} disabled={!editable}>Falta</button></div>
+    <div className="inline-actions">{markActions(item)}</div>
   ]);
   const attendanceCard = (item) => (
     <article className="attendance-card" key={item.name}>
@@ -1275,11 +1322,10 @@ function LeaderAttendance({ notify, editable = true }) {
           <h3>{item.name}</h3>
           <p>{[item.role, item.team].filter(Boolean).join(' · ') || '-'}</p>
         </div>
-        {item.status ? <Pill value={item.status} /> : <span className="attendance-pending">Sem marcação</span>}
+        {item.correctionRequest?.status === 'Pendente' ? <Pill value="Correção pendente" /> : item.status ? <Pill value={item.status} /> : <span className="attendance-pending">Sem marcação</span>}
       </div>
       <div className="attendance-actions">
-        <button className="btn btn-success" onClick={() => mark(item, 'Presente')} disabled={!editable}>Presente</button>
-        <button className="btn btn-danger" onClick={() => mark(item, 'Falta')} disabled={!editable}>Falta</button>
+        {markActions(item, true)}
       </div>
     </article>
   );
@@ -2027,8 +2073,9 @@ function ActionPanel({ type, setRoute, onClose }) {
     if (type !== 'notifications') return;
     Promise.all([
       api('/api/occurrences').catch(() => ({ data: [] })),
-      api(workOrdersEndpoint()).catch(() => ({ data: [] }))
-    ]).then(([occurrencePayload, orderPayload]) => {
+      api(workOrdersEndpoint()).catch(() => ({ data: [] })),
+      canApproveAttendance(user) ? api(`/api/leader-attendance/corrections?date=${encodeURIComponent(localDateValue(new Date()))}`).catch(() => ({ data: [] })) : Promise.resolve({ data: [] })
+    ]).then(([occurrencePayload, orderPayload, correctionPayload]) => {
       const dismissed = new Set(readDismissed());
       const orders = listData(orderPayload);
       const isLeader = normalize(user.role).includes('lider');
@@ -2044,7 +2091,15 @@ function ActionPanel({ type, setRoute, onClose }) {
         .filter(belongsToUser)
         .map((item) => ({ id: notificationId(item), tag: item.type || 'OCO', title: `Ocorrência na OS ${item.workOrder || '-'}`, text: `${item.description || '-'} · ${item.status || 'Aberta'}` }))
         .filter((item) => !dismissed.has(item.id));
-      setNotifications(occurrenceAlerts.slice(0, 50));
+      const attendanceAlerts = listData(correctionPayload)
+        .map((item) => ({
+          id: `attendance-correction-${item.date}-${item.name}-${item.requestedAt || ''}`,
+          tag: 'CHAMADA',
+          title: `Correção de chamada: ${item.name}`,
+          text: `${item.requestedBy?.name || 'Líder'} solicitou liberação · ${date(item.date)}`
+        }))
+        .filter((item) => !dismissed.has(item.id));
+      setNotifications([...attendanceAlerts, ...occurrenceAlerts].slice(0, 50));
     });
   }, [type, dismissedKey]);
   const openRoute = (key) => {
@@ -2057,7 +2112,7 @@ function ActionPanel({ type, setRoute, onClose }) {
       <div className="form-field"><label>Pesquisar módulo</label><input value={q} onChange={(e) => setQ(e.target.value)} autoFocus placeholder="Digite cliente, OS, usuário, relatório..." /></div>
       <div className="section-list compact-list">{routeEntries.map(([key, item]) => <div className="section-card" key={key} onClick={() => openRoute(key)}><div className="ico"><Icon name="grid" /></div><div><h4>{item.title}</h4><p>{item.group}</p></div></div>)}</div>
     </>,
-    notifications: <><div className="notification-tools"><span className="soft">{notifications.length} ocorrência(s)</span>{notifications.length > 0 && <button className="btn btn-sm" onClick={clearNotifications}>Limpar minhas notificações</button>}</div><ul className="activity">{notifications.length ? notifications.map((item) => <li key={item.id}><Pill value={item.tag} /><div><b>{item.title}</b><span>{item.text}</span></div><button className="btn btn-sm" onClick={() => dismissNotification(item.id)}>Excluir</button></li>) : <li><Pill value="OK" /><div><b>Nenhuma ocorrência pendente</b><span>Somente ocorrências reais vinculadas ao seu usuário aparecerão aqui.</span></div></li>}</ul></>,
+    notifications: <><div className="notification-tools"><span className="soft">{notifications.length} notificação(ões)</span>{notifications.length > 0 && <button className="btn btn-sm" onClick={clearNotifications}>Limpar minhas notificações</button>}</div><ul className="activity">{notifications.length ? notifications.map((item) => <li key={item.id}><Pill value={item.tag} /><div><b>{item.title}</b><span>{item.text}</span></div><button className="btn btn-sm" onClick={() => dismissNotification(item.id)}>Excluir</button></li>) : <li><Pill value="OK" /><div><b>Nenhuma notificação pendente</b><span>Solicitações de correção e ocorrências aparecerão aqui.</span></div></li>}</ul></>,
     messages: <ul className="activity"><li><Pill value="Torre" /><div><b>Equipe de campo solicitou correção</b><span>Abra Operação Diária para tratar ocorrência.</span></div></li><li><Pill value="Financeiro" /><div><b>Relatório mensal disponível</b><span>Gere CSV em Relatórios.</span></div></li></ul>,
     help: <div className="panel-body"><p><b>Fluxos principais:</b></p><p className="soft">Cadastros gravam no banco. Configurações aplicam marca/cores e salvam no Postgres. Relatórios exportam CSV. Operação diária cria OS e registra ocorrências.</p><p className="soft">Use o menu lateral ou a pesquisa para trocar de tela sem recarregar.</p></div>
   };
