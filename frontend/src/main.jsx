@@ -1080,16 +1080,16 @@ function Schedules({ notify, editable = true }) {
   };
   const exportRows = () => downloadCsv('programacao-os-lider.csv', [['OS', 'Cliente', 'Servico', 'Equipamento', 'Local', 'Lider', 'Status', 'Data'], ...visibleOrders.map((item) => [item.number, item.client, item.service, item.equipment, item.location, item.responsible, item.status, item.date])]);
   const employeeOptions = employees.map((item) => item.name).filter(Boolean);
-  const equipmentOptions = ['', ...Array.from(new Set(equipment.map((item) => item.type).filter(Boolean)))];
+  const equipmentOptions = ['', ...Array.from(new Set(equipment.map((item) => [item.code, item.type].filter(Boolean).join(' - ')).filter(Boolean)))];
   const saveOperationEdit = (data) => {
-    const required = [['carrier', 'Transportador'], ['location', 'Local'], ['equipment', 'Equipamento'], ['product', 'Produto'], ['progress', 'Percentual']];
+    const required = [['carrier', 'Transportador'], ['equipment', 'Equipamento'], ['product', 'Produto'], ['progress', 'Percentual']];
     const missing = required.find(([name]) => String(data[name] ?? '').trim() === '');
     if (missing) return notify(`Preencha o campo obrigatorio: ${missing[1]}`);
     const before = Array.isArray(operationModal.teamMembers) ? operationModal.teamMembers : [];
     const after = Array.isArray(data.teamMembers) ? data.teamMembers : [];
     const changedTeam = before.length !== after.length || before.some((name) => !after.includes(name)) || after.some((name) => !before.includes(name));
     if (changedTeam && !String(data.teamNote || '').trim()) return notify('Informe a observacao/justificativa para alterar integrantes da equipe');
-    return updateOrder(operationModal, { ...data, correctionRequested: false, correctionApproved: false }, 'Dados operacionais atualizados');
+    return updateOrder(operationModal, { ...data, location: '', correctionRequested: false, correctionApproved: false }, 'Dados operacionais atualizados');
   };
   const leaderActions = (item) => {
     if (!editable) return <span className="soft">Somente leitura</span>;
@@ -1170,7 +1170,7 @@ function Schedules({ notify, editable = true }) {
         {!loading && !visibleOrders.length && <div className="empty-chart">Nenhuma OS encontrada</div>}
       </div>
       <div className="schedule-table-panel"><Panel title="OS direcionadas ao lider" actions={<Pill value={user.name || user.email || 'usuario'} />}><DataTable columns={['OS', 'Cliente', 'Servico', 'Produto', 'Integrantes', 'Data programada', 'Status', 'Inicio', 'Fim', 'Acao']} rows={rows} loading={loading} /></Panel></div>
-      {operationModal && <Editor title="Editar operacao da OS" fields={[['carrier', 'Transportador', 'text', null, null, true], ['location', 'Local', 'text', null, null, true], ['product', 'Produto', 'text', null, null, true], ['equipment', 'Equipamento', 'select', equipmentOptions, null, true], ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')], ['trailerPlate', 'Placa da carreta', 'text', null, (form) => normalize(form.equipment).includes('carreta')], ['teamMembers', 'Incluir integrantes da equipe', 'employees', employeeOptions, () => absenceCount(operationModal) > 0], ['teamNote', 'Observacao obrigatoria ao alterar equipe', 'textarea', null, () => absenceCount(operationModal) > 0], ['progress', 'Percentual', 'number', null, null, true]]} initial={operationModal} onCancel={() => setOperationModal(null)} onSave={saveOperationEdit} />}
+      {operationModal && <Editor title="Editar operacao da OS" fields={[['carrier', 'Transportador', 'text', null, null, true], ['product', 'Produto', 'text', null, null, true], ['equipment', 'Equipamento', 'select', equipmentOptions, null, true], ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')], ['trailerPlate', 'Placa da carreta', 'text', null, (form) => normalize(form.equipment).includes('carreta')], ['teamMembers', 'Incluir integrantes da equipe', 'employees', employeeOptions, () => absenceCount(operationModal) > 0], ['teamNote', 'Observacao obrigatoria ao alterar equipe', 'textarea', null, () => absenceCount(operationModal) > 0], ['progress', 'Percentual', 'number', null, null, true]]} initial={operationModal} onCancel={() => setOperationModal(null)} onSave={saveOperationEdit} />}
       {occurrenceModal && <Editor title={`Lançar ocorrência · OS ${occurrenceModal.number}`} fields={occurrenceFields} initial={{ workOrder: occurrenceModal.number, type: 'Operacional', status: 'Aberta' }} onCancel={() => setOccurrenceModal(null)} onSave={saveLeaderOccurrence} />}
     </>
   );
@@ -1527,7 +1527,6 @@ function DailyOps({ notify, editable = true }) {
   const [equipment, setEquipment] = useState([]);
   const [services, setServices] = useState([]);
   const [leaders, setLeaders] = useState([]);
-  const [employees, setEmployees] = useState([]);
   const [occurrences, setOccurrences] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState('');
@@ -1537,7 +1536,7 @@ function DailyOps({ notify, editable = true }) {
   const [activeTab, setActiveTab] = useState('Dados');
   const [filters, setFilters] = useState({ q: '', status: 'Todos', client: 'Todos', period: 'Este mês', table: '' });
   const optionValues = (list, ...keys) => list.map((item) => keys.map((key) => item[key]).find(Boolean)).filter(Boolean);
-  const equipmentTypes = ['', ...Array.from(new Set(equipment.map((item) => item.type).filter(Boolean)))];
+  const equipmentTypes = ['', ...Array.from(new Set(equipment.map((item) => [item.code, item.type].filter(Boolean).join(' - ')).filter(Boolean)))];
   const fields = [
     ['number', 'Número da OS', 'text', null, null, true],
     ['client', 'Cliente', 'select', ['', ...optionValues(clients, 'name', 'legalName')], null, true],
@@ -1548,9 +1547,8 @@ function DailyOps({ notify, editable = true }) {
     ['date', 'Data programada', 'datetime-local', null, null, true],
     ['carrier', 'Transportador'],
     ['service', 'Serviço', 'select', ['', ...optionValues(services, 'description', 'code')], null, true],
-    ['location', 'Local'],
     ['responsible', 'Responsável', 'select', ['', ...optionValues(leaders, 'name')], null, true],
-    ['teamMembers', 'Integrantes da equipe', 'employees', optionValues(employees, 'name'), null, true],
+    ['teamMembers', 'Integrantes da equipe', 'employees', { endpoint: '/api/employees' }],
     ['product', 'Produto'],
     ['operationStart', 'Início da operação', 'datetime-local'],
     ['operationEnd', 'Fim da operação', 'datetime-local'],
@@ -1572,7 +1570,7 @@ function DailyOps({ notify, editable = true }) {
     return itemDate.getMonth() === today.getMonth() && itemDate.getFullYear() === today.getFullYear();
   };
   const filteredItems = items.filter((item) => {
-    const text = normalize(`${item.number} ${item.client} ${item.equipment} ${item.service} ${item.carrier} ${item.location}`);
+    const text = normalize(`${item.number} ${item.client} ${item.equipment} ${item.service} ${item.carrier}`);
     const query = normalize(`${filters.q} ${filters.table}`);
     const statusOk = filters.status === 'Todos' || normalize(item.status) === normalize(filters.status);
     const clientOk = filters.client === 'Todos' || item.client === filters.client;
@@ -1588,11 +1586,7 @@ function DailyOps({ notify, editable = true }) {
     api('/api/clients').then((payload) => setClients(listData(payload))).catch(() => {});
     api('/api/equipment').then((payload) => setEquipment(listData(payload))).catch(() => {});
     api('/api/services').then((payload) => setServices(listData(payload))).catch(() => {});
-    api('/api/employees').then((payload) => {
-      const list = listData(payload);
-      setEmployees(list);
-      setLeaders(list.filter((item) => normalize(item.role).includes('lider')));
-    }).catch(() => {});
+    api('/api/employees?q=lider').then((payload) => setLeaders(listData(payload).filter((item) => normalize(item.role).includes('lider')))).catch(() => {});
   }, []);
   useEffect(() => {
     if (filteredItems.length && !filteredItems.some((item) => item.id === selectedId)) setSelectedId(filteredItems[0].id);
@@ -1601,7 +1595,7 @@ function DailyOps({ notify, editable = true }) {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     const user = currentUser();
     if (items.some((item) => item.id !== modal?.id && normalize(item.number) === normalize(data.number))) return notify('Ja existe uma OS com este numero');
-    const payload = modal?.id ? data : { ...data, progress: data.progress || 0, createdBy: data.createdBy || user.name || user.email || 'Administrador SF' };
+    const payload = modal?.id ? { ...data, location: '' } : { ...data, location: '', progress: data.progress || 0, createdBy: data.createdBy || user.name || user.email || 'Administrador SF' };
     await withBusy(() => api(modal?.id ? `/api/workOrders/${modal.id}` : '/api/workOrders', { method: modal?.id ? 'PUT' : 'POST', body: JSON.stringify(payload) }));
     setModal(null); notify('OS salva'); load();
   };
@@ -1644,7 +1638,7 @@ function DailyOps({ notify, editable = true }) {
       ...selectedOccurrences.map((item) => [`${item.type || 'Ocorrência'} · ${item.status || '-'}`, occurrenceDetail(item)]),
       ...(selectedOccurrences.length ? [] : [['Ocorrências', 'Nenhuma ocorrência lançada para esta OS']])
     ];
-    return [['Data programada', dateTime(selected.date)], ['Criado por', selected.createdBy || '-'], ['Transportador', selected.carrier], ['Serviço', selected.service], ['Produto', selected.product || '-'], ['Equipamento', selected.equipment || '-'], ['Container', selected.containerNumber || '-'], ['Placa', selected.trailerPlate || '-'], ['Local', selected.location || '-'], ['Responsável', selected.responsible], ['Percentual', `${selected.progress || 0}%`]];
+    return [['Data programada', dateTime(selected.date)], ['Criado por', selected.createdBy || '-'], ['Transportador', selected.carrier], ['Serviço', selected.service], ['Produto', selected.product || '-'], ['Equipamento', selected.equipment || '-'], ['Container', selected.containerNumber || '-'], ['Placa', selected.trailerPlate || '-'], ['Responsável', selected.responsible], ['Percentual', `${selected.progress || 0}%`]];
   };
   return (
     <>
@@ -1765,7 +1759,7 @@ function Editor({ title, fields, initial, onCancel, onSave }) {
           <div className="form-grid">{fields.map(([name, label, type = 'text', options, visible, required]) => {
             if (!isVisible(visible)) return null;
             if (type === 'permissions') return <PermissionMatrix key={name} label={label} value={form[name]} onChange={(value) => change(name, value, type)} />;
-            if (type === 'employees') return <EmployeePicker key={name} label={`${label}${isRequired(required) ? ' *' : ''}`} options={options || []} value={form[name]} onChange={(value) => change(name, value, type)} />;
+            if (type === 'employees') return <EmployeePicker key={name} label={`${label}${isRequired(required) ? ' *' : ''}`} source={options} value={form[name]} onChange={(value) => change(name, value, type)} />;
             return <div className="form-field" key={name}><label>{label}{isRequired(required) ? ' *' : ''}</label>{type === 'select' ? <select value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)}>{options.map((o) => <option key={o || '-'} value={o}>{o || '-'}</option>)}</select> : type === 'textarea' ? <textarea value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)} /> : <input type={['cpf', 'personName'].includes(type) ? 'text' : type} value={form[name]} required={isRequired(required)} maxLength={type === 'cpf' ? 14 : undefined} onChange={(e) => change(name, e.target.value, type)} />}</div>;
           })}</div>
           <div className="modal-actions"><button type="button" className="btn" onClick={onCancel} disabled={submitting}>Cancelar</button><button className="btn btn-primary" disabled={submitting}>{submitting ? <LoadingSpinner small /> : 'Salvar'}</button></div>
@@ -1794,15 +1788,64 @@ function PermissionMatrix({ label, value = {}, onChange }) {
   );
 }
 
-function EmployeePicker({ label, options = [], value = [], onChange }) {
+function EmployeePicker({ label, source, value = [], onChange }) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
   const selected = Array.isArray(value) ? value : [];
+  const endpoint = typeof source === 'object' && source?.endpoint ? source.endpoint : '';
+  const staticOptions = Array.isArray(source) ? source : [];
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setResults([]);
+      setLoading(false);
+      return undefined;
+    }
+    if (!endpoint) {
+      setResults(staticOptions.filter((name) => normalize(name).includes(normalize(q))).map((name) => ({ name })));
+      return undefined;
+    }
+    let active = true;
+    setLoading(true);
+    const timer = window.setTimeout(() => {
+      api(`${endpoint}?q=${encodeURIComponent(q)}&limit=10`)
+        .then((payload) => {
+          if (active) setResults(listData(payload).filter((item) => item.status !== 'Inativo'));
+        })
+        .catch(() => {
+          if (active) setResults([]);
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+    }, 250);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [query, endpoint, source]);
+  const visibleOptions = results.map((item) => item.name).filter(Boolean).filter((name) => !selected.includes(name)).slice(0, 8);
   const toggle = (name) => onChange(selected.includes(name) ? selected.filter((item) => item !== name) : [...selected, name]);
+  const add = (name) => {
+    if (!selected.includes(name)) onChange([...selected, name]);
+    setQuery('');
+  };
   return (
-    <div className="permissions-grid">
+    <div className="permissions-grid full">
       <div className="permissions-head">{label}</div>
-      <div className="employee-picker">
-        {options.map((name) => <label key={name}><input type="checkbox" checked={selected.includes(name)} onChange={() => toggle(name)} /> {name}</label>)}
-        {!options.length && <span className="soft">Cadastre funcionarios para montar a equipe.</span>}
+      <div className="employee-search-picker">
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Pesquisar colaborador pelo nome..." />
+        <div className="employee-selected">
+          {selected.map((name) => <button type="button" className="selected-chip" key={name} onClick={() => toggle(name)}>{name} ×</button>)}
+          {!selected.length && <span className="soft">Nenhum integrante selecionado.</span>}
+        </div>
+        <div className="employee-results">
+          {visibleOptions.map((name) => <button type="button" key={name} onClick={() => add(name)}>{name}</button>)}
+          {loading && <span className="soft">Buscando colaboradores...</span>}
+          {query.trim().length > 0 && query.trim().length < 2 && <span className="soft">Digite pelo menos 2 letras para buscar.</span>}
+          {query.trim().length >= 2 && !loading && !visibleOptions.length && <span className="soft">Nenhum colaborador encontrado.</span>}
+        </div>
       </div>
     </div>
   );

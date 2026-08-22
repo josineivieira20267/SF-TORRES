@@ -96,6 +96,13 @@
 .permissions-row select{height:30px;border:1px solid var(--c-border);border-radius:var(--radius-sm);padding:0 8px;background:#FFFFFF;color:var(--c-text)}
 .employee-picker{padding:10px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .employee-picker label{font-size:13px;color:var(--c-text);text-transform:none;letter-spacing:0;display:flex;align-items:center;gap:6px}
+.employee-search-picker{padding:10px;display:grid;gap:10px}
+.employee-search-picker input{height:36px;border:1px solid var(--c-border);border-radius:var(--radius-sm);padding:0 10px;background:#FFFFFF;color:var(--c-text)}
+.employee-selected{display:flex;flex-wrap:wrap;gap:6px;min-height:28px;align-items:center}
+.selected-chip{border:1px solid var(--c-border);background:#EEF3FA;color:var(--c-primary);border-radius:14px;padding:5px 9px;font-size:12px;font-weight:700;cursor:pointer}
+.employee-results{display:grid;gap:6px}
+.employee-results button{height:34px;text-align:left;border:1px solid var(--c-border);background:#FFFFFF;color:var(--c-text);border-radius:var(--radius-sm);padding:0 10px;cursor:pointer}
+.employee-results button:hover{border-color:var(--c-primary);background:#F4F7FB}
 .inline-actions{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
 .attendance-row{display:grid;grid-template-columns:1fr 130px minmax(220px,1fr);align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--c-border)}
 .attendance-row:last-child{border-bottom:0}
