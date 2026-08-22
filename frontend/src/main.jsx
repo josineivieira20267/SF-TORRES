@@ -519,6 +519,39 @@ function downloadCsv(filename, rows) {
   URL.revokeObjectURL(url);
 }
 
+function downloadWorkbook(filename, sheets) {
+  const escapeXml = (value) => String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+  const safeSheetName = (name) => escapeXml(String(name || 'Planilha').slice(0, 31));
+  const worksheets = sheets.map(({ name, rows }) => `
+    <Worksheet ss:Name="${safeSheetName(name)}">
+      <Table>
+        ${(rows || []).map((row) => `
+          <Row>${row.map((cell) => `<Cell><Data ss:Type="String">${escapeXml(displayText(cell))}</Data></Cell>`).join('')}</Row>
+        `).join('')}
+      </Table>
+    </Worksheet>
+  `).join('');
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+  ${worksheets}
+</Workbook>`;
+  const blob = new Blob(['\ufeff', xml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 function readStoredSettings() {
   try {
     return { ...defaultSettings, ...JSON.parse(localStorage.getItem('sfTorresSettings') || '{}') };
@@ -1607,10 +1640,15 @@ function Productivity() {
     return sum + item.customBonus + (item.standardBonus * factor) + monthlyBonus;
   }, 0);
   const exportRows = [['Colaborador', 'Função', 'Equipe cadastro', 'Critério', 'OS', 'Presenças', 'Faltas', 'Valor base', 'Percentual', 'Total'], ...productivityRows.map((row) => row.map((cell) => displayText(cell)))];
+  const exportOsRows = [['OS', 'Data', 'Cliente', 'Colaborador', 'Equipe', 'Critério', 'Chamada', 'Valor'], ...osRows.map((row) => row.map((cell) => displayText(cell)))];
+  const exportProductivityWorkbook = () => downloadWorkbook('produtividade-colaboradores.xls', [
+    { name: 'Produtividade', rows: exportRows },
+    { name: 'Lançamentos por OS', rows: exportOsRows }
+  ]);
   const range = productivityRange();
   return (
     <>
-      <PageHead title="Produtividade dos colaboradores" subtitle="Apuração por período, OS, chamada, faltas e critérios de bonificação." ghostActions={[compare ? 'Ocultar critérios' : 'Ver critérios', showOsLaunches ? 'Ocultar lançamentos por OS' : 'Ver lançamentos por OS']} onGhostAction={(label) => label.includes('critério') || label.includes('critérios') ? setCompare((value) => !value) : setShowOsLaunches((value) => !value)} action="Exportar relatório" onAction={() => downloadCsv('produtividade-colaboradores.csv', exportRows)} />
+      <PageHead title="Produtividade dos colaboradores" subtitle="Apuração por período, OS, chamada, faltas e critérios de bonificação." ghostActions={[compare ? 'Ocultar critérios' : 'Ver critérios', showOsLaunches ? 'Ocultar lançamentos por OS' : 'Ver lançamentos por OS']} onGhostAction={(label) => label.includes('critério') || label.includes('critérios') ? setCompare((value) => !value) : setShowOsLaunches((value) => !value)} action="Exportar relatório" onAction={exportProductivityWorkbook} />
       <div className="toolbar productivity-toolbar">
         <div className="filter"><label>Período</label><select value={filters.period} onChange={(event) => setFilters((old) => ({ ...old, period: event.target.value }))}><option>Hoje</option><option>Esta semana</option><option>Este mês</option><option>Personalizado</option></select></div>
         {filters.period === 'Personalizado' && <><div className="filter"><label>De</label><input type="date" value={filters.from} onChange={(event) => setFilters((old) => ({ ...old, from: event.target.value || old.from }))} /></div><div className="filter"><label>Até</label><input type="date" value={filters.to} onChange={(event) => setFilters((old) => ({ ...old, to: event.target.value || old.to }))} /></div></>}
