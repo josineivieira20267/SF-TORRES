@@ -430,6 +430,11 @@ function formatPersonNameInput(value) {
   return String(value || '').toLowerCase().replace(/\S+/g, (part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`);
 }
 
+function initials(value = '') {
+  const parts = String(value || '').trim().split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] || 'S') + (parts.length > 1 ? parts[parts.length - 1][0] : parts[0]?.[1] || 'F')).toUpperCase();
+}
+
 function cpfDigits(value) {
   return String(value || '').replace(/\D/g, '').slice(0, 11);
 }
@@ -962,30 +967,36 @@ function AccessDenied() {
 
 function LeaderMobileNav({ active, title, onRefresh }) {
   const user = currentUser();
-  const go = (key) => {
-    if (!canView(key, user)) return;
-    window.location.hash = `#/${key}`;
-  };
   const logout = () => {
     localStorage.removeItem('sfTorresToken');
     localStorage.removeItem('sfTorresUser');
     window.location.hash = '#/login';
   };
+  const firstName = (user.name || user.email || 'Líder').split(/\s+/)[0];
   return (
     <div className="schedule-mobile-head">
       <div className="leader-mobile-title">
-        <span>{user.name || user.email || 'Líder'}</span>
-        <h2>{title}</h2>
-        <div className="leader-mobile-tabs">
-          <button type="button" className={active === 'schedules' ? 'active' : ''} onClick={() => go('schedules')}>Minhas OS</button>
-          <button type="button" className={active === 'leaderAttendance' ? 'active' : ''} onClick={() => go('leaderAttendance')}>Chamada</button>
-        </div>
+        <h2>Olá, {firstName}</h2>
+        <span>{title}</span>
       </div>
       <div className="leader-mobile-actions">
-        <button className="btn btn-primary" onClick={onRefresh}>Atualizar</button>
-        <button className="btn leader-logout" onClick={logout}>Sair</button>
+        <button className="leader-icon-btn" onClick={onRefresh} title="Atualizar"><Icon name="refresh" /></button>
+        <button className="leader-icon-btn" onClick={logout} title="Sair">⋮</button>
       </div>
     </div>
+  );
+}
+
+function LeaderBottomNav({ active }) {
+  const go = (key) => {
+    if (!canView(key)) return;
+    window.location.hash = `#/${key}`;
+  };
+  return (
+    <nav className="leader-bottom-nav">
+      <button type="button" className={active === 'schedules' ? 'active' : ''} onClick={() => go('schedules')}><Icon name="file" /><span>Minhas OS</span></button>
+      <button type="button" className={active === 'leaderAttendance' ? 'active' : ''} onClick={() => go('leaderAttendance')}><Icon name="users" /><span>Chamada</span></button>
+    </nav>
   );
 }
 
@@ -1219,23 +1230,24 @@ function Schedules({ notify, editable = true }) {
   const scheduleCard = (item) => {
     const members = Array.isArray(item.teamMembers) && item.teamMembers.length ? item.teamMembers : [];
     const active = normalize(item.status).includes('exec');
+    const done = isFinalStatus(item.status);
     return (
       <article className={`schedule-card ${active ? 'is-active' : ''}`} key={item.id || item.number}>
         <div className="schedule-card-top">
           <div>
-            <span className="schedule-os">OS {item.number}</span>
+            <span className="schedule-os">OS #{item.number}</span>
             <h3>{item.client || '-'}</h3>
           </div>
           <Pill value={item.status} />
         </div>
         <div className="schedule-main-info">
-          <div><span>Servico</span><b>{item.service || '-'}</b></div>
-          <div><span>Produto</span><b>{item.product || '-'}</b></div>
-          <div><span>Data</span><b>{dateTime(item.date)}</b></div>
-          <div><span>Inicio</span><b>{item.operationStart || '-'}</b></div>
+          <div><Icon name="file" /><span>Serviço</span><b>{item.service || '-'}</b></div>
+          <div><Icon name="box" /><span>Produto</span><b>{item.product || '-'}</b></div>
+          <div><Icon name="clock" /><span>{done ? 'Data' : 'Data agendada'}</span><b>{dateTime(item.date)}</b></div>
+          <div><Icon name="clock" /><span>{done ? 'Início' : 'Início previsto'}</span><b>{item.operationStart || '-'}</b></div>
         </div>
         <div className="schedule-members">
-          <span>Equipe</span>
+          <span><Icon name="users" /> Equipe</span>
           <p>{members.length ? members.join(', ') : 'Sem integrantes definidos'}</p>
         </div>
         {mobileActions(item)}
@@ -1246,7 +1258,7 @@ function Schedules({ notify, editable = true }) {
   return (
     <>
       <PageHead title="Programação de Equipes" subtitle="Fila de OS criadas pela administração para o líder vincular e acompanhar pelo próprio usuário." ghostAction="Exportar OS" onGhostAction={exportRows} action="Atualizar" onAction={load} />
-      <LeaderMobileNav active="schedules" title="Minhas OS" onRefresh={load} />
+      <LeaderMobileNav active="schedules" title="Minhas ordens de serviço" onRefresh={load} />
       <div className="toolbar schedule-toolbar">
         <div className="filter"><label>Buscar</label><input type="text" value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="OS, cliente, equipamento..." /></div>
         <div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Programado</option><option>Em execucao</option><option>Finalizado</option><option>Cancelado</option></select></div>
@@ -1262,6 +1274,7 @@ function Schedules({ notify, editable = true }) {
         {loading ? <LoadingBlock /> : visibleOrders.map(scheduleCard)}
         {!loading && !visibleOrders.length && <div className="empty-chart">Nenhuma OS encontrada</div>}
       </div>
+      <LeaderBottomNav active="schedules" />
       <div className="schedule-table-panel"><Panel title="OS direcionadas ao lider" actions={<Pill value={user.name || user.email || 'usuario'} />}><DataTable columns={['OS', 'Cliente', 'Servico', 'Produto', 'Integrantes', 'Data programada', 'Status', 'Inicio', 'Fim', 'Acao']} rows={rows} loading={loading} /></Panel></div>
       {operationModal && <Editor title="Editar operacao da OS" uppercase fields={[['carrier', 'Transportador', 'text', null, null, true], ['product', 'Produto', 'text', null, null, true], ['equipment', 'Equipamento', 'select', equipmentOptions, null, true], ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')], ['trailerPlate', 'Placa da carreta', 'text', null, (form) => normalize(form.equipment).includes('carreta')], ['teamMembers', 'Incluir integrantes da equipe', 'employees', { endpoint: '/api/employees', roles: isMichelinOrder(operationModal, productivityRules) ? [] : productivityRules.standard }], ['teamNote', 'Observacao obrigatoria ao alterar equipe', 'textarea', null, () => absenceCount(operationModal) > 0], ['progress', 'Percentual', 'number', null, null, true]]} initial={operationModal} onCancel={() => setOperationModal(null)} onSave={saveOperationEdit} />}
       {occurrenceModal && <Editor title={`Lançar ocorrência · OS ${occurrenceModal.number}`} fields={occurrenceFields} initial={{ workOrder: occurrenceModal.number, type: 'Operacional', status: 'Aberta' }} onCancel={() => setOccurrenceModal(null)} onSave={saveLeaderOccurrence} />}
@@ -1275,6 +1288,7 @@ function LeaderAttendance({ notify, editable = true }) {
   const approverProfile = canApproveAttendance(user);
   const [dateValue, setDateValue] = useState(localDateValue(new Date()));
   const [query, setQuery] = useState('');
+  const [mobileFilter, setMobileFilter] = useState('Todos');
   const [payload, setPayload] = useState(null);
   const [loading, setLoading] = useState(true);
   const load = (date = dateValue, q = query) => {
@@ -1290,6 +1304,12 @@ function LeaderAttendance({ notify, editable = true }) {
   }, [dateValue, query]);
   const employees = payload?.employees || [];
   const summary = payload?.summary || { total: 0, present: 0, absences: 0, pending: 0 };
+  const filteredEmployees = employees.filter((item) => {
+    if (mobileFilter === 'Presentes') return normalize(item.status) === 'presente';
+    if (mobileFilter === 'Faltas') return normalize(item.status) === 'falta';
+    if (mobileFilter === 'Resultados') return Boolean(item.status);
+    return true;
+  });
   const updateEmployee = (name, patch) => setPayload((old) => ({
     ...old,
     employees: (old?.employees || []).map((item) => item.name === name ? { ...item, ...patch } : item)
@@ -1338,7 +1358,7 @@ function LeaderAttendance({ notify, editable = true }) {
       </>
     );
   };
-  const rows = loading ? null : employees.map((item) => [
+  const rows = loading ? null : filteredEmployees.map((item) => [
     <b>{item.name}</b>,
     item.role || '-',
     item.team || '-',
@@ -1347,10 +1367,12 @@ function LeaderAttendance({ notify, editable = true }) {
   ]);
   const attendanceCard = (item) => (
     <article className="attendance-card" key={item.name}>
+      <div className={`attendance-avatar ${normalize(item.status) === 'falta' ? 'danger' : ''}`}>{initials(item.name)}</div>
       <div className="attendance-card-main">
         <div>
           <h3>{item.name}</h3>
           <p>{[item.role, item.team].filter(Boolean).join(' · ') || '-'}</p>
+          <small><Icon name="users" /> Equipe: <b>{item.team || '-'}</b></small>
         </div>
         {item.correctionRequest?.status === 'Pendente' ? <Pill value="Correção pendente" /> : item.status ? <Pill value={item.status} /> : <span className="attendance-pending">Sem marcação</span>}
       </div>
@@ -1375,14 +1397,24 @@ function LeaderAttendance({ notify, editable = true }) {
         <Kpi icon="alert" label="Faltas" value={summary.absences} delta="registradas no dia" warning />
         <Kpi icon="clock" label="Resultados" value={employees.length} delta={query.trim() ? 'da busca no banco' : 'ja marcados'} />
       </div>
-      <div className="attendance-mobile-list">
-        {loading ? <LoadingBlock /> : employees.map(attendanceCard)}
-        {!loading && !employees.length && <div className="empty-chart">{query.trim() ? 'Nenhum colaborador encontrado para a busca.' : 'Pesquise um colaborador para marcar presença ou falta.'}</div>}
+      <div className="leader-filter-tabs">
+        {[
+          ['Todos', employees.length],
+          ['Presentes', summary.present],
+          ['Faltas', summary.absences],
+          ['Resultados', employees.filter((item) => item.status).length]
+        ].map(([label, count]) => <button type="button" key={label} className={mobileFilter === label ? 'active' : ''} onClick={() => setMobileFilter(label)}>{label} <span>{count}</span></button>)}
       </div>
+      <div className="attendance-mobile-list">
+        {loading ? <LoadingBlock /> : filteredEmployees.map(attendanceCard)}
+        {!loading && !filteredEmployees.length && <div className="empty-chart">{query.trim() ? 'Nenhum colaborador encontrado para a busca.' : 'Pesquise um colaborador para marcar presença ou falta.'}</div>}
+        {!loading && filteredEmployees.length > 0 && <div className="attendance-finish-card"><Icon name="help" /><div><b>Finalize a chamada</b><span>Confira os registros e finalize a chamada do dia.</span></div><button className="btn btn-primary" onClick={() => notify('Chamada conferida')}>Finalizar chamada</button></div>}
+      </div>
+      <LeaderBottomNav active="leaderAttendance" />
       <div className="attendance-table-panel">
         <Panel title="Presença dos colaboradores" actions={<Pill value={date(dateValue)} />} padded>
           <DataTable columns={['Colaborador', 'Função', 'Equipe', 'Status', 'Marcar']} rows={rows} loading={loading} />
-          {!loading && !employees.length && <div className="empty-chart">{query.trim() ? 'Nenhum colaborador encontrado para a busca.' : 'Pesquise um colaborador para marcar presença ou falta.'}</div>}
+          {!loading && !filteredEmployees.length && <div className="empty-chart">{query.trim() ? 'Nenhum colaborador encontrado para a busca.' : 'Pesquise um colaborador para marcar presença ou falta.'}</div>}
         </Panel>
       </div>
     </>

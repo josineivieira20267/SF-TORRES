@@ -755,6 +755,7 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 .schedule-table-panel{display:block}
 .attendance-mobile-list{display:none}
 .attendance-table-panel{display:block}
+.leader-bottom-nav{display:none}
 
 @media (max-width:820px){
   .app-route-schedules,.app-route-leaderAttendance{display:block;height:auto;min-height:100vh}
@@ -827,6 +828,105 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   .schedule-card-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .schedule-touch-action{height:42px;justify-content:center;border-radius:8px;font-weight:700}
   .schedule-touch-action.primary-touch{grid-column:1 / -1}
+  .app-route-schedules .page,.app-route-leaderAttendance .page{padding:0 16px calc(96px + env(safe-area-inset-bottom));background:#F6F8FC}
+  .schedule-mobile-head{
+    display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:14px;
+    margin:0 -16px 0;padding:44px 20px 78px;background:#073A7A;color:#FFFFFF;position:relative;top:auto;
+    box-shadow:none;border-radius:0;
+  }
+  .leader-mobile-title h2{margin:0;font-size:28px;line-height:1.05;color:#FFFFFF;font-weight:800;letter-spacing:0}
+  .schedule-mobile-head span{max-width:none;margin-top:6px;font-size:16px;color:#FFFFFF;text-transform:none;letter-spacing:0;font-weight:500;opacity:.95}
+  .leader-mobile-actions{display:flex;gap:10px}
+  .leader-icon-btn{
+    width:56px;height:56px;border:1px solid rgba(255,255,255,.18);border-radius:12px;background:rgba(255,255,255,.12);
+    color:#FFFFFF;display:grid;place-items:center;font-size:28px;font-weight:800;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);
+  }
+  .schedule-toolbar,.app-route-leaderAttendance .toolbar{
+    position:relative;z-index:2;margin:-34px 0 18px;padding:0;background:transparent;border:none;box-shadow:none;
+  }
+  .app-route-schedules .schedule-toolbar{grid-template-columns:1fr}
+  .app-route-schedules .schedule-toolbar .filter:nth-of-type(2){display:none}
+  .app-route-leaderAttendance .toolbar{grid-template-columns:minmax(116px,.42fr) 1fr}
+  .schedule-toolbar .filter,.app-route-leaderAttendance .toolbar .filter{
+    height:64px;background:#FFFFFF;border:1px solid #DFE5EE;border-radius:10px;padding:0 14px;box-shadow:0 7px 18px rgba(15,36,71,.06);
+  }
+  .schedule-toolbar .filter label,.app-route-leaderAttendance .toolbar .filter label{font-size:10px;font-weight:800;color:#7B8798}
+  .schedule-toolbar .filter input,.schedule-toolbar .filter select,
+  .app-route-leaderAttendance .toolbar .filter input,.app-route-leaderAttendance .toolbar .filter select{font-size:14px;font-weight:650;color:#0F2447}
+  .app-route-schedules .kpi-grid,.app-route-leaderAttendance .kpi-grid{
+    display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:0 0 18px;background:#FFFFFF;border:1px solid #E4E9F1;
+    border-radius:10px;box-shadow:0 8px 22px rgba(15,36,71,.05);overflow:hidden;
+  }
+  .app-route-schedules .kpi,.app-route-leaderAttendance .kpi{
+    display:grid;grid-template-columns:1fr;justify-items:center;text-align:center;gap:7px;min-height:112px;border:0;border-radius:0;box-shadow:none;
+    border-right:1px solid #E7ECF3;padding:16px 8px;background:#FFFFFF;
+  }
+  .app-route-schedules .kpi:last-child,.app-route-leaderAttendance .kpi:last-child{border-right:0}
+  .app-route-schedules .kpi .ico,.app-route-leaderAttendance .kpi .ico{width:30px;height:30px;background:transparent;border:0;color:#0B64CE}
+  .app-route-schedules .kpi-warning .ico,.app-route-leaderAttendance .kpi-warning .ico{color:#D28705}
+  .app-route-schedules .kpi-success .ico,.app-route-leaderAttendance .kpi-success .ico{color:#129358}
+  .app-route-schedules .kpi-danger .ico,.app-route-leaderAttendance .kpi-danger .ico{color:#C73030}
+  .app-route-schedules .kpi .value,.app-route-leaderAttendance .kpi .value{font-size:26px;line-height:1;color:#092655}
+  .app-route-schedules .kpi .label,.app-route-leaderAttendance .kpi .label{font-size:13px;text-transform:none;color:#172A4A}
+  .app-route-schedules .kpi .delta,.app-route-leaderAttendance .kpi .delta{display:none}
+  .app-route-schedules .kpi .label,.app-route-leaderAttendance .kpi .label{order:3}
+  .app-route-schedules .kpi .value,.app-route-leaderAttendance .kpi .value{order:2}
+  .schedule-mobile-list,.attendance-mobile-list{gap:14px}
+  .schedule-card{
+    border:1px solid #E4E9F1;border-radius:10px;padding:18px 26px;background:#FFFFFF;box-shadow:0 10px 24px rgba(15,36,71,.06);
+  }
+  .schedule-card-top{padding-bottom:16px}
+  .schedule-card-top h3{font-size:26px;font-weight:850;color:#071D44;text-transform:uppercase}
+  .schedule-os{font-size:16px;font-family:inherit;color:#0B64CE;font-weight:800}
+  .schedule-main-info{grid-template-columns:1fr 1fr;gap:0;padding:14px 0;border-top:1px solid #EEF1F6;border-bottom:1px solid #EEF1F6}
+  .schedule-main-info div{
+    display:grid;grid-template-columns:26px 1fr;column-gap:10px;align-items:center;background:transparent;border:0;border-radius:0;padding:10px 10px;
+  }
+  .schedule-main-info div:nth-child(odd){border-right:1px solid #E7ECF3}
+  .schedule-main-info svg{grid-row:1 / span 2;color:#61708A;width:22px;height:22px}
+  .schedule-main-info span{font-size:12px;text-transform:none;letter-spacing:0;color:#69778D}
+  .schedule-main-info b{font-size:15px;color:#071D44}
+  .schedule-members{border-top:0;padding:12px 0 14px}
+  .schedule-members span{display:flex;align-items:center;gap:8px;font-size:12px;text-transform:none;letter-spacing:0;color:#69778D}
+  .schedule-members p{font-size:15px;color:#071D44}
+  .schedule-card-actions{grid-template-columns:.8fr 1.12fr;gap:12px}
+  .schedule-touch-action{height:56px;border-radius:8px;font-size:16px;font-weight:800}
+  .schedule-touch-action.primary-touch{grid-column:auto}
+  .leader-filter-tabs{
+    display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:0 0 18px;background:#FFFFFF;border:1px solid #E0E5EF;border-radius:8px;overflow:hidden;
+  }
+  .leader-filter-tabs button{height:48px;border:0;border-right:1px solid #E0E5EF;background:#FFFFFF;color:#172A4A;font-weight:800}
+  .leader-filter-tabs button:last-child{border-right:0}
+  .leader-filter-tabs button.active{background:#073A7A;color:#FFFFFF}
+  .leader-filter-tabs span{display:inline-grid;place-items:center;min-width:20px;height:20px;margin-left:4px;border-radius:999px;background:rgba(15,36,71,.1);font-size:12px}
+  .leader-filter-tabs button.active span{background:rgba(255,255,255,.18)}
+  .attendance-card{
+    display:grid;grid-template-columns:76px 1fr;gap:0;border:1px solid #E4E9F1;border-radius:10px;padding:26px 22px;background:#FFFFFF;box-shadow:0 10px 24px rgba(15,36,71,.06);
+  }
+  .attendance-avatar{
+    width:56px;height:56px;border-radius:50%;display:grid;place-items:center;background:#DDF3E9;color:#07935C;font-size:22px;font-weight:850;align-self:center;
+  }
+  .attendance-avatar.danger{background:#F9DDE1;color:#B41F2B}
+  .attendance-card-main{border-bottom:0;padding:0;align-items:flex-start}
+  .attendance-card-main h3{font-size:18px;font-weight:850;color:#071D44}
+  .attendance-card-main p{font-size:15px;color:#69778D}
+  .attendance-card-main small{display:flex;align-items:center;gap:6px;margin-top:12px;color:#69778D;font-size:14px}
+  .attendance-card-main .pill{height:32px;border-radius:6px;font-size:13px}
+  .attendance-actions{grid-column:2;display:flex;justify-content:flex-end;padding-top:12px}
+  .attendance-actions .btn{min-width:170px;height:50px;border-radius:8px;font-size:15px}
+  .attendance-finish-card{
+    display:grid;grid-template-columns:34px 1fr auto;gap:14px;align-items:center;background:#EAF4FF;border:1px solid #CFE4FF;border-radius:8px;padding:16px;color:#073A7A;
+  }
+  .attendance-finish-card b{display:block;color:#092655}
+  .attendance-finish-card span{display:block;color:#233B61;font-size:13px}
+  .attendance-finish-card .btn{height:56px;border-radius:8px;font-size:15px;font-weight:850}
+  .leader-bottom-nav{
+    position:fixed;left:16px;right:16px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:35;display:grid;grid-template-columns:1fr 1fr;
+    height:72px;background:#FFFFFF;border:1px solid #E4E9F1;border-radius:16px;box-shadow:0 12px 34px rgba(15,36,71,.16);
+  }
+  .leader-bottom-nav button{border:0;background:transparent;color:#53627A;display:grid;place-items:center;align-content:center;gap:4px;font-weight:700}
+  .leader-bottom-nav button.active{color:#0B64CE}
+  .leader-bottom-nav svg{width:24px;height:24px}
   .modal{
     width:calc(100vw - 20px);max-width:none;height:calc(100dvh - 20px);max-height:calc(100dvh - 20px);
     border-radius:10px;display:flex;flex-direction:column;overflow:hidden;
