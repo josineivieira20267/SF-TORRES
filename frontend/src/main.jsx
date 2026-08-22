@@ -1858,7 +1858,11 @@ function panelTitle(config, count) {
 }
 
 function Editor({ title, fields, initial, onCancel, onSave }) {
-  const [form, setForm] = useState(() => ({ ...Object.fromEntries(fields.map(([name, , type]) => [name, ['permissions', 'employees'].includes(type) ? (initial?.[name] || (type === 'permissions' ? defaultUserPermissions(initial?.role) : [])) : initial?.[name] ?? ''])), teamRoles: initial?.teamRoles || {} }));
+  const hasEmployeePicker = fields.some(([, , type]) => type === 'employees');
+  const [form, setForm] = useState(() => ({
+    ...Object.fromEntries(fields.map(([name, , type]) => [name, ['permissions', 'employees'].includes(type) ? (initial?.[name] || (type === 'permissions' ? defaultUserPermissions(initial?.role) : [])) : initial?.[name] ?? ''])),
+    ...(hasEmployeePicker ? { teamRoles: initial?.teamRoles || {} } : {})
+  }));
   const [submitting, setSubmitting] = useState(false);
   const change = (name, value, type) => setForm((old) => {
     const formatted = type === 'number' ? Number(value || 0) : type === 'cpf' ? formatCpf(value) : type === 'personName' ? formatPersonNameInput(value) : value;
