@@ -1037,7 +1037,6 @@ function Tower() {
 function Schedules({ notify, editable = true }) {
   const user = currentUser();
   const [items, setItems] = useState([]);
-  const [employees, setEmployees] = useState([]);
   const [equipment, setEquipment] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ q: '', status: 'Todos' });
@@ -1046,7 +1045,6 @@ function Schedules({ notify, editable = true }) {
   const load = () => { setLoading(true); api(workOrdersEndpoint()).then((p) => setItems(listData(p))).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
   useEffect(() => { load(); }, []);
   useEffect(() => {
-    api('/api/employees').then((payload) => setEmployees(listData(payload))).catch(() => {});
     api('/api/equipment').then((payload) => setEquipment(listData(payload))).catch(() => {});
   }, []);
   const belongsToLeader = (order) => {
@@ -1079,7 +1077,6 @@ function Schedules({ notify, editable = true }) {
     setOccurrenceModal(null);
   };
   const exportRows = () => downloadCsv('programacao-os-lider.csv', [['OS', 'Cliente', 'Servico', 'Equipamento', 'Local', 'Lider', 'Status', 'Data'], ...visibleOrders.map((item) => [item.number, item.client, item.service, item.equipment, item.location, item.responsible, item.status, item.date])]);
-  const employeeOptions = employees.map((item) => item.name).filter(Boolean);
   const equipmentOptions = ['', ...Array.from(new Set(equipment.map((item) => [item.code, item.type].filter(Boolean).join(' - ')).filter(Boolean)))];
   const saveOperationEdit = (data) => {
     const required = [['carrier', 'Transportador'], ['equipment', 'Equipamento'], ['product', 'Produto'], ['progress', 'Percentual']];
@@ -1088,7 +1085,7 @@ function Schedules({ notify, editable = true }) {
     const before = Array.isArray(operationModal.teamMembers) ? operationModal.teamMembers : [];
     const after = Array.isArray(data.teamMembers) ? data.teamMembers : [];
     const changedTeam = before.length !== after.length || before.some((name) => !after.includes(name)) || after.some((name) => !before.includes(name));
-    if (changedTeam && !String(data.teamNote || '').trim()) return notify('Informe a observacao/justificativa para alterar integrantes da equipe');
+    if (changedTeam && absenceCount(operationModal) > 0 && !String(data.teamNote || '').trim()) return notify('Informe a observacao/justificativa para alterar integrantes da equipe');
     return updateOrder(operationModal, { ...data, location: '', correctionRequested: false, correctionApproved: false }, 'Dados operacionais atualizados');
   };
   const leaderActions = (item) => {
@@ -1170,7 +1167,7 @@ function Schedules({ notify, editable = true }) {
         {!loading && !visibleOrders.length && <div className="empty-chart">Nenhuma OS encontrada</div>}
       </div>
       <div className="schedule-table-panel"><Panel title="OS direcionadas ao lider" actions={<Pill value={user.name || user.email || 'usuario'} />}><DataTable columns={['OS', 'Cliente', 'Servico', 'Produto', 'Integrantes', 'Data programada', 'Status', 'Inicio', 'Fim', 'Acao']} rows={rows} loading={loading} /></Panel></div>
-      {operationModal && <Editor title="Editar operacao da OS" fields={[['carrier', 'Transportador', 'text', null, null, true], ['product', 'Produto', 'text', null, null, true], ['equipment', 'Equipamento', 'select', equipmentOptions, null, true], ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')], ['trailerPlate', 'Placa da carreta', 'text', null, (form) => normalize(form.equipment).includes('carreta')], ['teamMembers', 'Incluir integrantes da equipe', 'employees', employeeOptions, () => absenceCount(operationModal) > 0], ['teamNote', 'Observacao obrigatoria ao alterar equipe', 'textarea', null, () => absenceCount(operationModal) > 0], ['progress', 'Percentual', 'number', null, null, true]]} initial={operationModal} onCancel={() => setOperationModal(null)} onSave={saveOperationEdit} />}
+      {operationModal && <Editor title="Editar operacao da OS" fields={[['carrier', 'Transportador', 'text', null, null, true], ['product', 'Produto', 'text', null, null, true], ['equipment', 'Equipamento', 'select', equipmentOptions, null, true], ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')], ['trailerPlate', 'Placa da carreta', 'text', null, (form) => normalize(form.equipment).includes('carreta')], ['teamMembers', 'Incluir integrantes da equipe', 'employees', { endpoint: '/api/employees' }], ['teamNote', 'Observacao obrigatoria ao alterar equipe', 'textarea', null, () => absenceCount(operationModal) > 0], ['progress', 'Percentual', 'number', null, null, true]]} initial={operationModal} onCancel={() => setOperationModal(null)} onSave={saveOperationEdit} />}
       {occurrenceModal && <Editor title={`Lançar ocorrência · OS ${occurrenceModal.number}`} fields={occurrenceFields} initial={{ workOrder: occurrenceModal.number, type: 'Operacional', status: 'Aberta' }} onCancel={() => setOccurrenceModal(null)} onSave={saveLeaderOccurrence} />}
     </>
   );
