@@ -1501,7 +1501,7 @@ function Productivity() {
   const [productivityRules, setProductivityRules] = useState(defaultProductivityRules);
   const [attendanceSummary, setAttendanceSummary] = useState({ employees: [] });
   const [compare, setCompare] = useState(false);
-  const [showOsLaunches, setShowOsLaunches] = useState(true);
+  const [showOsLaunches, setShowOsLaunches] = useState(false);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ q: '', employee: 'Todos', criterion: 'Todos', status: 'Todos', client: 'Todos', service: 'Todos', period: 'Este mês', from: monthRange().from.slice(0, 10), to: monthRange().to.slice(0, 10) });
   const productivityRange = () => {
