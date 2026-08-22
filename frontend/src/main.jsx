@@ -1047,8 +1047,21 @@ function Tower() {
     triggerAction(`Equipe acionada para OS ${order.number}`);
     load();
   };
-  const rows = visible.map((order) => [order.number, order.client, order.location || '-', order.carrier || 'Sem equipe', dateTime(order.date), dateTime(order.operationStart), dateTime(order.operationEnd), <Pill value={order.status} />]);
-  return <><PageHead title="Torre Operacional" subtitle="Painel em tempo real das operações em andamento e fila de execução." ghostAction="Tempo real" onGhostAction={() => setStatusFilter((value) => value === 'Todos' ? 'Fila' : 'Todos')} action="Atualizar" onAction={load} /><div className="toolbar"><div className="filter"><label>Período</label><input type="month" value={month} onChange={(event) => setMonth(event.target.value || currentMonthValue())} /></div><span className="spacer" /><span className="soft">Dados filtrados no banco pelo mês selecionado</span></div>{error ? <Panel title="Banco indisponível" padded actions={<button className="btn btn-sm btn-primary" onClick={load}>Tentar novamente</button>}><p className="soft">{error}</p></Panel> : <><div className="kpi-grid"><Kpi icon="pulse" label="Operações ativas" value={active} delta="em campo agora" /><Kpi icon="clock" label="Na fila" value={queue} delta="próximas 24h" warning /><Kpi icon="check" label="Concluídas" value={done} delta="ordens no sistema" success /><Kpi icon="alert" label="Alertas" value={alertCount} delta="atenção da torre" danger /></div><Panel title="Fila de execução" actions={<><button className="btn btn-sm" onClick={() => setStatusFilter((value) => value === 'Todos' ? 'Fila' : 'Todos')}>{statusFilter === 'Todos' ? 'Ver fila' : 'Ver todas'}</button><button className="btn btn-sm btn-primary" onClick={assignTeam}>Acionar equipe</button></>}><DataTable columns={['OS', 'Cliente', 'Local', 'Equipe', 'Data programada', 'Início', 'Término', 'Status']} rows={rows} loading={loading} /></Panel></>}</>;
+  const rows = visible.map((order) => [
+    order.number,
+    order.client,
+    `${Number(order.progress || 0)}%`,
+    order.responsible || '-',
+    order.equipment || '-',
+    order.product || '-',
+    order.service || '-',
+    order.carrier || '-',
+    dateTime(order.date),
+    dateTime(order.operationStart),
+    dateTime(order.operationEnd),
+    <Pill value={order.status} />
+  ]);
+  return <><PageHead title="Torre Operacional" subtitle="Painel em tempo real das operações em andamento e fila de execução." ghostAction="Tempo real" onGhostAction={() => setStatusFilter((value) => value === 'Todos' ? 'Fila' : 'Todos')} action="Atualizar" onAction={load} /><div className="toolbar"><div className="filter"><label>Período</label><input type="month" value={month} onChange={(event) => setMonth(event.target.value || currentMonthValue())} /></div><span className="spacer" /><span className="soft">Dados filtrados no banco pelo mês selecionado</span></div>{error ? <Panel title="Banco indisponível" padded actions={<button className="btn btn-sm btn-primary" onClick={load}>Tentar novamente</button>}><p className="soft">{error}</p></Panel> : <><div className="kpi-grid"><Kpi icon="pulse" label="Operações ativas" value={active} delta="em campo agora" /><Kpi icon="clock" label="Na fila" value={queue} delta="próximas 24h" warning /><Kpi icon="check" label="Concluídas" value={done} delta="ordens no sistema" success /><Kpi icon="alert" label="Alertas" value={alertCount} delta="atenção da torre" danger /></div><Panel title="Fila de execução" actions={<><button className="btn btn-sm" onClick={() => setStatusFilter((value) => value === 'Todos' ? 'Fila' : 'Todos')}>{statusFilter === 'Todos' ? 'Ver fila' : 'Ver todas'}</button><button className="btn btn-sm btn-primary" onClick={assignTeam}>Acionar equipe</button></>}><DataTable columns={['OS', 'Cliente', 'Percentual', 'Responsável', 'Equipamento', 'Produto', 'Serviço', 'Transportadora', 'Data programada', 'Início', 'Término', 'Status']} rows={rows} loading={loading} /></Panel></>}</>;
 }
 
 function Schedules({ notify, editable = true }) {
@@ -1606,7 +1619,6 @@ function DailyOps({ notify, editable = true }) {
     return text.includes(query.trim()) && statusOk && clientOk;
   });
   const selected = filteredItems.find((i) => i.id === selectedId) || filteredItems[0];
-  const counts = useMemo(() => filteredItems.reduce((acc, item) => ({ ...acc, [item.status]: (acc[item.status] || 0) + 1 }), {}), [filteredItems]);
   const load = () => {
     const range = periodRange();
     setLoading(true);
@@ -1688,12 +1700,6 @@ function DailyOps({ notify, editable = true }) {
         {filters.period === 'Personalizado' && <><div className="filter"><label>De</label><input type="date" value={filters.from} onChange={(event) => setFilters((old) => ({ ...old, from: event.target.value || old.from }))} /></div><div className="filter"><label>Até</label><input type="date" value={filters.to} onChange={(event) => setFilters((old) => ({ ...old, to: event.target.value || old.to }))} /></div></>}
         <span className="spacer" />
         <span className="soft">{filteredItems.length} resultados</span>
-      </div>
-      <div className="kpi-grid">
-        <Kpi icon="check" label="Programadas" value={counts.Programado || 0} delta="prontas para execução" success />
-        <Kpi icon="clock" label="Finalizadas" value={counts.Finalizado || 0} delta="operações concluídas" warning />
-        <Kpi icon="home" label="Em execução" value={counts['Em execucao'] || 0} delta="campo" />
-        <Kpi icon="alert" label="Ocorrências" value="02" delta="em análise" danger />
       </div>
       <div className="detail">
         <div className="pane" style={{ overflow: 'hidden' }}>
