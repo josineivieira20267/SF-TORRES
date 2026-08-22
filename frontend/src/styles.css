@@ -827,9 +827,17 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   .schedule-card-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .schedule-touch-action{height:42px;justify-content:center;border-radius:8px;font-weight:700}
   .schedule-touch-action.primary-touch{grid-column:1 / -1}
-  .modal{width:calc(100vw - 20px);max-width:none;max-height:calc(100vh - 20px);border-radius:10px}
-  .modal-head{height:auto;min-height:50px}
-  .modal-body{padding:12px}
+  .modal{
+    width:calc(100vw - 20px);max-width:none;height:calc(100dvh - 20px);max-height:calc(100dvh - 20px);
+    border-radius:10px;display:flex;flex-direction:column;overflow:hidden;
+  }
+  .modal-head{height:auto;min-height:50px;flex:0 0 auto}
+  .modal-body{padding:12px;overflow:auto;flex:1;min-height:0}
+  .modal-actions{
+    position:sticky;bottom:0;z-index:2;margin:14px -12px -12px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+    background:var(--c-surface);box-shadow:0 -10px 22px rgba(15,36,71,.08);
+  }
+  .modal-actions .btn{min-height:42px}
 }
 
 /* ---------- Dashboard operacional com graficos ----------- */

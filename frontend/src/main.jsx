@@ -1135,8 +1135,38 @@ function Schedules({ notify, editable = true }) {
     setOperationModal(null);
     load();
   };
-  const markStart = (order) => updateOrder(order, { operationStart: new Date().toLocaleString('pt-BR'), operationEnd: '', status: 'Em execucao', progress: Math.max(Number(order.progress || 0), 10) }, 'Inicio da operacao marcado');
-  const markEnd = (order) => updateOrder(order, { operationEnd: new Date().toLocaleString('pt-BR'), status: 'Finalizado', progress: 100, correctionRequested: false, correctionApproved: false }, 'Fim da operacao marcado');
+  const scheduledDateValue = (order) => {
+    const raw = String(order.date || '').slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    const parsed = new Date(order.date || Date.now());
+    return Number.isNaN(parsed.getTime()) ? localDateValue(new Date()) : localDateValue(parsed);
+  };
+  const missingLeaderOperationFields = (order) => {
+    const required = [['carrier', 'Transportador'], ['equipment', 'Equipamento'], ['product', 'Produto'], ['progress', 'Percentual']];
+    const missing = required.find(([name]) => String(order[name] ?? '').trim() === '');
+    if (missing) return missing[1];
+    if (normalize(order.equipment).includes('container') && !String(order.containerNumber || '').trim()) return 'Número do container';
+    if (normalize(order.equipment).includes('carreta') && !String(order.trailerPlate || '').trim()) return 'Placa da carreta';
+    if (!Array.isArray(order.teamMembers) || !order.teamMembers.length) return 'Integrantes da equipe';
+    return '';
+  };
+  const markStart = async (order) => {
+    const missing = missingLeaderOperationFields(order);
+    if (missing) return notify(`Preencha ${missing} antes de iniciar a OS`);
+    return updateOrder(order, { operationStart: new Date().toLocaleString('pt-BR'), operationEnd: '', status: 'Em execucao', progress: Math.max(Number(order.progress || 0), 10) }, 'Inicio da operacao marcado');
+  };
+  const markEnd = async (order) => {
+    const members = Array.isArray(order.teamMembers) ? order.teamMembers : [];
+    if (!members.length) return notify('Inclua colaboradores na OS antes de finalizar');
+    const date = scheduledDateValue(order);
+    const results = await withBusy(() => Promise.all(members.map((name) => api(`/api/leader-attendance?date=${encodeURIComponent(date)}&q=${encodeURIComponent(name)}`).then((payload) => {
+      const employee = (payload.data?.employees || []).find((item) => normalize(item.name) === normalize(name));
+      return { name, status: employee?.status || '' };
+    }).catch(() => ({ name, status: '' })))));
+    const pending = results.filter((item) => !String(item.status || '').trim()).map((item) => item.name);
+    if (pending.length) return notify(`Marque presença ou falta na chamada antes de finalizar: ${pending.join(', ')}`);
+    return updateOrder(order, { operationEnd: new Date().toLocaleString('pt-BR'), status: 'Finalizado', progress: 100, correctionRequested: false, correctionApproved: false }, 'Fim da operacao marcado');
+  };
   const requestLeaderCorrection = async (order) => {
     if (order.correctionRequested && !order.correctionApproved) return notify('Correção já solicitada ao administrativo');
     await updateOrder(order, { correctionRequested: true, correctionApproved: false }, 'Solicitacao de correcao enviada ao administrativo');
@@ -1233,7 +1263,7 @@ function Schedules({ notify, editable = true }) {
         {!loading && !visibleOrders.length && <div className="empty-chart">Nenhuma OS encontrada</div>}
       </div>
       <div className="schedule-table-panel"><Panel title="OS direcionadas ao lider" actions={<Pill value={user.name || user.email || 'usuario'} />}><DataTable columns={['OS', 'Cliente', 'Servico', 'Produto', 'Integrantes', 'Data programada', 'Status', 'Inicio', 'Fim', 'Acao']} rows={rows} loading={loading} /></Panel></div>
-      {operationModal && <Editor title="Editar operacao da OS" fields={[['carrier', 'Transportador', 'text', null, null, true], ['product', 'Produto', 'text', null, null, true], ['equipment', 'Equipamento', 'select', equipmentOptions, null, true], ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')], ['trailerPlate', 'Placa da carreta', 'text', null, (form) => normalize(form.equipment).includes('carreta')], ['teamMembers', 'Incluir integrantes da equipe', 'employees', { endpoint: '/api/employees', roles: isMichelinOrder(operationModal, productivityRules) ? [] : productivityRules.standard }], ['teamNote', 'Observacao obrigatoria ao alterar equipe', 'textarea', null, () => absenceCount(operationModal) > 0], ['progress', 'Percentual', 'number', null, null, true]]} initial={operationModal} onCancel={() => setOperationModal(null)} onSave={saveOperationEdit} />}
+      {operationModal && <Editor title="Editar operacao da OS" uppercase fields={[['carrier', 'Transportador', 'text', null, null, true], ['product', 'Produto', 'text', null, null, true], ['equipment', 'Equipamento', 'select', equipmentOptions, null, true], ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')], ['trailerPlate', 'Placa da carreta', 'text', null, (form) => normalize(form.equipment).includes('carreta')], ['teamMembers', 'Incluir integrantes da equipe', 'employees', { endpoint: '/api/employees', roles: isMichelinOrder(operationModal, productivityRules) ? [] : productivityRules.standard }], ['teamNote', 'Observacao obrigatoria ao alterar equipe', 'textarea', null, () => absenceCount(operationModal) > 0], ['progress', 'Percentual', 'number', null, null, true]]} initial={operationModal} onCancel={() => setOperationModal(null)} onSave={saveOperationEdit} />}
       {occurrenceModal && <Editor title={`Lançar ocorrência · OS ${occurrenceModal.number}`} fields={occurrenceFields} initial={{ workOrder: occurrenceModal.number, type: 'Operacional', status: 'Aberta' }} onCancel={() => setOccurrenceModal(null)} onSave={saveLeaderOccurrence} />}
     </>
   );
@@ -1857,7 +1887,7 @@ function panelTitle(config, count) {
   return first === first.toLowerCase() ? `${count} ${config.panelTitle}` : config.panelTitle;
 }
 
-function Editor({ title, fields, initial, onCancel, onSave }) {
+function Editor({ title, fields, initial, onCancel, onSave, uppercase = false }) {
   const hasEmployeePicker = fields.some(([, , type]) => type === 'employees');
   const [form, setForm] = useState(() => ({
     ...Object.fromEntries(fields.map(([name, , type]) => [name, ['permissions', 'employees'].includes(type) ? (initial?.[name] || (type === 'permissions' ? defaultUserPermissions(initial?.role) : [])) : initial?.[name] ?? ''])),
@@ -1865,7 +1895,8 @@ function Editor({ title, fields, initial, onCancel, onSave }) {
   }));
   const [submitting, setSubmitting] = useState(false);
   const change = (name, value, type) => setForm((old) => {
-    const formatted = type === 'number' ? Number(value || 0) : type === 'cpf' ? formatCpf(value) : type === 'personName' ? formatPersonNameInput(value) : value;
+    const shouldUppercase = uppercase && ['text', 'textarea'].includes(type || 'text');
+    const formatted = type === 'number' ? Number(value || 0) : type === 'cpf' ? formatCpf(value) : type === 'personName' ? formatPersonNameInput(value) : shouldUppercase ? String(value || '').toUpperCase() : value;
     const next = { ...old, [name]: formatted };
     if (name === 'equipment') {
       if (!normalize(value).includes('container')) next.containerNumber = '';
