@@ -118,7 +118,9 @@ function timeMinutes(value) {
 }
 
 function scheduledWeekday(value) {
-  const raw = String(value || '').slice(0, 10);
+  const text = String(value || '');
+  const br = text.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  const raw = br ? `${br[3]}-${br[2]}-${br[1]}` : text.slice(0, 10);
   const parsed = new Date(`${raw}T00:00:00`);
   return Number.isNaN(parsed.getTime()) ? null : parsed.getDay();
 }
