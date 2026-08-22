@@ -395,6 +395,10 @@ function workOrdersEndpoint(month = currentMonthValue()) {
   return `/api/workOrders?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}&limit=500`;
 }
 
+function workOrdersRangeEndpoint(from, to) {
+  return `/api/workOrders?from=${encodeURIComponent(`${from}T00:00:00`)}&to=${encodeURIComponent(`${to}T23:59:59`)}&limit=500`;
+}
+
 function money(value) {
   return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
@@ -1561,7 +1565,7 @@ function DailyOps({ notify, editable = true }) {
   const [occurrenceModal, setOccurrenceModal] = useState(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('Dados');
-  const [filters, setFilters] = useState({ q: '', status: 'Todos', client: 'Todos', period: 'Este mês', table: '' });
+  const [filters, setFilters] = useState({ q: '', status: 'Todos', client: 'Todos', period: 'Este mês', from: monthRange().from.slice(0, 10), to: monthRange().to.slice(0, 10), table: '' });
   const optionValues = (list, ...keys) => list.map((item) => keys.map((key) => item[key]).find(Boolean)).filter(Boolean);
   const equipmentTypes = ['', ...Array.from(new Set(equipment.map((item) => [item.code, item.type].filter(Boolean).join(' - ')).filter(Boolean)))];
   const fields = [
@@ -1582,32 +1586,34 @@ function DailyOps({ notify, editable = true }) {
     ['progress', 'Percentual', 'number']
   ];
   const clientOptions = ['Todos', ...Array.from(new Set(items.map((item) => item.client).filter(Boolean)))];
-  const matchesPeriod = (item) => {
-    const raw = String(item.date || '').slice(0, 10);
-    if (!raw || filters.period === 'Personalizado') return true;
-    const itemDate = new Date(`${raw}T00:00:00`);
+  const periodRange = () => {
     const today = new Date();
     const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    if (filters.period === 'Hoje') return itemDate.toDateString() === start.toDateString();
     if (filters.period === 'Esta semana') {
       const weekStart = new Date(start);
       weekStart.setDate(start.getDate() - start.getDay());
-      return itemDate >= weekStart;
+      return { from: localDateValue(weekStart), to: localDateValue(today) };
     }
-    return itemDate.getMonth() === today.getMonth() && itemDate.getFullYear() === today.getFullYear();
+    if (filters.period === 'Hoje') return { from: localDateValue(today), to: localDateValue(today) };
+    if (filters.period === 'Personalizado') return { from: filters.from, to: filters.to };
+    return { from: monthRange().from.slice(0, 10), to: monthRange().to.slice(0, 10) };
   };
   const filteredItems = items.filter((item) => {
     const text = normalize(`${item.number} ${item.client} ${item.equipment} ${item.service} ${item.carrier}`);
     const query = normalize(`${filters.q} ${filters.table}`);
     const statusOk = filters.status === 'Todos' || normalize(item.status) === normalize(filters.status);
     const clientOk = filters.client === 'Todos' || item.client === filters.client;
-    return text.includes(query.trim()) && statusOk && clientOk && matchesPeriod(item);
+    return text.includes(query.trim()) && statusOk && clientOk;
   });
   const selected = filteredItems.find((i) => i.id === selectedId) || filteredItems[0];
   const counts = useMemo(() => filteredItems.reduce((acc, item) => ({ ...acc, [item.status]: (acc[item.status] || 0) + 1 }), {}), [filteredItems]);
-  const load = () => { setLoading(true); api(workOrdersEndpoint()).then((p) => { const data = listData(p); setItems(data); setSelectedId((old) => old || data[0]?.id || ''); }).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
+  const load = () => {
+    const range = periodRange();
+    setLoading(true);
+    api(workOrdersRangeEndpoint(range.from, range.to)).then((p) => { const data = listData(p); setItems(data); setSelectedId((old) => old || data[0]?.id || ''); }).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false));
+  };
   const loadOccurrences = () => api('/api/occurrences').then((p) => setOccurrences(listData(p))).catch(() => setOccurrences([]));
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [filters.period, filters.from, filters.to]);
   useEffect(() => { loadOccurrences(); }, []);
   useEffect(() => {
     api('/api/clients').then((payload) => setClients(listData(payload))).catch(() => {});
@@ -1679,6 +1685,7 @@ function DailyOps({ notify, editable = true }) {
         <div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Programado</option><option>Em execucao</option><option>Finalizado</option><option>Cancelado</option></select></div>
         <div className="filter"><label>Cliente</label><select value={filters.client} onChange={(event) => setFilters((old) => ({ ...old, client: event.target.value }))}>{clientOptions.map((client) => <option key={client}>{client}</option>)}</select></div>
         <div className="filter"><label>Período</label><select value={filters.period} onChange={(event) => setFilters((old) => ({ ...old, period: event.target.value }))}><option>Hoje</option><option>Esta semana</option><option>Este mês</option><option>Personalizado</option></select></div>
+        {filters.period === 'Personalizado' && <><div className="filter"><label>De</label><input type="date" value={filters.from} onChange={(event) => setFilters((old) => ({ ...old, from: event.target.value || old.from }))} /></div><div className="filter"><label>Até</label><input type="date" value={filters.to} onChange={(event) => setFilters((old) => ({ ...old, to: event.target.value || old.to }))} /></div></>}
         <span className="spacer" />
         <span className="soft">{filteredItems.length} resultados</span>
       </div>
