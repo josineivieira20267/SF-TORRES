@@ -77,6 +77,17 @@ function readRuleMatches(rule) {
   return Array.isArray(rule.match) ? rule.match : String(rule.match || '').split(',').map((item) => item.trim()).filter(Boolean);
 }
 
+function rulesForAssignment(names = [], rules = defaultProductivityRules) {
+  const selected = Array.isArray(names) ? names : [];
+  const standard = rules.standard || defaultProductivityRules.standard;
+  return selected.map((name) => standard.find((rule) => normalize(rule.name) === normalize(name) || normalize(rule.key) === normalize(name))).filter(Boolean);
+}
+
+function isMichelinOrder(order, rules = defaultProductivityRules) {
+  const config = rules.michelin || defaultProductivityRules.michelin;
+  return Boolean(config.enabled) && normalize(order?.client) === normalize(config.client);
+}
+
 function bonusCriterionFor(employee, rules = defaultProductivityRules) {
   const team = normalize(employee?.team);
   const role = normalize(employee?.role);
@@ -154,44 +165,60 @@ function countBy(items, readLabel) {
   }, {})).sort((a, b) => b.value - a.value);
 }
 
-function buildSummary({ workOrders, employees, occurrences, measurements, activeClients, activeEmployees, range, productivityRules = defaultProductivityRules }) {
+function attendanceByName(settings = []) {
+  return settings.reduce((acc, setting) => {
+    Object.entries(setting.value?.attendance || {}).forEach(([name, item]) => {
+      const key = normalize(name);
+      acc[key] = acc[key] || { present: 0, absences: 0 };
+      const status = normalize(item?.status || item);
+      if (status === 'presente') acc[key].present += 1;
+      if (status === 'falta') acc[key].absences += 1;
+    });
+    return acc;
+  }, {});
+}
+
+function buildSummary({ workOrders, employees, occurrences, measurements, activeClients, activeEmployees, range, productivityRules = defaultProductivityRules, attendanceSettings = [] }) {
   const byStatus = workOrders.reduce((acc, order) => {
     acc[order.status] = (acc[order.status] || 0) + 1;
     return acc;
   }, {});
   const employeeByName = Object.fromEntries(employees.map((item) => [normalize(item.name), item]));
+  const callsByName = attendanceByName(attendanceSettings);
   const memberEntries = workOrders.flatMap((order) => {
-    const members = Array.isArray(order.teamMembers) ? order.teamMembers : Object.keys(order.attendance || {});
-    return members.map((name) => {
-      const attendance = order.attendance?.[name];
-      const status = attendance ? (typeof attendance === 'object' ? attendance.status : attendance) : 'Pendente';
-      return { order, name, status };
+    const members = Array.isArray(order.teamMembers) ? order.teamMembers : [];
+    return members.flatMap((name) => {
+      if (isMichelinOrder(order, productivityRules)) return [{ order, name, criterion: { key: 'michelin', name: 'MICHELIN', base: 0, mode: 'per-os', match: 'michelin' } }];
+      const assignedRules = rulesForAssignment(order.teamRoles?.[name], productivityRules);
+      const roles = assignedRules.length ? assignedRules : [{ key: 'none', name: 'Sem criterio', base: 0, mode: 'per-os', match: '' }];
+      return roles.map((criterion) => ({ order, name, criterion }));
     });
   });
   const productivity = Object.values(memberEntries.reduce((acc, entry) => {
     const key = normalize(entry.name);
     const employee = employeeByName[key] || { name: entry.name, role: '-', team: '-' };
     const michelinShare = michelinShareForEntry(entry.order, entry.name, employeeByName, productivityRules);
-    const criterion = bonusCriterionFor(employee, productivityRules);
-    acc[key] = acc[key] || { employee, criterion, os: 0, present: 0, standardPresent: 0, absences: 0, pending: 0, customBonus: 0 };
-    acc[key].os += 1;
-    const status = normalize(entry.status);
-    if (status === 'falta') acc[key].absences += 1;
-    else if (status === 'pendente') acc[key].pending += 1;
-    else {
-      acc[key].present += 1;
+    const criterion = entry.criterion;
+    acc[key] = acc[key] || { employee, criterion, criteria: new Set(), osSet: new Set(), michelinSet: new Set(), os: 0, present: 0, absences: callsByName[key]?.absences || 0, pending: 0, customBonus: 0, standardBonus: 0 };
+    acc[key].criteria.add(criterion.name);
+    acc[key].osSet.add(entry.order.id || entry.order.number);
+    acc[key].present += 1;
+    if (michelinShare === null && criterion.mode !== 'monthly') acc[key].standardBonus += Number(criterion.base || 0);
+    const michelinKey = `${entry.order.id || entry.order.number}:${entry.name}`;
+    if (michelinShare !== null && !acc[key].michelinSet.has(michelinKey)) {
       if (michelinShare !== null) acc[key].customBonus += michelinShare;
-      else acc[key].standardPresent += 1;
+      acc[key].michelinSet.add(michelinKey);
     }
     return acc;
   }, {})).map((item) => {
     const factor = bonusDiscountFor(item.absences);
-    return { ...item, factor, bonus: productivityTotalFor(item) };
+    const monthlyBonus = item.criteria.has('Equipe PA') && item.present > 0 ? Number((productivityRules.standard || []).find((rule) => rule.name === 'Equipe PA')?.base || 0) * factor : 0;
+    return { ...item, os: item.osSet.size, criterion: { ...item.criterion, name: Array.from(item.criteria).join(' + ') }, factor, bonus: item.customBonus + (item.standardBonus * factor) + monthlyBonus };
   }).sort((a, b) => b.bonus - a.bonus || b.present - a.present);
   const activeOrders = workOrders.filter((order) => normalize(order.status).includes('exec'));
   const programmedOrders = workOrders.filter((order) => normalize(order.status).includes('program'));
   const finalOrders = workOrders.filter((order) => isFinalStatus(order.status));
-  const totalAbsences = workOrders.reduce((sum, order) => sum + absenceCount(order), 0);
+  const totalAbsences = Object.values(callsByName).reduce((sum, item) => sum + item.absences, 0);
   const pendingCalls = productivity.reduce((sum, item) => sum + item.pending, 0);
   const totalAttendances = productivity.reduce((sum, item) => sum + item.present + item.absences + item.pending, 0);
   const productivityRate = totalAttendances ? Math.round((productivity.reduce((sum, item) => sum + item.present, 0) / totalAttendances) * 1000) / 10 : 0;
@@ -254,13 +281,14 @@ router.get('/summary', async (req, res, next) => {
     const range = monthRange(req.query.month);
 
     if (hasDatabaseUrl) {
-      const [workOrders, clients, employees, occurrences, measurements, productivitySetting] = await Promise.all([
+      const [workOrders, clients, employees, occurrences, measurements, productivitySetting, attendanceSettings] = await Promise.all([
         prisma.workOrder.findMany({ where: { date: { gte: range.from, lte: range.to } } }),
         prisma.client.count({ where: { status: 'Ativo' } }),
         prisma.employee.findMany(),
         prisma.occurrence.findMany(),
         prisma.measurement.findMany({ where: { status: 'Fechada' } }),
-        prisma.setting.findUnique({ where: { key: 'productivityRules' } })
+        prisma.setting.findUnique({ where: { key: 'productivityRules' } }),
+        prisma.setting.findMany({ where: { key: { startsWith: `leaderAttendance:${range.month}-` } } })
       ]);
       return res.json({ data: buildSummary({
         workOrders,
@@ -270,13 +298,15 @@ router.get('/summary', async (req, res, next) => {
         activeClients: clients,
         activeEmployees: employees.filter((item) => item.status === 'Ativo').length,
         range,
-        productivityRules: mergeProductivityRules(productivitySetting?.value)
+        productivityRules: mergeProductivityRules(productivitySetting?.value),
+        attendanceSettings
       }) });
     }
 
     const db = await readDb();
     const workOrders = (db.workOrders || []).filter((item) => inRange(item, 'date', range));
     const productivitySetting = (db.settings || []).find((item) => item.key === 'productivityRules');
+    const attendanceSettings = (db.settings || []).filter((item) => String(item.key || '').startsWith(`leaderAttendance:${range.month}-`));
     return res.json({ data: buildSummary({
       workOrders,
       employees: db.employees || [],
@@ -285,7 +315,8 @@ router.get('/summary', async (req, res, next) => {
       activeClients: (db.clients || []).filter((item) => item.status === 'Ativo').length,
       activeEmployees: (db.employees || []).filter((item) => item.status === 'Ativo').length,
       range,
-      productivityRules: mergeProductivityRules(productivitySetting?.value)
+      productivityRules: mergeProductivityRules(productivitySetting?.value),
+      attendanceSettings
     }) });
   } catch (error) {
     return next(error);

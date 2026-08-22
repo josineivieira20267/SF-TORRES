@@ -120,6 +120,17 @@ function readRuleMatches(rule) {
   return Array.isArray(rule.match) ? rule.match : String(rule.match || '').split(',').map((item) => item.trim()).filter(Boolean);
 }
 
+function rulesForAssignment(names = [], rules = defaultProductivityRules) {
+  const selected = Array.isArray(names) ? names : [];
+  const standard = rules.standard || defaultProductivityRules.standard;
+  return selected.map((name) => standard.find((rule) => normalize(rule.name) === normalize(name) || normalize(rule.key) === normalize(name))).filter(Boolean);
+}
+
+function isMichelinOrder(order, rules = defaultProductivityRules) {
+  const config = rules.michelin || defaultProductivityRules.michelin;
+  return Boolean(config.enabled) && normalize(order?.client) === normalize(config.client);
+}
+
 function bonusCriterionFor(employee, rules = defaultProductivityRules) {
   const team = normalize(employee?.team);
   const role = normalize(employee?.role);
@@ -1038,6 +1049,7 @@ function Schedules({ notify, editable = true }) {
   const user = currentUser();
   const [items, setItems] = useState([]);
   const [equipment, setEquipment] = useState([]);
+  const [productivityRules, setProductivityRules] = useState(defaultProductivityRules);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ q: '', status: 'Todos' });
   const [operationModal, setOperationModal] = useState(null);
@@ -1046,6 +1058,7 @@ function Schedules({ notify, editable = true }) {
   useEffect(() => { load(); }, []);
   useEffect(() => {
     api('/api/equipment').then((payload) => setEquipment(listData(payload))).catch(() => {});
+    api('/api/settings/productivityRules').then((payload) => setProductivityRules(mergeProductivityRules(payload.data))).catch(() => {});
   }, []);
   const belongsToLeader = (order) => {
     if (user.role === 'Administrador') return true;
@@ -1086,7 +1099,8 @@ function Schedules({ notify, editable = true }) {
     const after = Array.isArray(data.teamMembers) ? data.teamMembers : [];
     const changedTeam = before.length !== after.length || before.some((name) => !after.includes(name)) || after.some((name) => !before.includes(name));
     if (changedTeam && absenceCount(operationModal) > 0 && !String(data.teamNote || '').trim()) return notify('Informe a observacao/justificativa para alterar integrantes da equipe');
-    return updateOrder(operationModal, { ...data, location: '', correctionRequested: false, correctionApproved: false }, 'Dados operacionais atualizados');
+    const teamRoles = isMichelinOrder(operationModal, productivityRules) ? {} : Object.fromEntries(Object.entries(data.teamRoles || {}).filter(([name]) => after.includes(name)));
+    return updateOrder(operationModal, { ...data, teamRoles, location: '', correctionRequested: false, correctionApproved: false }, 'Dados operacionais atualizados');
   };
   const leaderActions = (item) => {
     if (!editable) return <span className="soft">Somente leitura</span>;
@@ -1167,7 +1181,7 @@ function Schedules({ notify, editable = true }) {
         {!loading && !visibleOrders.length && <div className="empty-chart">Nenhuma OS encontrada</div>}
       </div>
       <div className="schedule-table-panel"><Panel title="OS direcionadas ao lider" actions={<Pill value={user.name || user.email || 'usuario'} />}><DataTable columns={['OS', 'Cliente', 'Servico', 'Produto', 'Integrantes', 'Data programada', 'Status', 'Inicio', 'Fim', 'Acao']} rows={rows} loading={loading} /></Panel></div>
-      {operationModal && <Editor title="Editar operacao da OS" fields={[['carrier', 'Transportador', 'text', null, null, true], ['product', 'Produto', 'text', null, null, true], ['equipment', 'Equipamento', 'select', equipmentOptions, null, true], ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')], ['trailerPlate', 'Placa da carreta', 'text', null, (form) => normalize(form.equipment).includes('carreta')], ['teamMembers', 'Incluir integrantes da equipe', 'employees', { endpoint: '/api/employees' }], ['teamNote', 'Observacao obrigatoria ao alterar equipe', 'textarea', null, () => absenceCount(operationModal) > 0], ['progress', 'Percentual', 'number', null, null, true]]} initial={operationModal} onCancel={() => setOperationModal(null)} onSave={saveOperationEdit} />}
+      {operationModal && <Editor title="Editar operacao da OS" fields={[['carrier', 'Transportador', 'text', null, null, true], ['product', 'Produto', 'text', null, null, true], ['equipment', 'Equipamento', 'select', equipmentOptions, null, true], ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')], ['trailerPlate', 'Placa da carreta', 'text', null, (form) => normalize(form.equipment).includes('carreta')], ['teamMembers', 'Incluir integrantes da equipe', 'employees', { endpoint: '/api/employees', roles: isMichelinOrder(operationModal, productivityRules) ? [] : productivityRules.standard }], ['teamNote', 'Observacao obrigatoria ao alterar equipe', 'textarea', null, () => absenceCount(operationModal) > 0], ['progress', 'Percentual', 'number', null, null, true]]} initial={operationModal} onCancel={() => setOperationModal(null)} onSave={saveOperationEdit} />}
       {occurrenceModal && <Editor title={`Lançar ocorrência · OS ${occurrenceModal.number}`} fields={occurrenceFields} initial={{ workOrder: occurrenceModal.number, type: 'Operacional', status: 'Aberta' }} onCancel={() => setOccurrenceModal(null)} onSave={saveLeaderOccurrence} />}
     </>
   );
@@ -1239,6 +1253,7 @@ function Productivity() {
   const [orders, setOrders] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [productivityRules, setProductivityRules] = useState(defaultProductivityRules);
+  const [attendanceSummary, setAttendanceSummary] = useState({ employees: [] });
   const [compare, setCompare] = useState(false);
   const [showOsLaunches, setShowOsLaunches] = useState(false);
   const [filters, setFilters] = useState({ q: '', employee: 'Todos', criterion: 'Todos', status: 'Todos' });
@@ -1246,28 +1261,30 @@ function Productivity() {
     api(workOrdersEndpoint()).then((payload) => setOrders(listData(payload))).catch((error) => triggerAction(error.message));
     api('/api/employees').then((payload) => setEmployees(listData(payload))).catch((error) => triggerAction(error.message));
     api('/api/settings/productivityRules').then((payload) => setProductivityRules(mergeProductivityRules(payload.data))).catch(() => {});
+    api(`/api/leader-attendance/summary?month=${currentMonthValue()}`).then((payload) => setAttendanceSummary(payload.data || { employees: [] })).catch(() => {});
   }, []);
   const employeeByName = Object.fromEntries(employees.map((item) => [normalize(item.name), item]));
-  const criterionFor = (employee) => bonusCriterionFor(employee, productivityRules);
+  const attendanceByName = Object.fromEntries((attendanceSummary.employees || []).map((item) => [normalize(item.name), item]));
   const discountFor = (absences) => absences <= 0 ? 1 : absences === 1 ? 0.75 : absences === 2 ? 0.5 : absences === 3 ? 0.25 : 0;
   const ruleRow = (rule) => [rule.name, money(rule.base), money(rule.base * 0.75), money(rule.base * 0.5), money(rule.base * 0.25), money(0)];
   const memberEntries = orders.flatMap((order) => {
-    const members = Array.isArray(order.teamMembers) ? order.teamMembers : Object.keys(order.attendance || {});
-    return members.map((name) => {
-      const attendance = order.attendance?.[name];
-      const status = attendance ? (typeof attendance === 'object' ? attendance.status : attendance) : 'Pendente';
-      return { order, name, status };
+    const members = Array.isArray(order.teamMembers) ? order.teamMembers : [];
+    return members.flatMap((name) => {
+      if (isMichelinOrder(order, productivityRules)) return [{ order, name, criterion: { key: 'michelin', name: 'MICHELIN', base: 0, mode: 'per-os', match: 'michelin' }, status: 'Presente' }];
+      const assignedRules = rulesForAssignment(order.teamRoles?.[name], productivityRules);
+      const roles = assignedRules.length ? assignedRules : [{ key: 'none', name: 'Sem critério', base: 0, mode: 'per-os', match: '' }];
+      return roles.map((criterion) => ({ order, name, criterion, status: 'Presente' }));
     });
   });
   const employeeOptions = ['Todos', ...Array.from(new Set(memberEntries.map((entry) => entry.name).filter(Boolean))).sort((a, b) => a.localeCompare(b))];
   const filteredEntries = memberEntries.filter((entry) => {
     const employee = employeeByName[normalize(entry.name)] || { name: entry.name, role: '-', team: '-' };
     const michelinShare = michelinShareForEntry(entry.order, entry.name, employeeByName, productivityRules);
-    const criterion = michelinShare !== null ? { key: 'michelin', name: 'MICHELIN', base: michelinShare, mode: 'per-os', match: 'michelin' } : criterionFor(employee);
-    const text = normalize(`${entry.order.number} ${entry.order.client} ${entry.order.service} ${entry.order.date} ${entry.name} ${employee.team} ${employee.role}`);
+    const criterion = michelinShare !== null ? { key: 'michelin', name: 'MICHELIN', base: michelinShare, mode: 'per-os', match: 'michelin' } : entry.criterion;
+    const text = normalize(`${entry.order.number} ${entry.order.client} ${entry.order.service} ${entry.order.date} ${entry.name} ${entry.criterion.name}`);
     const queryOk = !filters.q || text.includes(normalize(filters.q));
     const employeeOk = filters.employee === 'Todos' || entry.name === filters.employee;
-    const criterionOk = filters.criterion === 'Todos' || criterion.name === filters.criterion;
+    const criterionOk = filters.criterion === 'Todos' || normalize(criterion.name).includes(normalize(filters.criterion));
     const statusOk = filters.status === 'Todos' || normalize(entry.status) === normalize(filters.status);
     return queryOk && employeeOk && criterionOk && statusOk;
   });
@@ -1275,37 +1292,47 @@ function Productivity() {
     const key = normalize(entry.name);
     const employee = employeeByName[key] || { name: entry.name, role: '-', team: '-' };
     const michelinShare = michelinShareForEntry(entry.order, entry.name, employeeByName, productivityRules);
-    const criterion = criterionFor(employee);
-    acc[key] = acc[key] || { employee, criterion, os: 0, present: 0, standardPresent: 0, absences: 0, pending: 0, customBonus: 0 };
+    const criterion = entry.criterion;
+    acc[key] = acc[key] || { employee, criterion, criteria: new Set(), osSet: new Set(), michelinSet: new Set(), os: 0, present: 0, standardPresent: 0, absences: attendanceByName[key]?.absences || 0, pending: 0, customBonus: 0, standardBonus: 0 };
+    acc[key].criteria.add(criterion.name);
+    acc[key].osSet.add(entry.order.id || entry.order.number);
     acc[key].os += 1;
-    const status = normalize(entry.status);
-    if (status === 'falta') acc[key].absences += 1;
-    else if (status === 'pendente') acc[key].pending += 1;
-    else {
-      acc[key].present += 1;
-      if (michelinShare !== null) acc[key].customBonus += michelinShare;
-      else acc[key].standardPresent += 1;
+    acc[key].present += 1;
+    const michelinKey = `${entry.order.id || entry.order.number}:${entry.name}`;
+    if (michelinShare !== null && !acc[key].michelinSet.has(michelinKey)) {
+      acc[key].customBonus += michelinShare;
+      acc[key].michelinSet.add(michelinKey);
+    }
+    if (michelinShare === null) {
+      acc[key].standardPresent += 1;
+      acc[key].standardBonus += criterion.mode === 'monthly' ? 0 : criterion.base;
     }
     return acc;
-  }, {})).sort((a, b) => a.employee.name.localeCompare(b.employee.name));
+  }, {})).map((item) => ({ ...item, os: item.osSet.size, criterion: { ...item.criterion, name: Array.from(item.criteria).join(' + ') } })).sort((a, b) => a.employee.name.localeCompare(b.employee.name));
   const productivityRows = byEmployee.map((item) => {
     const factor = discountFor(item.absences);
-    const adjustedValue = item.criterion.base * factor;
-    const total = productivityTotalFor(item);
+    const adjustedValue = item.standardBonus * factor;
+    const monthlyBonus = item.criteria.has?.('Equipe PA') && item.present > 0 ? ((productivityRules.standard || []).find((rule) => rule.name === 'Equipe PA')?.base || 0) * factor : 0;
+    const total = item.customBonus + adjustedValue + monthlyBonus;
     const criterionName = item.customBonus ? `${item.criterion.name} + MICHELIN` : item.criterion.name;
     return [item.employee.name, item.employee.role || '-', item.employee.team || '-', criterionName, item.os, item.present, item.absences, money(adjustedValue), `${Math.round(factor * 100)}%`, money(total)];
   });
-  const osRows = filteredEntries.map(({ order, name, status }) => {
+  const osRows = filteredEntries.map(({ order, name, status, criterion: assignedCriterion }) => {
     const employee = employeeByName[normalize(name)] || { name, role: '-', team: '-' };
     const michelinShare = michelinShareForEntry(order, name, employeeByName, productivityRules);
-    const criterion = michelinShare !== null ? { key: 'michelin', name: 'MICHELIN', base: michelinShare, mode: 'per-os', match: 'michelin' } : criterionFor(employee);
+    const criterion = assignedCriterion || { name: 'Sem critério', base: 0, mode: 'per-os' };
     const employeeSummary = byEmployee.find((item) => normalize(item.employee.name) === normalize(name));
-    const payable = normalize(status) === 'falta' || normalize(status) === 'pendente' || criterion.mode === 'monthly' ? 0 : (michelinShare ?? (criterion.base * discountFor(employeeSummary?.absences || 0)));
-    return [order.number, dateTime(order.date), order.client, name, employee.team || '-', criterion.name, <Pill value={status} />, money(payable)];
+    const payable = normalize(status) === 'falta' || normalize(status) === 'pendente' || criterion.mode === 'monthly' ? 0 : criterion.base * discountFor(employeeSummary?.absences || 0);
+    const label = michelinShare !== null ? 'MICHELIN' : criterion.name;
+    return [order.number, dateTime(order.date), order.client, name, employee.team || '-', label, <Pill value={status} />, money(payable)];
   });
   const totalAbsences = byEmployee.reduce((sum, item) => sum + item.absences, 0);
   const pendingCalls = byEmployee.reduce((sum, item) => sum + item.pending, 0);
-  const totalBonus = byEmployee.reduce((sum, item) => sum + productivityTotalFor(item), 0);
+  const totalBonus = byEmployee.reduce((sum, item) => {
+    const factor = discountFor(item.absences);
+    const monthlyBonus = item.criteria.has?.('Equipe PA') && item.present > 0 ? ((productivityRules.standard || []).find((rule) => rule.name === 'Equipe PA')?.base || 0) * factor : 0;
+    return sum + item.customBonus + (item.standardBonus * factor) + monthlyBonus;
+  }, 0);
   const exportRows = [['Colaborador', 'Função', 'Equipe cadastro', 'Critério', 'OS', 'Presenças', 'Faltas', 'Valor base', 'Percentual', 'Total'], ...productivityRows.map((row) => row.map((cell) => displayText(cell)))];
   return <><PageHead title="Produtividade dos colaboradores" subtitle="Apuração mensal por OS, chamada, faltas e critérios de bonificação." ghostActions={[compare ? 'Ocultar critérios' : 'Ver critérios', showOsLaunches ? 'Ocultar lançamentos' : 'Ver lançamentos por OS']} onGhostAction={(label) => label.includes('critério') || label.includes('critérios') ? setCompare((value) => !value) : setShowOsLaunches((value) => !value)} action="Exportar relatório" onAction={() => downloadCsv('produtividade-colaboradores.csv', exportRows)} /><div className="toolbar"><div className="filter"><label>Buscar</label><input value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="OS, cliente, colaborador..." /></div><div className="filter"><label>Colaborador</label><select value={filters.employee} onChange={(event) => setFilters((old) => ({ ...old, employee: event.target.value }))}>{employeeOptions.map((name) => <option key={name}>{name}</option>)}</select></div><div className="filter"><label>Critério</label><select value={filters.criterion} onChange={(event) => setFilters((old) => ({ ...old, criterion: event.target.value }))}><option>Todos</option>{(productivityRules.standard || []).map((rule) => <option key={rule.key}>{rule.name}</option>)}<option>MICHELIN</option><option>Sem critério</option></select></div><div className="filter"><label>Chamada</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Presente</option><option>Falta</option><option>Pendente</option></select></div><span className="spacer" /><span className="soft">{filteredEntries.length} lançamentos</span></div><div className="kpi-grid"><Kpi icon="users" label="Colaboradores avaliados" value={byEmployee.length} delta="com OS no filtro" success /><Kpi icon="file" label="OS apuradas" value={new Set(filteredEntries.map((entry) => entry.order.id || entry.order.number)).size} delta="mês atual filtrado no banco" /><Kpi icon="alert" label="Faltas registradas" value={totalAbsences} delta={`${pendingCalls} chamadas pendentes`} warning /><Kpi icon="money" label="Bônus previsto" value={money(totalBonus)} delta="conforme critérios" /></div>{compare && <Panel title="Critérios de bonificação" padded><DataTable columns={['Equipe/Função', 'Valor integral', '1 ausência', '2 ausências', '3 ausências', '4+ ausências']} rows={(productivityRules.standard || []).map(ruleRow)} /></Panel>}<Panel title="Produtividade por colaborador" padded><DataTable columns={['Colaborador', 'Função', 'Equipe cadastro', 'Critério', 'OS', 'Pres.', 'Faltas', 'Valor base', '%', 'Total']} rows={productivityRows} /></Panel>{showOsLaunches && <Panel title="Lançamentos por OS" padded><DataTable columns={['OS', 'Data', 'Cliente', 'Colaborador', 'Equipe', 'Critério', 'Chamada', 'Valor']} rows={osRows} /></Panel>}</>;
 }
@@ -1524,6 +1551,7 @@ function DailyOps({ notify, editable = true }) {
   const [equipment, setEquipment] = useState([]);
   const [services, setServices] = useState([]);
   const [leaders, setLeaders] = useState([]);
+  const [productivityRules, setProductivityRules] = useState(defaultProductivityRules);
   const [occurrences, setOccurrences] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState('');
@@ -1545,7 +1573,7 @@ function DailyOps({ notify, editable = true }) {
     ['carrier', 'Transportador'],
     ['service', 'Serviço', 'select', ['', ...optionValues(services, 'description', 'code')], null, true],
     ['responsible', 'Responsável', 'select', ['', ...optionValues(leaders, 'name')], null, true],
-    ['teamMembers', 'Integrantes da equipe', 'employees', { endpoint: '/api/employees' }],
+    ['teamMembers', 'Integrantes da equipe', 'employees', { endpoint: '/api/employees', roles: (form) => isMichelinOrder(form, productivityRules) ? [] : productivityRules.standard }],
     ['product', 'Produto'],
     ['operationStart', 'Início da operação', 'datetime-local'],
     ['operationEnd', 'Fim da operação', 'datetime-local'],
@@ -1584,6 +1612,7 @@ function DailyOps({ notify, editable = true }) {
     api('/api/equipment').then((payload) => setEquipment(listData(payload))).catch(() => {});
     api('/api/services').then((payload) => setServices(listData(payload))).catch(() => {});
     api('/api/employees?q=lider').then((payload) => setLeaders(listData(payload).filter((item) => normalize(item.role).includes('lider')))).catch(() => {});
+    api('/api/settings/productivityRules').then((payload) => setProductivityRules(mergeProductivityRules(payload.data))).catch(() => {});
   }, []);
   useEffect(() => {
     if (filteredItems.length && !filteredItems.some((item) => item.id === selectedId)) setSelectedId(filteredItems[0].id);
@@ -1592,7 +1621,10 @@ function DailyOps({ notify, editable = true }) {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     const user = currentUser();
     if (items.some((item) => item.id !== modal?.id && normalize(item.number) === normalize(data.number))) return notify('Ja existe uma OS com este numero');
-    const payload = modal?.id ? { ...data, location: '' } : { ...data, location: '', progress: data.progress || 0, createdBy: data.createdBy || user.name || user.email || 'Administrador SF' };
+    const members = Array.isArray(data.teamMembers) ? data.teamMembers : [];
+    const teamRoles = isMichelinOrder(data, productivityRules) ? {} : Object.fromEntries(Object.entries(data.teamRoles || {}).filter(([name]) => members.includes(name)));
+    const cleanData = { ...data, teamRoles, location: '' };
+    const payload = modal?.id ? cleanData : { ...cleanData, progress: data.progress || 0, createdBy: data.createdBy || user.name || user.email || 'Administrador SF' };
     await withBusy(() => api(modal?.id ? `/api/workOrders/${modal.id}` : '/api/workOrders', { method: modal?.id ? 'PUT' : 'POST', body: JSON.stringify(payload) }));
     setModal(null); notify('OS salva'); load();
   };
@@ -1720,7 +1752,7 @@ function panelTitle(config, count) {
 }
 
 function Editor({ title, fields, initial, onCancel, onSave }) {
-  const [form, setForm] = useState(() => Object.fromEntries(fields.map(([name, , type]) => [name, ['permissions', 'employees'].includes(type) ? (initial?.[name] || (type === 'permissions' ? defaultUserPermissions(initial?.role) : [])) : initial?.[name] ?? ''])));
+  const [form, setForm] = useState(() => ({ ...Object.fromEntries(fields.map(([name, , type]) => [name, ['permissions', 'employees'].includes(type) ? (initial?.[name] || (type === 'permissions' ? defaultUserPermissions(initial?.role) : [])) : initial?.[name] ?? ''])), teamRoles: initial?.teamRoles || {} }));
   const [submitting, setSubmitting] = useState(false);
   const change = (name, value, type) => setForm((old) => {
     const formatted = type === 'number' ? Number(value || 0) : type === 'cpf' ? formatCpf(value) : type === 'personName' ? formatPersonNameInput(value) : value;
@@ -1756,7 +1788,7 @@ function Editor({ title, fields, initial, onCancel, onSave }) {
           <div className="form-grid">{fields.map(([name, label, type = 'text', options, visible, required]) => {
             if (!isVisible(visible)) return null;
             if (type === 'permissions') return <PermissionMatrix key={name} label={label} value={form[name]} onChange={(value) => change(name, value, type)} />;
-            if (type === 'employees') return <EmployeePicker key={name} label={`${label}${isRequired(required) ? ' *' : ''}`} source={options} value={form[name]} onChange={(value) => change(name, value, type)} />;
+            if (type === 'employees') return <EmployeePicker key={name} label={`${label}${isRequired(required) ? ' *' : ''}`} source={typeof options === 'function' ? options(form) : options} value={form[name]} rolesValue={form.teamRoles || {}} onChange={(value) => change(name, value, type)} onRolesChange={(value) => change('teamRoles', value)} />;
             return <div className="form-field" key={name}><label>{label}{isRequired(required) ? ' *' : ''}</label>{type === 'select' ? <select value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)}>{options.map((o) => <option key={o || '-'} value={o}>{o || '-'}</option>)}</select> : type === 'textarea' ? <textarea value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)} /> : <input type={['cpf', 'personName'].includes(type) ? 'text' : type} value={form[name]} required={isRequired(required)} maxLength={type === 'cpf' ? 14 : undefined} onChange={(e) => change(name, e.target.value, type)} />}</div>;
           })}</div>
           <div className="modal-actions"><button type="button" className="btn" onClick={onCancel} disabled={submitting}>Cancelar</button><button className="btn btn-primary" disabled={submitting}>{submitting ? <LoadingSpinner small /> : 'Salvar'}</button></div>
@@ -1785,12 +1817,13 @@ function PermissionMatrix({ label, value = {}, onChange }) {
   );
 }
 
-function EmployeePicker({ label, source, value = [], onChange }) {
+function EmployeePicker({ label, source, value = [], rolesValue = {}, onChange, onRolesChange }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const selected = Array.isArray(value) ? value : [];
   const endpoint = typeof source === 'object' && source?.endpoint ? source.endpoint : '';
+  const roleOptions = (typeof source === 'object' && Array.isArray(source?.roles) ? source.roles : defaultProductivityRules.standard).map((rule) => rule.name);
   const staticOptions = Array.isArray(source) ? source : [];
   useEffect(() => {
     const q = query.trim();
@@ -1823,18 +1856,29 @@ function EmployeePicker({ label, source, value = [], onChange }) {
     };
   }, [query, endpoint, source]);
   const visibleOptions = results.map((item) => item.name).filter(Boolean).filter((name) => !selected.includes(name)).slice(0, 8);
-  const toggle = (name) => onChange(selected.includes(name) ? selected.filter((item) => item !== name) : [...selected, name]);
+  const toggle = (name) => {
+    if (!selected.includes(name)) return onChange([...selected, name]);
+    onChange(selected.filter((item) => item !== name));
+    const nextRoles = { ...(rolesValue || {}) };
+    delete nextRoles[name];
+    onRolesChange?.(nextRoles);
+  };
   const add = (name) => {
     if (!selected.includes(name)) onChange([...selected, name]);
     setQuery('');
+  };
+  const toggleRole = (name, role) => {
+    const current = Array.isArray(rolesValue?.[name]) ? rolesValue[name] : [];
+    const next = current.includes(role) ? current.filter((item) => item !== role) : [...current, role];
+    onRolesChange?.({ ...(rolesValue || {}), [name]: next });
   };
   return (
     <div className="permissions-grid full">
       <div className="permissions-head">{label}</div>
       <div className="employee-search-picker">
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Pesquisar colaborador pelo nome..." />
-        <div className="employee-selected">
-          {selected.map((name) => <button type="button" className="selected-chip" key={name} onClick={() => toggle(name)}>{name} ×</button>)}
+        <div className="employee-selected employee-selected-list">
+          {selected.map((name) => <div className="employee-assignment" key={name}><div><b>{name}</b><button type="button" className="selected-chip" onClick={() => toggle(name)}>Remover</button></div>{roleOptions.length ? <div className="role-checks">{roleOptions.map((role) => <label key={role}><input type="checkbox" checked={(rolesValue?.[name] || []).includes(role)} onChange={() => toggleRole(name, role)} /> {role}</label>)}</div> : <span className="soft">Regra MICHELIN aplicada automaticamente para esta OS.</span>}</div>)}
           {!selected.length && <span className="soft">Nenhum integrante selecionado.</span>}
         </div>
         <div className="employee-results">
