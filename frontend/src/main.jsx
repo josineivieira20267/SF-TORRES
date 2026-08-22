@@ -30,6 +30,7 @@ const routes = {
   tower: { title: 'Torre Operacional', group: 'Operações' },
   dailyOps: { title: 'Operação Diária', group: 'Operações' },
   schedules: { title: 'Programação de Equipes', group: 'Operações' },
+  leaderAttendance: { title: 'Chamada de Ponto', group: 'Operações' },
   productivity: { title: 'Produtividade', group: 'Gestão' },
   bonusCriteria: { title: 'Critérios de Bonificação', group: 'Gestão' },
   employees: { title: 'Funcionários', group: 'Gestão' },
@@ -68,7 +69,7 @@ function canEdit(route, user = currentUser()) {
 
 function defaultUserPermissions(role = 'Operacional') {
   if (role === 'Administrador') return { ...defaultAdminPermissions };
-  if (normalize(role).includes('lider')) return { schedules: 'edit' };
+  if (normalize(role).includes('lider')) return { schedules: 'edit', leaderAttendance: 'edit' };
   return { dashboard: 'view', dailyOps: 'view' };
 }
 
@@ -856,7 +857,7 @@ function ProfileModal({ profile, onCancel, onSave }) {
 function Sidebar({ route, setRoute, settings, profile, onProfile, onLogout }) {
   const groups = [
     ['Principal', [['dashboard', 'PR', 'Principal']]],
-    ['Operações', [['tower', 'TO', 'Torre Operacional'], ['dailyOps', 'OD', 'Operação Diária'], ['schedules', 'PD', 'Programação de Equipes']]],
+    ['Operações', [['tower', 'TO', 'Torre Operacional'], ['dailyOps', 'OD', 'Operação Diária'], ['schedules', 'PD', 'Programação de Equipes'], ['leaderAttendance', 'CP', 'Chamada de Ponto']]],
     ['Gestão', [['productivity', 'PD', 'Produtividade'], ['bonusCriteria', 'CB', 'Critérios de Bonificação'], ['employees', 'FE', 'Funcionários']]],
     ['Movimentações', [['reports', 'RP', 'Relatórios']]],
     ['Cadastros', [['clients', 'CL', 'Clientes'], ['services', 'SV', 'Serviços'], ['equipment', 'EQ', 'Equipamentos']]],
@@ -916,6 +917,7 @@ function Screen({ route, notify, settings, setSettings }) {
   if (!canView(route)) return <AccessDenied />;
   if (route === 'dailyOps') return <DailyOps notify={notify} editable={editable} />;
   if (route === 'schedules') return <Schedules notify={notify} editable={editable} />;
+  if (route === 'leaderAttendance') return <LeaderAttendance notify={notify} editable={editable} />;
   if (route === 'users') return <Users notify={notify} editable={editable} />;
   if (crudConfigs[route]) return <CrudScreen config={crudConfigs[route]} notify={notify} editable={editable} />;
   if (route === 'dashboard') return <OperationsDashboard />;
@@ -1039,7 +1041,6 @@ function Schedules({ notify, editable = true }) {
   const [equipment, setEquipment] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ q: '', status: 'Todos' });
-  const [attendanceModal, setAttendanceModal] = useState(null);
   const [operationModal, setOperationModal] = useState(null);
   const [occurrenceModal, setOccurrenceModal] = useState(null);
   const load = () => { setLoading(true); api(workOrdersEndpoint()).then((p) => setItems(listData(p))).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
@@ -1062,7 +1063,6 @@ function Schedules({ notify, editable = true }) {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     await withBusy(() => api(`/api/workOrders/${order.id}`, { method: 'PUT', body: JSON.stringify({ ...order, ...patch }) }));
     notify(message);
-    setAttendanceModal(null);
     setOperationModal(null);
     load();
   };
@@ -1097,7 +1097,6 @@ function Schedules({ notify, editable = true }) {
     if (done && !item.correctionApproved) return <button className="btn btn-sm" onClick={() => requestLeaderCorrection(item)}>{item.correctionRequested ? 'Correção solicitada' : 'Solicitar correção'}</button>;
     return (
       <div className="inline-actions">
-        <button className="btn btn-sm" onClick={() => setAttendanceModal(item)}>Chamada</button>
         <button className="btn btn-sm" onClick={() => setOperationModal(item)}>Editar</button>
         {item.operationStart && !item.operationEnd && <button className="btn btn-sm btn-success" onClick={() => setOccurrenceModal(item)}>Ocorrência</button>}
         {!item.operationStart && !done && <button className="btn btn-sm btn-success" onClick={() => markStart(item)}>Iniciar</button>}
@@ -1111,7 +1110,6 @@ function Schedules({ notify, editable = true }) {
     if (done && !item.correctionApproved) return <button className="btn schedule-touch-action" onClick={() => requestLeaderCorrection(item)}>{item.correctionRequested ? 'Correção solicitada' : 'Solicitar correção'}</button>;
     return (
       <div className="schedule-card-actions">
-        <button className="btn schedule-touch-action" onClick={() => setAttendanceModal(item)}>Chamada</button>
         <button className="btn schedule-touch-action" onClick={() => setOperationModal(item)}>Editar</button>
         {item.operationStart && !item.operationEnd && <button className="btn btn-success schedule-touch-action" onClick={() => setOccurrenceModal(item)}>Ocorrência</button>}
         {!item.operationStart && !done && <button className="btn btn-success schedule-touch-action primary-touch" onClick={() => markStart(item)}>Iniciar</button>}
@@ -1172,9 +1170,77 @@ function Schedules({ notify, editable = true }) {
         {!loading && !visibleOrders.length && <div className="empty-chart">Nenhuma OS encontrada</div>}
       </div>
       <div className="schedule-table-panel"><Panel title="OS direcionadas ao lider" actions={<Pill value={user.name || user.email || 'usuario'} />}><DataTable columns={['OS', 'Cliente', 'Servico', 'Produto', 'Integrantes', 'Data programada', 'Status', 'Inicio', 'Fim', 'Acao']} rows={rows} loading={loading} /></Panel></div>
-      {attendanceModal && <AttendanceModal order={attendanceModal} onCancel={() => setAttendanceModal(null)} onSave={(attendance) => updateOrder(attendanceModal, { attendance }, 'Chamada salva na OS')} />}
       {operationModal && <Editor title="Editar operacao da OS" fields={[['carrier', 'Transportador', 'text', null, null, true], ['location', 'Local', 'text', null, null, true], ['product', 'Produto', 'text', null, null, true], ['equipment', 'Equipamento', 'select', equipmentOptions, null, true], ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')], ['trailerPlate', 'Placa da carreta', 'text', null, (form) => normalize(form.equipment).includes('carreta')], ['teamMembers', 'Incluir integrantes da equipe', 'employees', employeeOptions, () => absenceCount(operationModal) > 0], ['teamNote', 'Observacao obrigatoria ao alterar equipe', 'textarea', null, () => absenceCount(operationModal) > 0], ['progress', 'Percentual', 'number', null, null, true]]} initial={operationModal} onCancel={() => setOperationModal(null)} onSave={saveOperationEdit} />}
       {occurrenceModal && <Editor title={`Lançar ocorrência · OS ${occurrenceModal.number}`} fields={occurrenceFields} initial={{ workOrder: occurrenceModal.number, type: 'Operacional', status: 'Aberta' }} onCancel={() => setOccurrenceModal(null)} onSave={saveLeaderOccurrence} />}
+    </>
+  );
+}
+
+function LeaderAttendance({ notify, editable = true }) {
+  const user = currentUser();
+  const [dateValue, setDateValue] = useState(localDateValue(new Date()));
+  const [payload, setPayload] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const load = (date = dateValue) => {
+    setLoading(true);
+    api(`/api/leader-attendance?date=${encodeURIComponent(date)}`)
+      .then((response) => setPayload(response.data))
+      .catch((error) => { setPayload(null); notify(error.message); })
+      .finally(() => setLoading(false));
+  };
+  useEffect(() => { load(dateValue); }, [dateValue]);
+  const employees = payload?.employees || [];
+  const summary = employees.reduce((acc, item) => {
+    const status = normalize(item.status || 'Pendente');
+    acc.total += 1;
+    if (status === 'presente') acc.present += 1;
+    else if (status === 'falta') acc.absences += 1;
+    else acc.pending += 1;
+    return acc;
+  }, { total: 0, present: 0, absences: 0, pending: 0 });
+  const updateEmployee = (name, patch) => setPayload((old) => ({
+    ...old,
+    employees: (old?.employees || []).map((item) => item.name === name ? { ...item, ...patch } : item)
+  }));
+  const markAllPresent = () => {
+    if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
+    setPayload((old) => ({
+      ...old,
+      employees: (old?.employees || []).map((item) => ({ ...item, status: 'Presente' }))
+    }));
+  };
+  const save = async () => {
+    if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
+    const attendance = Object.fromEntries(employees.map((item) => [item.name, { status: item.status || 'Pendente', note: item.note || '' }]));
+    const response = await withBusy(() => api('/api/leader-attendance', { method: 'PUT', body: JSON.stringify({ date: dateValue, attendance }) }));
+    setPayload(response.data);
+    notify('Chamada de ponto salva');
+  };
+  const rows = loading ? null : employees.map((item) => [
+    <b>{item.name}</b>,
+    item.role || '-',
+    item.team || '-',
+    <select value={item.status || 'Pendente'} onChange={(event) => updateEmployee(item.name, { status: event.target.value })} disabled={!editable}><option>Pendente</option><option>Presente</option><option>Falta</option></select>,
+    <input value={item.note || ''} onChange={(event) => updateEmployee(item.name, { note: event.target.value })} placeholder="Observação" disabled={!editable} />
+  ]);
+  return (
+    <>
+      <PageHead title="Chamada de Ponto" subtitle="Registro diário de presença dos colaboradores, separado das ordens de serviço." ghostAction="Marcar todos presentes" onGhostAction={markAllPresent} action="Salvar chamada" onAction={save} />
+      <div className="toolbar">
+        <div className="filter"><label>Data</label><input type="date" value={dateValue} onChange={(event) => setDateValue(event.target.value || localDateValue(new Date()))} /></div>
+        <span className="spacer" />
+        <span className="soft">{user.name || user.email || 'Lider'}</span>
+      </div>
+      <div className="kpi-grid">
+        <Kpi icon="users" label="Colaboradores" value={summary.total} delta="lista carregada do banco" />
+        <Kpi icon="check" label="Presentes" value={summary.present} delta="confirmados na chamada" success />
+        <Kpi icon="alert" label="Faltas" value={summary.absences} delta="registradas no dia" warning />
+        <Kpi icon="clock" label="Pendentes" value={summary.pending} delta="aguardando marcação" />
+      </div>
+      <Panel title="Presença dos colaboradores" actions={<Pill value={date(dateValue)} />} padded>
+        <DataTable columns={['Colaborador', 'Função', 'Equipe', 'Presença', 'Observação']} rows={rows} loading={loading} />
+        {!loading && !employees.length && <div className="empty-chart">Nenhum colaborador ativo encontrado.</div>}
+      </Panel>
     </>
   );
 }
@@ -1577,7 +1643,7 @@ function DailyOps({ notify, editable = true }) {
   const selectedOccurrences = selected ? occurrences.filter((item) => occurrenceBelongsToOrder(item, selected)) : [];
   const detailContent = () => {
     if (!selected) return null;
-    if (activeTab === 'Equipe') return [['Equipe', Array.isArray(selected.teamMembers) && selected.teamMembers.length ? selected.teamMembers.join(', ') : 'Sem integrantes definidos'], ['Responsável', selected.responsible || '-'], ['Chamada', selected.attendance ? Object.entries(selected.attendance).map(([name, value]) => `${name}: ${typeof value === 'object' ? `${value.status}${value.note ? ` (${value.note})` : ''}` : value}`).join(' | ') : '-'], ['Justificativa', selected.teamNote || '-']];
+    if (activeTab === 'Equipe') return [['Equipe', Array.isArray(selected.teamMembers) && selected.teamMembers.length ? selected.teamMembers.join(', ') : 'Sem integrantes definidos'], ['Responsável', selected.responsible || '-'], ['Justificativa', selected.teamNote || '-']];
     if (activeTab === 'Horários') return [['Data programada', dateTime(selected.date)], ['Início da operação', selected.operationStart || '-'], ['Fim da operação', selected.operationEnd || '-'], ['Janela', selected.window || '06:00 - 22:00']];
     if (activeTab === 'Ocorrências') return [
       ['Status operacional', selected.status],
