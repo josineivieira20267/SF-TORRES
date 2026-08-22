@@ -1722,7 +1722,7 @@ function DailyOps({ notify, editable = true }) {
     api('/api/clients').then((payload) => setClients(listData(payload))).catch(() => {});
     api('/api/equipment').then((payload) => setEquipment(listData(payload))).catch(() => {});
     api('/api/services').then((payload) => setServices(listData(payload))).catch(() => {});
-    api('/api/employees?q=lider').then((payload) => setLeaders(listData(payload).filter((item) => normalize(item.role).includes('lider')))).catch(() => {});
+    api('/api/employees?limit=500').then((payload) => setLeaders(listData(payload).filter((item) => normalize(item.role).includes('lider')))).catch(() => {});
     api('/api/settings/productivityRules').then((payload) => setProductivityRules(mergeProductivityRules(payload.data))).catch(() => {});
   }, []);
   useEffect(() => {
