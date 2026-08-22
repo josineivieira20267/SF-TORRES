@@ -1587,7 +1587,7 @@ function Productivity() {
     const adjustedValue = item.standardBonus * factor;
     const monthlyBonus = item.criteria.has?.('Equipe PA') && item.present > 0 ? ((productivityRules.standard || []).find((rule) => rule.name === 'Equipe PA')?.base || 0) * factor : 0;
     const total = item.customBonus + adjustedValue + monthlyBonus;
-    const criterionName = item.customBonus ? `${item.criterion.name} + MICHELIN` : item.criterion.name;
+    const criterionName = item.criterion.name;
     return [item.employee.name, item.employee.role || '-', item.employee.team || '-', criterionName, item.os, item.present, item.absences, money(adjustedValue), `${Math.round(factor * 100)}%`, money(total)];
   });
   const osRows = filteredEntries.map(({ order, name, status, criterion: assignedCriterion }) => {
