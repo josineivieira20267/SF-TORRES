@@ -1276,7 +1276,7 @@ function Schedules({ notify, editable = true }) {
       </div>
       <LeaderBottomNav active="schedules" />
       <div className="schedule-table-panel"><Panel title="OS direcionadas ao lider" actions={<Pill value={user.name || user.email || 'usuario'} />}><DataTable columns={['OS', 'Cliente', 'Servico', 'Produto', 'Integrantes', 'Data programada', 'Status', 'Inicio', 'Fim', 'Acao']} rows={rows} loading={loading} /></Panel></div>
-      {operationModal && <Editor title="Editar operacao da OS" uppercase fields={[['carrier', 'Transportador', 'text', null, null, true], ['product', 'Produto', 'text', null, null, true], ['equipment', 'Equipamento', 'select', equipmentOptions, null, true], ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')], ['trailerPlate', 'Placa da carreta', 'text', null, (form) => normalize(form.equipment).includes('carreta')], ['teamMembers', 'Incluir integrantes da equipe', 'employees', { endpoint: '/api/employees', roles: isMichelinOrder(operationModal, productivityRules) ? [] : productivityRules.standard }], ['teamNote', 'Observacao obrigatoria ao alterar equipe', 'textarea', null, () => absenceCount(operationModal) > 0], ['progress', 'Percentual', 'number', null, null, true]]} initial={operationModal} onCancel={() => setOperationModal(null)} onSave={saveOperationEdit} />}
+      {operationModal && <Editor title="Editar operacao da OS" uppercase className="operation-modal" fields={[['carrier', 'Transportador', 'text', null, null, true], ['product', 'Produto', 'text', null, null, true], ['equipment', 'Equipamento', 'select', equipmentOptions, null, true], ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')], ['trailerPlate', 'Placa da carreta', 'text', null, (form) => normalize(form.equipment).includes('carreta')], ['teamMembers', 'Incluir integrantes da equipe', 'employees', { endpoint: '/api/employees', roles: isMichelinOrder(operationModal, productivityRules) ? [] : productivityRules.standard }], ['teamNote', 'Observacao obrigatoria ao alterar equipe', 'textarea', null, () => absenceCount(operationModal) > 0], ['progress', 'Percentual', 'number', null, null, true]]} initial={operationModal} onCancel={() => setOperationModal(null)} onSave={saveOperationEdit} />}
       {occurrenceModal && <Editor title={`Lançar ocorrência · OS ${occurrenceModal.number}`} fields={occurrenceFields} initial={{ workOrder: occurrenceModal.number, type: 'Operacional', status: 'Aberta' }} onCancel={() => setOccurrenceModal(null)} onSave={saveLeaderOccurrence} />}
     </>
   );
@@ -1303,7 +1303,12 @@ function LeaderAttendance({ notify, editable = true }) {
     return () => window.clearTimeout(timer);
   }, [dateValue, query]);
   const employees = payload?.employees || [];
-  const summary = payload?.summary || { total: 0, present: 0, absences: 0, pending: 0 };
+  const attendanceCounts = {
+    marked: employees.filter((item) => Boolean(item.status)).length,
+    present: employees.filter((item) => normalize(item.status) === 'presente').length,
+    absences: employees.filter((item) => normalize(item.status) === 'falta').length,
+    results: employees.length
+  };
   const filteredEmployees = employees.filter((item) => {
     if (mobileFilter === 'Presentes') return normalize(item.status) === 'presente';
     if (mobileFilter === 'Faltas') return normalize(item.status) === 'falta';
@@ -1392,17 +1397,17 @@ function LeaderAttendance({ notify, editable = true }) {
         <span className="soft">{user.name || user.email || 'Lider'}</span>
       </div>
       <div className="kpi-grid">
-        <Kpi icon="users" label="Marcados" value={summary.total} delta="no dia selecionado" />
-        <Kpi icon="check" label="Presentes" value={summary.present} delta="confirmados na chamada" success />
-        <Kpi icon="alert" label="Faltas" value={summary.absences} delta="registradas no dia" warning />
-        <Kpi icon="clock" label="Resultados" value={employees.length} delta={query.trim() ? 'da busca no banco' : 'ja marcados'} />
+        <Kpi icon="users" label="Marcados" value={attendanceCounts.marked} delta="no dia selecionado" />
+        <Kpi icon="check" label="Presentes" value={attendanceCounts.present} delta="confirmados na chamada" success />
+        <Kpi icon="alert" label="Faltas" value={attendanceCounts.absences} delta="registradas no dia" warning />
+        <Kpi icon="clock" label="Resultados" value={attendanceCounts.results} delta={query.trim() ? 'da busca no banco' : 'ja marcados'} />
       </div>
       <div className="leader-filter-tabs">
         {[
-          ['Todos', employees.length],
-          ['Presentes', summary.present],
-          ['Faltas', summary.absences],
-          ['Resultados', employees.filter((item) => item.status).length]
+          ['Todos', attendanceCounts.results],
+          ['Presentes', attendanceCounts.present],
+          ['Faltas', attendanceCounts.absences],
+          ['Resultados', attendanceCounts.marked]
         ].map(([label, count]) => <button type="button" key={label} className={mobileFilter === label ? 'active' : ''} onClick={() => setMobileFilter(label)}>{label} <span>{count}</span></button>)}
       </div>
       <div className="attendance-mobile-list">
@@ -1919,7 +1924,7 @@ function panelTitle(config, count) {
   return first === first.toLowerCase() ? `${count} ${config.panelTitle}` : config.panelTitle;
 }
 
-function Editor({ title, fields, initial, onCancel, onSave, uppercase = false }) {
+function Editor({ title, fields, initial, onCancel, onSave, uppercase = false, className = '' }) {
   const hasEmployeePicker = fields.some(([, , type]) => type === 'employees');
   const [form, setForm] = useState(() => ({
     ...Object.fromEntries(fields.map(([name, , type]) => [name, ['permissions', 'employees'].includes(type) ? (initial?.[name] || (type === 'permissions' ? defaultUserPermissions(initial?.role) : [])) : initial?.[name] ?? ''])),
@@ -1955,7 +1960,7 @@ function Editor({ title, fields, initial, onCancel, onSave, uppercase = false })
   };
   return (
     <div className="modal-backdrop">
-      <div className="modal">
+      <div className={`modal ${className}`}>
         <div className="modal-head"><h3>{title}</h3><button className="btn btn-sm" onClick={onCancel} disabled={submitting}>Fechar</button></div>
         <form className="modal-body" onSubmit={submit}>
           <div className="form-grid">{fields.map(([name, label, type = 'text', options, visible, required]) => {
