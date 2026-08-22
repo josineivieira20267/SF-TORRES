@@ -7,11 +7,34 @@ const router = express.Router();
 
 router.use(requireAuth);
 
-const bonusRules = [
-  { key: 'pa', name: 'Equipe PA', base: 150, mode: 'monthly', match: ['equipe pa', 'pa'] },
-  { key: 'batedores', name: 'Batedores', base: 8, mode: 'per-os', match: ['batedor', 'batedores', 'conferente'] },
-  { key: 'apoio', name: 'Apoio', base: 5, mode: 'per-os', match: ['apoio'] }
-];
+const defaultProductivityRules = {
+  standard: [
+    { key: 'pa', name: 'Equipe PA', base: 150, mode: 'monthly', match: 'equipe pa, pa' },
+    { key: 'batedores', name: 'Batedores', base: 8, mode: 'per-os', match: 'batedor, batedores, conferente' },
+    { key: 'apoio', name: 'Apoio', base: 5, mode: 'per-os', match: 'apoio' }
+  ],
+  michelin: {
+    enabled: true,
+    client: 'MICHELIN',
+    weekdayOnly: true,
+    commercialStart: '07:30',
+    commercialEnd: '18:00',
+    afterStart: '18:01',
+    afterEnd: '23:00',
+    commercialContainer: 49.14,
+    commercialTruck: 28.09,
+    afterContainer: 68.26,
+    afterTruck: 39.01
+  }
+};
+
+function mergeProductivityRules(value) {
+  const saved = value && typeof value === 'object' ? value : {};
+  return {
+    standard: Array.isArray(saved.standard) && saved.standard.length ? saved.standard : defaultProductivityRules.standard,
+    michelin: { ...defaultProductivityRules.michelin, ...(saved.michelin || {}) }
+  };
+}
 
 function normalize(value) {
   return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -50,12 +73,17 @@ function absenceCount(order) {
   return Object.values(order.attendance).filter((value) => normalize(typeof value === 'object' ? value.status : value) === 'falta').length;
 }
 
-function bonusCriterionFor(employee) {
+function readRuleMatches(rule) {
+  return Array.isArray(rule.match) ? rule.match : String(rule.match || '').split(',').map((item) => item.trim()).filter(Boolean);
+}
+
+function bonusCriterionFor(employee, rules = defaultProductivityRules) {
   const team = normalize(employee?.team);
   const role = normalize(employee?.role);
-  const byTeam = bonusRules.find((rule) => rule.match.some((item) => team.includes(item)));
+  const standard = rules.standard || defaultProductivityRules.standard;
+  const byTeam = standard.find((rule) => readRuleMatches(rule).some((item) => team.includes(normalize(item))));
   if (byTeam) return byTeam;
-  return bonusRules.find((rule) => rule.match.some((item) => role.includes(item))) || { key: 'none', name: 'Sem criterio', base: 0, mode: 'per-os', match: [] };
+  return standard.find((rule) => readRuleMatches(rule).some((item) => role.includes(normalize(item)))) || { key: 'none', name: 'Sem criterio', base: 0, mode: 'per-os', match: '' };
 }
 
 function bonusDiscountFor(absences) {
@@ -66,6 +94,47 @@ function bonusAmountFor(summary) {
   const factor = bonusDiscountFor(summary.absences);
   const paidUnits = summary.criterion.mode === 'monthly' ? (summary.present > 0 ? 1 : 0) : summary.present;
   return summary.criterion.base * factor * paidUnits;
+}
+
+function productivityTotalFor(summary) {
+  const standardPresent = Number.isFinite(summary.standardPresent) ? summary.standardPresent : summary.present;
+  return Number(summary.customBonus || 0) + bonusAmountFor({ ...summary, present: standardPresent });
+}
+
+function timeMinutes(value) {
+  const match = String(value || '').match(/(\d{2}):(\d{2})/);
+  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+}
+
+function scheduledWeekday(value) {
+  const raw = String(value || '').slice(0, 10);
+  const parsed = new Date(`${raw}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.getDay();
+}
+
+function isLeaderForOrder(employee, order, name) {
+  return normalize(employee?.role).includes('lider') || normalize(order?.responsible) === normalize(name);
+}
+
+function michelinShareForEntry(order, name, employeeByName, rules = defaultProductivityRules) {
+  const config = rules.michelin || defaultProductivityRules.michelin;
+  if (!config.enabled || normalize(order?.client) !== normalize(config.client)) return null;
+  const weekday = scheduledWeekday(order.date);
+  if (config.weekdayOnly && (weekday === 0 || weekday === 6 || weekday === null)) return null;
+  const minutes = timeMinutes(order.date);
+  if (minutes === null) return null;
+  const commercial = minutes >= timeMinutes(config.commercialStart) && minutes <= timeMinutes(config.commercialEnd);
+  const after = minutes >= timeMinutes(config.afterStart) && minutes <= timeMinutes(config.afterEnd);
+  if (!commercial && !after) return null;
+  const vehicle = normalize(`${order.equipment} ${order.equipmentType} ${order.service} ${order.product}`);
+  const isTruck = vehicle.includes('caminh') || vehicle.includes('truck');
+  const total = commercial
+    ? (isTruck ? Number(config.commercialTruck) : Number(config.commercialContainer))
+    : (isTruck ? Number(config.afterTruck) : Number(config.afterContainer));
+  const members = Array.isArray(order.teamMembers) ? order.teamMembers : Object.keys(order.attendance || {});
+  const payableMembers = members.filter((memberName) => !isLeaderForOrder(employeeByName[normalize(memberName)], order, memberName));
+  if (!payableMembers.includes(name) || !payableMembers.length) return 0;
+  return total / payableMembers.length;
 }
 
 function durationHours(order) {
@@ -85,7 +154,7 @@ function countBy(items, readLabel) {
   }, {})).sort((a, b) => b.value - a.value);
 }
 
-function buildSummary({ workOrders, employees, occurrences, measurements, activeClients, activeEmployees, range }) {
+function buildSummary({ workOrders, employees, occurrences, measurements, activeClients, activeEmployees, range, productivityRules = defaultProductivityRules }) {
   const byStatus = workOrders.reduce((acc, order) => {
     acc[order.status] = (acc[order.status] || 0) + 1;
     return acc;
@@ -102,17 +171,22 @@ function buildSummary({ workOrders, employees, occurrences, measurements, active
   const productivity = Object.values(memberEntries.reduce((acc, entry) => {
     const key = normalize(entry.name);
     const employee = employeeByName[key] || { name: entry.name, role: '-', team: '-' };
-    const criterion = bonusCriterionFor(employee);
-    acc[key] = acc[key] || { employee, criterion, os: 0, present: 0, absences: 0, pending: 0 };
+    const michelinShare = michelinShareForEntry(entry.order, entry.name, employeeByName, productivityRules);
+    const criterion = bonusCriterionFor(employee, productivityRules);
+    acc[key] = acc[key] || { employee, criterion, os: 0, present: 0, standardPresent: 0, absences: 0, pending: 0, customBonus: 0 };
     acc[key].os += 1;
     const status = normalize(entry.status);
     if (status === 'falta') acc[key].absences += 1;
     else if (status === 'pendente') acc[key].pending += 1;
-    else acc[key].present += 1;
+    else {
+      acc[key].present += 1;
+      if (michelinShare !== null) acc[key].customBonus += michelinShare;
+      else acc[key].standardPresent += 1;
+    }
     return acc;
   }, {})).map((item) => {
     const factor = bonusDiscountFor(item.absences);
-    return { ...item, factor, bonus: bonusAmountFor(item) };
+    return { ...item, factor, bonus: productivityTotalFor(item) };
   }).sort((a, b) => b.bonus - a.bonus || b.present - a.present);
   const activeOrders = workOrders.filter((order) => normalize(order.status).includes('exec'));
   const programmedOrders = workOrders.filter((order) => normalize(order.status).includes('program'));
@@ -161,7 +235,7 @@ function buildSummary({ workOrders, employees, occurrences, measurements, active
     ranking: productivity.slice(0, 8).map((item, index) => ({
       index: index + 1,
       employee: { name: item.employee.name, team: item.employee.team || '-', photo: item.employee.photo || item.employee.profilePhoto || '' },
-      criterion: { name: item.criterion.name },
+      criterion: { name: item.customBonus ? `${item.criterion.name} + MICHELIN` : item.criterion.name },
       os: item.os,
       present: item.present,
       absences: item.absences,
@@ -180,12 +254,13 @@ router.get('/summary', async (req, res, next) => {
     const range = monthRange(req.query.month);
 
     if (hasDatabaseUrl) {
-      const [workOrders, clients, employees, occurrences, measurements] = await Promise.all([
+      const [workOrders, clients, employees, occurrences, measurements, productivitySetting] = await Promise.all([
         prisma.workOrder.findMany({ where: { date: { gte: range.from, lte: range.to } } }),
         prisma.client.count({ where: { status: 'Ativo' } }),
         prisma.employee.findMany(),
         prisma.occurrence.findMany(),
-        prisma.measurement.findMany({ where: { status: 'Fechada' } })
+        prisma.measurement.findMany({ where: { status: 'Fechada' } }),
+        prisma.setting.findUnique({ where: { key: 'productivityRules' } })
       ]);
       return res.json({ data: buildSummary({
         workOrders,
@@ -194,12 +269,14 @@ router.get('/summary', async (req, res, next) => {
         measurements,
         activeClients: clients,
         activeEmployees: employees.filter((item) => item.status === 'Ativo').length,
-        range
+        range,
+        productivityRules: mergeProductivityRules(productivitySetting?.value)
       }) });
     }
 
     const db = await readDb();
     const workOrders = (db.workOrders || []).filter((item) => inRange(item, 'date', range));
+    const productivitySetting = (db.settings || []).find((item) => item.key === 'productivityRules');
     return res.json({ data: buildSummary({
       workOrders,
       employees: db.employees || [],
@@ -207,7 +284,8 @@ router.get('/summary', async (req, res, next) => {
       measurements: db.measurements || [],
       activeClients: (db.clients || []).filter((item) => item.status === 'Ativo').length,
       activeEmployees: (db.employees || []).filter((item) => item.status === 'Ativo').length,
-      range
+      range,
+      productivityRules: mergeProductivityRules(productivitySetting?.value)
     }) });
   } catch (error) {
     return next(error);
