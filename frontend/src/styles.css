@@ -753,6 +753,7 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 
 .schedule-mobile-head,.schedule-mobile-list{display:none}
 .schedule-table-panel{display:block}
+.schedule-status-tabs{display:none}
 .attendance-mobile-list{display:none}
 .attendance-table-panel{display:block}
 .leader-bottom-nav{display:none}
@@ -902,6 +903,8 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   .leader-filter-tabs button.active{background:#073A7A;color:#FFFFFF}
   .leader-filter-tabs span{display:inline-grid;place-items:center;min-width:20px;height:20px;margin-left:4px;border-radius:999px;background:rgba(15,36,71,.1);font-size:12px}
   .leader-filter-tabs button.active span{background:rgba(255,255,255,.18)}
+  .schedule-status-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+  .app-route-schedules .kpi-grid{display:none}
   .attendance-card{
     width:100%;max-width:100%;display:grid;grid-template-columns:52px minmax(0,1fr);gap:0;border:1px solid #E4E9F1;border-radius:10px;padding:14px 14px;background:#FFFFFF;box-shadow:0 10px 24px rgba(15,36,71,.06);
   }

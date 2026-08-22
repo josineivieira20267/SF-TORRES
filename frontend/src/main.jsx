@@ -1163,7 +1163,7 @@ function Schedules({ notify, editable = true }) {
   const [equipment, setEquipment] = useState([]);
   const [productivityRules, setProductivityRules] = useState(defaultProductivityRules);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({ q: '', status: 'Todos' });
+  const [filters, setFilters] = useState({ q: '', status: 'Abertos' });
   const [operationModal, setOperationModal] = useState(null);
   const [occurrenceModal, setOccurrenceModal] = useState(null);
   const load = () => { setLoading(true); api(workOrdersEndpoint()).then((p) => setItems(listData(p))).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
@@ -1177,10 +1177,16 @@ function Schedules({ notify, editable = true }) {
     const haystack = normalize(`${order.responsible} ${order.carrier}`);
     return haystack.includes(normalize(user.name)) || haystack.includes(normalize(user.email));
   };
-  const visibleOrders = items.filter((item) => {
+  const leaderOrders = items.filter((item) => {
     const queryOk = normalize(`${item.number} ${item.client} ${item.service} ${item.equipment} ${item.location} ${item.responsible}`).includes(normalize(filters.q));
-    const statusOk = filters.status === 'Todos' || normalize(item.status) === normalize(filters.status);
-    return belongsToLeader(item) && queryOk && statusOk;
+    return belongsToLeader(item) && queryOk;
+  });
+  const visibleOrders = leaderOrders.filter((item) => {
+    const status = normalize(item.status);
+    if (filters.status === 'Todos') return true;
+    if (filters.status === 'Finalizados') return isFinalStatus(item.status);
+    if (filters.status === 'Abertos') return !isFinalStatus(item.status) && !status.includes('cancel');
+    return status === normalize(filters.status);
   });
   const updateOrder = async (order, patch, message) => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
@@ -1298,14 +1304,23 @@ function Schedules({ notify, editable = true }) {
     );
   };
   const rows = loading ? null : visibleOrders.map((item) => [<span className="mono">{item.number}</span>, item.client, item.service || '-', item.product || '-', Array.isArray(item.teamMembers) && item.teamMembers.length ? item.teamMembers.join(', ') : '-', <span className="soft">{dateTime(item.date)}</span>, <Pill value={item.status} />, <span className="soft">{item.operationStart || '-'}</span>, <span className="soft">{item.operationEnd || '-'}</span>, leaderActions(item)]);
+  const openCount = leaderOrders.filter((item) => !isFinalStatus(item.status) && !normalize(item.status).includes('cancel')).length;
+  const finalCount = leaderOrders.filter((item) => isFinalStatus(item.status)).length;
   return (
     <>
       <PageHead title="Programação de Equipes" subtitle="Fila de OS criadas pela administração para o líder vincular e acompanhar pelo próprio usuário." ghostAction="Exportar OS" onGhostAction={exportRows} action="Atualizar" onAction={load} />
       <LeaderMobileNav active="schedules" title="Minhas ordens de serviço" onRefresh={load} />
       <div className="toolbar schedule-toolbar">
         <div className="filter"><label>Buscar</label><input type="text" value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="OS, cliente, equipamento..." /></div>
-        <div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Programado</option><option>Em execucao</option><option>Finalizado</option><option>Cancelado</option></select></div>
+        <div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Abertos</option><option>Finalizados</option><option>Todos</option></select></div>
         <span className="spacer" /><span className="soft">{visibleOrders.length} OS para este usuario</span>
+      </div>
+      <div className="leader-filter-tabs schedule-status-tabs">
+        {[
+          ['Abertos', openCount],
+          ['Finalizados', finalCount],
+          ['Todos', leaderOrders.length]
+        ].map(([label, count]) => <button type="button" key={label} className={filters.status === label ? 'active' : ''} onClick={() => setFilters((old) => ({ ...old, status: label }))}>{label} <span>{count}</span></button>)}
       </div>
       <div className="kpi-grid">
         <Kpi icon="file" label="OS recebidas" value={visibleOrders.length} delta="vinculadas ao lider" />
