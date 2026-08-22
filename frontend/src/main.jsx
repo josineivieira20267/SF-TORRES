@@ -229,7 +229,7 @@ const crudConfigs = {
     fields: [
       ['name', 'Nome fantasia'], ['legalName', 'Razão social'], ['cnpj', 'CNPJ'], ['contact', 'Contato'],
       ['phone', 'Telefone'], ['city', 'Cidade'], ['state', 'UF'], ['contract', 'Contrato'],
-      ['monthRevenue', 'Faturado no mês', 'number'], ['status', 'Status', 'select', ['Ativo', 'Inativo']]
+      ['monthRevenue', 'Faturado no mês', 'number'], ['status', 'Status', 'select', ['', 'Ativo', 'Inativo'], null, true]
     ]
   },
   employees: {
@@ -276,10 +276,10 @@ const crudConfigs = {
     noToolbar: true,
     columns: [
       { label: 'Código', key: 'code', mono: true }, { label: 'Descrição', key: 'description' },
-      { label: 'Unidade', key: 'unit' }, { label: 'Tarifa', render: (i) => money(i.price), right: true },
+      { label: 'Tarifa', render: (i) => money(i.price), right: true },
       { label: 'Categoria', key: 'category' }
     ],
-    fields: [['code', 'Código'], ['description', 'Descrição'], ['unit', 'Unidade'], ['price', 'Tarifa', 'number'], ['category', 'Categoria']]
+    fields: [['description', 'Descrição'], ['price', 'Tarifa', 'number'], ['category', 'Categoria']]
   },
   equipment: {
     title: 'Equipamentos',
@@ -294,10 +294,10 @@ const crudConfigs = {
     ],
     columns: [
       { label: 'Código', key: 'code', mono: true }, { label: 'Tipo', key: 'type' }, { label: 'Marca / Modelo', key: 'model' },
-      { label: 'Capacidade', key: 'capacity' }, { label: 'Última manutenção', render: (i) => date(i.lastMaintenance) },
+      { label: 'Última manutenção', render: (i) => date(i.lastMaintenance) },
       { label: 'Status', render: (i) => <Pill value={i.status} /> }
     ],
-    fields: [['code', 'Código'], ['type', 'Tipo'], ['model', 'Marca / Modelo'], ['capacity', 'Capacidade'], ['lastMaintenance', 'Última manutenção', 'date'], ['status', 'Status', 'select', ['Disponível', 'Em uso', 'Manutenção']]]
+    fields: [['code', 'Código'], ['type', 'Tipo'], ['model', 'Marca / Modelo'], ['capacity', 'Capacidade'], ['lastMaintenance', 'Última manutenção', 'date'], ['status', 'Status', 'select', ['', 'Disponível', 'Em uso', 'Manutenção'], null, true]]
   }
 };
 
@@ -409,8 +409,12 @@ function workOrdersEndpoint(month = currentMonthValue(), params = {}) {
   return `/api/workOrders?${query.toString()}`;
 }
 
-function workOrdersRangeEndpoint(from, to) {
-  return `/api/workOrders?from=${encodeURIComponent(`${from}T00:00:00`)}&to=${encodeURIComponent(`${to}T23:59:59`)}&limit=500`;
+function workOrdersRangeEndpoint(from, to, params = {}) {
+  const query = new URLSearchParams({ from: `${from}T00:00:00`, to: `${to}T23:59:59`, limit: String(params.limit || 500) });
+  Object.entries(params).forEach(([key, value]) => {
+    if (key !== 'limit' && value !== undefined && value !== '' && value !== 'Todos') query.set(key, String(value));
+  });
+  return `/api/workOrders?${query.toString()}`;
 }
 
 function money(value) {
@@ -1497,14 +1501,37 @@ function Productivity() {
   const [productivityRules, setProductivityRules] = useState(defaultProductivityRules);
   const [attendanceSummary, setAttendanceSummary] = useState({ employees: [] });
   const [compare, setCompare] = useState(false);
-  const [showOsLaunches, setShowOsLaunches] = useState(false);
-  const [filters, setFilters] = useState({ q: '', employee: 'Todos', criterion: 'Todos', status: 'Todos' });
+  const [showOsLaunches, setShowOsLaunches] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState({ q: '', employee: 'Todos', criterion: 'Todos', status: 'Todos', client: 'Todos', service: 'Todos', period: 'Este mês', from: monthRange().from.slice(0, 10), to: monthRange().to.slice(0, 10) });
+  const productivityRange = () => {
+    const today = new Date();
+    if (filters.period === 'Hoje') return { from: localDateValue(today), to: localDateValue(today) };
+    if (filters.period === 'Esta semana') {
+      const start = new Date(today);
+      start.setDate(today.getDate() - today.getDay());
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      return { from: localDateValue(start), to: localDateValue(end) };
+    }
+    if (filters.period === 'Personalizado') return { from: filters.from, to: filters.to };
+    const range = monthRange(currentMonthValue());
+    return { from: range.from.slice(0, 10), to: range.to.slice(0, 10) };
+  };
+  const loadProductivity = () => {
+    const range = productivityRange();
+    setLoading(true);
+    api(workOrdersRangeEndpoint(range.from, range.to, { client: filters.client, service: filters.service, limit: 500 }))
+      .then((payload) => setOrders(listData(payload)))
+      .catch((error) => { setOrders([]); triggerAction(error.message); })
+      .finally(() => setLoading(false));
+    api(`/api/leader-attendance/summary?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`).then((payload) => setAttendanceSummary(payload.data || { employees: [] })).catch(() => {});
+  };
   useEffect(() => {
-    api(workOrdersEndpoint()).then((payload) => setOrders(listData(payload))).catch((error) => triggerAction(error.message));
     api('/api/employees').then((payload) => setEmployees(listData(payload))).catch((error) => triggerAction(error.message));
     api('/api/settings/productivityRules').then((payload) => setProductivityRules(mergeProductivityRules(payload.data))).catch(() => {});
-    api(`/api/leader-attendance/summary?month=${currentMonthValue()}`).then((payload) => setAttendanceSummary(payload.data || { employees: [] })).catch(() => {});
   }, []);
+  useEffect(() => { loadProductivity(); }, [filters.period, filters.from, filters.to, filters.client, filters.service]);
   const employeeByName = Object.fromEntries(employees.map((item) => [normalize(item.name), item]));
   const attendanceByName = Object.fromEntries((attendanceSummary.employees || []).map((item) => [normalize(item.name), item]));
   const discountFor = (absences) => absences <= 0 ? 1 : absences === 1 ? 0.75 : absences === 2 ? 0.5 : absences === 3 ? 0.25 : 0;
@@ -1519,6 +1546,8 @@ function Productivity() {
     });
   });
   const employeeOptions = ['Todos', ...Array.from(new Set(memberEntries.map((entry) => entry.name).filter(Boolean))).sort((a, b) => a.localeCompare(b))];
+  const clientOptions = ['Todos', ...Array.from(new Set(orders.map((order) => order.client).filter(Boolean))).sort((a, b) => a.localeCompare(b))];
+  const serviceOptions = ['Todos', ...Array.from(new Set(orders.map((order) => order.service).filter(Boolean))).sort((a, b) => a.localeCompare(b))];
   const filteredEntries = memberEntries.filter((entry) => {
     const employee = employeeByName[normalize(entry.name)] || { name: entry.name, role: '-', team: '-' };
     const michelinShare = michelinShareForEntry(entry.order, entry.name, employeeByName, productivityRules);
@@ -1526,9 +1555,11 @@ function Productivity() {
     const text = normalize(`${entry.order.number} ${entry.order.client} ${entry.order.service} ${entry.order.date} ${entry.name} ${entry.criterion.name}`);
     const queryOk = !filters.q || text.includes(normalize(filters.q));
     const employeeOk = filters.employee === 'Todos' || entry.name === filters.employee;
+    const clientOk = filters.client === 'Todos' || entry.order.client === filters.client;
+    const serviceOk = filters.service === 'Todos' || entry.order.service === filters.service;
     const criterionOk = filters.criterion === 'Todos' || normalize(criterion.name).includes(normalize(filters.criterion));
     const statusOk = filters.status === 'Todos' || normalize(entry.status) === normalize(filters.status);
-    return queryOk && employeeOk && criterionOk && statusOk;
+    return queryOk && employeeOk && clientOk && serviceOk && criterionOk && statusOk;
   });
   const byEmployee = Object.values(filteredEntries.reduce((acc, entry) => {
     const key = normalize(entry.name);
@@ -1576,6 +1607,32 @@ function Productivity() {
     return sum + item.customBonus + (item.standardBonus * factor) + monthlyBonus;
   }, 0);
   const exportRows = [['Colaborador', 'Função', 'Equipe cadastro', 'Critério', 'OS', 'Presenças', 'Faltas', 'Valor base', 'Percentual', 'Total'], ...productivityRows.map((row) => row.map((cell) => displayText(cell)))];
+  const range = productivityRange();
+  return (
+    <>
+      <PageHead title="Produtividade dos colaboradores" subtitle="Apuração por período, OS, chamada, faltas e critérios de bonificação." ghostActions={[compare ? 'Ocultar critérios' : 'Ver critérios', showOsLaunches ? 'Ocultar lançamentos por OS' : 'Ver lançamentos por OS']} onGhostAction={(label) => label.includes('critério') || label.includes('critérios') ? setCompare((value) => !value) : setShowOsLaunches((value) => !value)} action="Exportar relatório" onAction={() => downloadCsv('produtividade-colaboradores.csv', exportRows)} />
+      <div className="toolbar productivity-toolbar">
+        <div className="filter"><label>Período</label><select value={filters.period} onChange={(event) => setFilters((old) => ({ ...old, period: event.target.value }))}><option>Hoje</option><option>Esta semana</option><option>Este mês</option><option>Personalizado</option></select></div>
+        {filters.period === 'Personalizado' && <><div className="filter"><label>De</label><input type="date" value={filters.from} onChange={(event) => setFilters((old) => ({ ...old, from: event.target.value || old.from }))} /></div><div className="filter"><label>Até</label><input type="date" value={filters.to} onChange={(event) => setFilters((old) => ({ ...old, to: event.target.value || old.to }))} /></div></>}
+        <div className="filter"><label>Buscar</label><input value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="OS, cliente, colaborador..." /></div>
+        <div className="filter"><label>Cliente</label><select value={filters.client} onChange={(event) => setFilters((old) => ({ ...old, client: event.target.value, employee: 'Todos' }))}>{clientOptions.map((name) => <option key={name}>{name}</option>)}</select></div>
+        <div className="filter"><label>Serviço</label><select value={filters.service} onChange={(event) => setFilters((old) => ({ ...old, service: event.target.value, employee: 'Todos' }))}>{serviceOptions.map((name) => <option key={name}>{name}</option>)}</select></div>
+        <div className="filter"><label>Colaborador</label><select value={filters.employee} onChange={(event) => setFilters((old) => ({ ...old, employee: event.target.value }))}>{employeeOptions.map((name) => <option key={name}>{name}</option>)}</select></div>
+        <div className="filter"><label>Critério</label><select value={filters.criterion} onChange={(event) => setFilters((old) => ({ ...old, criterion: event.target.value }))}><option>Todos</option>{(productivityRules.standard || []).map((rule) => <option key={rule.key}>{rule.name}</option>)}<option>MICHELIN</option><option>Sem critério</option></select></div>
+        <div className="filter"><label>Chamada</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Presente</option><option>Falta</option><option>Pendente</option></select></div>
+        <span className="spacer" /><span className="soft">{filteredEntries.length} lançamentos · {date(range.from)} a {date(range.to)}</span>
+      </div>
+      <div className="kpi-grid">
+        <Kpi icon="users" label="Colaboradores avaliados" value={byEmployee.length} delta="com OS no filtro" success />
+        <Kpi icon="file" label="OS apuradas" value={new Set(filteredEntries.map((entry) => entry.order.id || entry.order.number)).size} delta="filtradas no banco pelo período" />
+        <Kpi icon="alert" label="Faltas registradas" value={totalAbsences} delta={`${pendingCalls} chamadas pendentes`} warning />
+        <Kpi icon="money" label="Bônus previsto" value={money(totalBonus)} delta="conforme critérios" />
+      </div>
+      {compare && <Panel title="Critérios de bonificação" padded><DataTable columns={['Equipe/Função', 'Valor integral', '1 ausência', '2 ausências', '3 ausências', '4+ ausências']} rows={(productivityRules.standard || []).map(ruleRow)} /></Panel>}
+      <Panel title="Produtividade por colaborador" padded><DataTable columns={['Colaborador', 'Função', 'Equipe cadastro', 'Critério', 'OS', 'Pres.', 'Faltas', 'Valor base', '%', 'Total']} rows={productivityRows} loading={loading} /></Panel>
+      {showOsLaunches && <Panel title="Lançamentos por OS" padded><DataTable columns={['OS', 'Data', 'Cliente', 'Colaborador', 'Equipe', 'Critério', 'Chamada', 'Valor']} rows={osRows} loading={loading} /></Panel>}
+    </>
+  );
   return <><PageHead title="Produtividade dos colaboradores" subtitle="Apuração mensal por OS, chamada, faltas e critérios de bonificação." ghostActions={[compare ? 'Ocultar critérios' : 'Ver critérios', showOsLaunches ? 'Ocultar lançamentos' : 'Ver lançamentos por OS']} onGhostAction={(label) => label.includes('critério') || label.includes('critérios') ? setCompare((value) => !value) : setShowOsLaunches((value) => !value)} action="Exportar relatório" onAction={() => downloadCsv('produtividade-colaboradores.csv', exportRows)} /><div className="toolbar"><div className="filter"><label>Buscar</label><input value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="OS, cliente, colaborador..." /></div><div className="filter"><label>Colaborador</label><select value={filters.employee} onChange={(event) => setFilters((old) => ({ ...old, employee: event.target.value }))}>{employeeOptions.map((name) => <option key={name}>{name}</option>)}</select></div><div className="filter"><label>Critério</label><select value={filters.criterion} onChange={(event) => setFilters((old) => ({ ...old, criterion: event.target.value }))}><option>Todos</option>{(productivityRules.standard || []).map((rule) => <option key={rule.key}>{rule.name}</option>)}<option>MICHELIN</option><option>Sem critério</option></select></div><div className="filter"><label>Chamada</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Presente</option><option>Falta</option><option>Pendente</option></select></div><span className="spacer" /><span className="soft">{filteredEntries.length} lançamentos</span></div><div className="kpi-grid"><Kpi icon="users" label="Colaboradores avaliados" value={byEmployee.length} delta="com OS no filtro" success /><Kpi icon="file" label="OS apuradas" value={new Set(filteredEntries.map((entry) => entry.order.id || entry.order.number)).size} delta="mês atual filtrado no banco" /><Kpi icon="alert" label="Faltas registradas" value={totalAbsences} delta={`${pendingCalls} chamadas pendentes`} warning /><Kpi icon="money" label="Bônus previsto" value={money(totalBonus)} delta="conforme critérios" /></div>{compare && <Panel title="Critérios de bonificação" padded><DataTable columns={['Equipe/Função', 'Valor integral', '1 ausência', '2 ausências', '3 ausências', '4+ ausências']} rows={(productivityRules.standard || []).map(ruleRow)} /></Panel>}<Panel title="Produtividade por colaborador" padded><DataTable columns={['Colaborador', 'Função', 'Equipe cadastro', 'Critério', 'OS', 'Pres.', 'Faltas', 'Valor base', '%', 'Total']} rows={productivityRows} /></Panel>{showOsLaunches && <Panel title="Lançamentos por OS" padded><DataTable columns={['OS', 'Data', 'Cliente', 'Colaborador', 'Equipe', 'Critério', 'Chamada', 'Valor']} rows={osRows} /></Panel>}</>;
 }
 

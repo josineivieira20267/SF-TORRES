@@ -110,10 +110,29 @@ async function workOrderMetaJson(items, query, req) {
   return { statusCounts: workOrderStatusCountsFromItems(filtered) };
 }
 
+function nextServiceCodeFrom(items) {
+  const nextNumber = items.reduce((max, item) => {
+    const match = String(item.code || '').match(/^SV-(\d+)$/i);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0) + 1;
+  return `SV-${String(nextNumber).padStart(3, '0')}`;
+}
+
+async function prepareServiceCreate(data) {
+  if (String(data.code || '').trim()) return data;
+  if (hasDatabaseUrl) {
+    const services = await prisma.service.findMany({ select: { code: true } });
+    return { ...data, code: nextServiceCodeFrom(services) };
+  }
+  const { readDb } = require('../db/jsonStore');
+  const db = await readDb();
+  return { ...data, code: nextServiceCodeFrom(db.services || []) };
+}
+
 const resources = {
   clients: createController('clients', ['name', 'legalName', 'cnpj', 'contact', 'city', 'status'], 'client'),
   employees: createController('employees', ['name', 'cpf', 'role', 'team', 'status'], 'employee'),
-  services: createController('services', ['code', 'description', 'unit', 'category'], 'service'),
+  services: createController('services', ['code', 'description', 'category'], 'service', { prepareCreate: prepareServiceCreate }),
   equipment: createController('equipment', ['code', 'type', 'model', 'status'], 'equipment'),
   locations: createController('locations', ['code', 'description', 'client', 'address', 'status'], 'location'),
   workOrders: createController('workOrders', workOrderSearchFields, 'workOrder', {

@@ -146,12 +146,18 @@ router.get('/', async (req, res, next) => {
 router.get('/summary', async (req, res, next) => {
   try {
     const month = String(req.query.month || todayValue().slice(0, 7)).slice(0, 7);
-    const prefix = `leaderAttendance:${month}-`;
+    const from = String(req.query.from || '').slice(0, 10);
+    const to = String(req.query.to || '').slice(0, 10);
+    const prefix = from && to ? 'leaderAttendance:' : `leaderAttendance:${month}-`;
     const settings = hasDatabaseUrl
       ? await prisma.setting.findMany({ where: { key: { startsWith: prefix } } })
       : ((await readDb()).settings || []).filter((item) => String(item.key || '').startsWith(prefix));
     const byName = {};
-    settings.forEach((setting) => {
+    settings.filter((setting) => {
+      if (!from || !to) return true;
+      const date = String(setting.key || '').replace('leaderAttendance:', '').slice(0, 10);
+      return date >= from && date <= to;
+    }).forEach((setting) => {
       Object.entries(setting.value?.attendance || {}).forEach(([name, item]) => {
         byName[name] = byName[name] || { name, present: 0, absences: 0 };
         const status = normalize(item?.status || item);
@@ -159,7 +165,7 @@ router.get('/summary', async (req, res, next) => {
         if (status === 'falta') byName[name].absences += 1;
       });
     });
-    return res.json({ data: { month, employees: Object.values(byName) } });
+    return res.json({ data: { month, from: from || null, to: to || null, employees: Object.values(byName) } });
   } catch (error) {
     return next(error);
   }

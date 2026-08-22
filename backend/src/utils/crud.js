@@ -115,9 +115,10 @@ function createController(collection, searchableFields = ['name', 'code', 'descr
 
     async create(req, res, next) {
       try {
-        const body = collection === 'workOrders' && req.user
+        let body = collection === 'workOrders' && req.user
           ? { ...req.body, createdBy: req.body.createdBy || req.user.name || req.user.email }
           : req.body;
+        if (options.prepareCreate) body = await options.prepareCreate(body, req);
         if (hasDatabaseUrl) {
           const item = await prisma[prismaModel].create({ data: body });
           return res.status(201).json({ data: item });
