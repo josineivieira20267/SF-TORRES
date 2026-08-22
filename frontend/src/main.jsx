@@ -1179,67 +1179,60 @@ function Schedules({ notify, editable = true }) {
 function LeaderAttendance({ notify, editable = true }) {
   const user = currentUser();
   const [dateValue, setDateValue] = useState(localDateValue(new Date()));
+  const [query, setQuery] = useState('');
   const [payload, setPayload] = useState(null);
   const [loading, setLoading] = useState(true);
-  const load = (date = dateValue) => {
+  const load = (date = dateValue, q = query) => {
     setLoading(true);
-    api(`/api/leader-attendance?date=${encodeURIComponent(date)}`)
+    api(`/api/leader-attendance?date=${encodeURIComponent(date)}&q=${encodeURIComponent(q)}`)
       .then((response) => setPayload(response.data))
       .catch((error) => { setPayload(null); notify(error.message); })
       .finally(() => setLoading(false));
   };
-  useEffect(() => { load(dateValue); }, [dateValue]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => load(dateValue, query), query && query.trim().length < 2 ? 0 : 250);
+    return () => window.clearTimeout(timer);
+  }, [dateValue, query]);
   const employees = payload?.employees || [];
-  const summary = employees.reduce((acc, item) => {
-    const status = normalize(item.status || 'Pendente');
-    acc.total += 1;
-    if (status === 'presente') acc.present += 1;
-    else if (status === 'falta') acc.absences += 1;
-    else acc.pending += 1;
-    return acc;
-  }, { total: 0, present: 0, absences: 0, pending: 0 });
+  const summary = payload?.summary || { total: 0, present: 0, absences: 0, pending: 0 };
   const updateEmployee = (name, patch) => setPayload((old) => ({
     ...old,
     employees: (old?.employees || []).map((item) => item.name === name ? { ...item, ...patch } : item)
   }));
-  const markAllPresent = () => {
+  const mark = async (item, status) => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
-    setPayload((old) => ({
-      ...old,
-      employees: (old?.employees || []).map((item) => ({ ...item, status: 'Presente' }))
+    updateEmployee(item.name, { status });
+    const response = await withBusy(() => api('/api/leader-attendance', {
+      method: 'PUT',
+      body: JSON.stringify({ date: dateValue, q: query, attendance: { [item.name]: { status, note: item.note || '' } } })
     }));
-  };
-  const save = async () => {
-    if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
-    const attendance = Object.fromEntries(employees.map((item) => [item.name, { status: item.status || 'Pendente', note: item.note || '' }]));
-    const response = await withBusy(() => api('/api/leader-attendance', { method: 'PUT', body: JSON.stringify({ date: dateValue, attendance }) }));
     setPayload(response.data);
-    notify('Chamada de ponto salva');
   };
   const rows = loading ? null : employees.map((item) => [
     <b>{item.name}</b>,
     item.role || '-',
     item.team || '-',
-    <select value={item.status || 'Pendente'} onChange={(event) => updateEmployee(item.name, { status: event.target.value })} disabled={!editable}><option>Pendente</option><option>Presente</option><option>Falta</option></select>,
-    <input value={item.note || ''} onChange={(event) => updateEmployee(item.name, { note: event.target.value })} placeholder="Observação" disabled={!editable} />
+    item.status ? <Pill value={item.status} /> : <span className="soft">Sem marcação</span>,
+    <div className="inline-actions"><button className="btn btn-sm btn-success" onClick={() => mark(item, 'Presente')} disabled={!editable}>Presente</button><button className="btn btn-sm btn-danger" onClick={() => mark(item, 'Falta')} disabled={!editable}>Falta</button></div>
   ]);
   return (
     <>
-      <PageHead title="Chamada de Ponto" subtitle="Registro diário de presença dos colaboradores, separado das ordens de serviço." ghostAction="Marcar todos presentes" onGhostAction={markAllPresent} action="Salvar chamada" onAction={save} />
+      <PageHead title="Chamada de Ponto" subtitle="Pesquise o colaborador e marque presença ou falta, separado das ordens de serviço." action="Atualizar" onAction={() => load(dateValue, query)} />
       <div className="toolbar">
         <div className="filter"><label>Data</label><input type="date" value={dateValue} onChange={(event) => setDateValue(event.target.value || localDateValue(new Date()))} /></div>
+        <div className="filter grow"><label>Buscar colaborador</label><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Digite nome, função ou equipe..." /></div>
         <span className="spacer" />
         <span className="soft">{user.name || user.email || 'Lider'}</span>
       </div>
       <div className="kpi-grid">
-        <Kpi icon="users" label="Colaboradores" value={summary.total} delta="lista carregada do banco" />
+        <Kpi icon="users" label="Marcados" value={summary.total} delta="no dia selecionado" />
         <Kpi icon="check" label="Presentes" value={summary.present} delta="confirmados na chamada" success />
         <Kpi icon="alert" label="Faltas" value={summary.absences} delta="registradas no dia" warning />
-        <Kpi icon="clock" label="Pendentes" value={summary.pending} delta="aguardando marcação" />
+        <Kpi icon="clock" label="Resultados" value={employees.length} delta={query.trim() ? 'da busca no banco' : 'ja marcados'} />
       </div>
       <Panel title="Presença dos colaboradores" actions={<Pill value={date(dateValue)} />} padded>
-        <DataTable columns={['Colaborador', 'Função', 'Equipe', 'Presença', 'Observação']} rows={rows} loading={loading} />
-        {!loading && !employees.length && <div className="empty-chart">Nenhum colaborador ativo encontrado.</div>}
+        <DataTable columns={['Colaborador', 'Função', 'Equipe', 'Status', 'Marcar']} rows={rows} loading={loading} />
+        {!loading && !employees.length && <div className="empty-chart">{query.trim() ? 'Nenhum colaborador encontrado para a busca.' : 'Pesquise um colaborador para marcar presença ou falta.'}</div>}
       </Panel>
     </>
   );
