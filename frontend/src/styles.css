@@ -932,6 +932,16 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   .leader-bottom-nav button{border:0;background:transparent;color:#53627A;display:grid;place-items:center;align-content:center;gap:4px;font-weight:700}
   .leader-bottom-nav button.active{color:#0B64CE}
   .leader-bottom-nav svg{width:24px;height:24px}
+  html.keyboard-open .app-route-schedules .page,
+  html.keyboard-open .app-route-leaderAttendance .page{
+    padding-bottom:calc(24px + var(--keyboard-inset, 0px));
+  }
+  html.keyboard-open .leader-bottom-nav{display:none}
+  html.keyboard-open .app-route-leaderAttendance .kpi-grid,
+  html.keyboard-open .app-route-leaderAttendance .leader-filter-tabs{display:none}
+  html.keyboard-open .app-route-leaderAttendance .attendance-mobile-list{
+    padding-bottom:calc(28px + var(--keyboard-inset, 0px));
+  }
   .modal{
     width:calc(100vw - 20px);max-width:none;height:calc(100dvh - 20px);max-height:calc(100dvh - 20px);
     border-radius:10px;display:flex;flex-direction:column;overflow:hidden;
@@ -993,6 +1003,15 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
     background:#FFFFFF;border-top:1px solid #E7ECF3;box-shadow:0 -8px 22px rgba(15,36,71,.08);
   }
   .operation-modal .modal-actions .btn{height:48px;border-radius:8px;justify-content:center;font-size:15px;font-weight:850}
+  html.keyboard-open .operation-modal{
+    max-height:calc(100dvh - 20px);
+  }
+  html.keyboard-open .operation-modal .modal-body{
+    padding-bottom:calc(96px + var(--keyboard-inset, 0px));
+  }
+  html.keyboard-open .operation-modal .modal-actions{
+    display:none;
+  }
 }
 
 /* ---------- Dashboard operacional com graficos ----------- */

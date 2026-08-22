@@ -709,6 +709,49 @@ function App() {
     return () => window.removeEventListener('sf:busy', onBusy);
   }, []);
 
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const root = document.documentElement;
+    let focusTimer = null;
+    const updateKeyboardState = () => {
+      const viewportHeight = viewport?.height || window.innerHeight;
+      const offsetTop = viewport?.offsetTop || 0;
+      const inset = Math.max(0, Math.round(window.innerHeight - viewportHeight - offsetTop));
+      const open = inset > 120;
+      root.classList.toggle('keyboard-open', open);
+      root.style.setProperty('--keyboard-inset', `${open ? inset : 0}px`);
+    };
+    const onFocusIn = (event) => {
+      const target = event.target;
+      if (!target?.matches?.('input, textarea, select')) return;
+      window.clearTimeout(focusTimer);
+      focusTimer = window.setTimeout(() => {
+        updateKeyboardState();
+        target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+      }, 280);
+    };
+    const onFocusOut = () => {
+      window.clearTimeout(focusTimer);
+      focusTimer = window.setTimeout(updateKeyboardState, 180);
+    };
+    updateKeyboardState();
+    viewport?.addEventListener('resize', updateKeyboardState);
+    viewport?.addEventListener('scroll', updateKeyboardState);
+    window.addEventListener('resize', updateKeyboardState);
+    document.addEventListener('focusin', onFocusIn);
+    document.addEventListener('focusout', onFocusOut);
+    return () => {
+      window.clearTimeout(focusTimer);
+      viewport?.removeEventListener('resize', updateKeyboardState);
+      viewport?.removeEventListener('scroll', updateKeyboardState);
+      window.removeEventListener('resize', updateKeyboardState);
+      document.removeEventListener('focusin', onFocusIn);
+      document.removeEventListener('focusout', onFocusOut);
+      root.classList.remove('keyboard-open');
+      root.style.removeProperty('--keyboard-inset');
+    };
+  }, []);
+
   const goLogin = () => {
     localStorage.removeItem('sfTorresToken');
     localStorage.removeItem('sfTorresUser');
