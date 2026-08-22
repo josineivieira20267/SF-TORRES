@@ -939,6 +939,7 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   html.keyboard-open .leader-bottom-nav{display:none}
   html.keyboard-open .app-route-leaderAttendance .kpi-grid,
   html.keyboard-open .app-route-leaderAttendance .leader-filter-tabs{display:none}
+  .app-route-leaderAttendance .kpi-grid{display:none}
   html.keyboard-open .app-route-leaderAttendance .attendance-mobile-list{
     padding-bottom:calc(28px + var(--keyboard-inset, 0px));
   }
