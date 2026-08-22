@@ -758,10 +758,10 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 .leader-bottom-nav{display:none}
 
 @media (max-width:820px){
-  .app-route-schedules,.app-route-leaderAttendance{display:block;height:auto;min-height:100vh}
+  .app-route-schedules,.app-route-leaderAttendance{display:block;height:auto;min-height:100vh;max-width:100vw;overflow-x:hidden}
   .app-route-schedules .sidebar,.app-route-schedules .topbar,
   .app-route-leaderAttendance .sidebar,.app-route-leaderAttendance .topbar{display:none}
-  .app-route-schedules .main,.app-route-leaderAttendance .main{min-height:100vh;overflow:visible;background:#EEF3F8}
+  .app-route-schedules .main,.app-route-leaderAttendance .main{min-height:100vh;overflow-x:hidden;background:#EEF3F8}
   .app-route-schedules .page,.app-route-leaderAttendance .page{padding:12px 12px 28px}
   .app-route-schedules .page-head,.app-route-leaderAttendance .page-head{display:none}
   .schedule-mobile-head{
@@ -828,10 +828,10 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   .schedule-card-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .schedule-touch-action{height:42px;justify-content:center;border-radius:8px;font-weight:700}
   .schedule-touch-action.primary-touch{grid-column:1 / -1}
-  .app-route-schedules .page,.app-route-leaderAttendance .page{padding:0 16px calc(92px + env(safe-area-inset-bottom));background:#F6F8FC}
+  .app-route-schedules .page,.app-route-leaderAttendance .page{width:100%;max-width:100vw;overflow-x:hidden;padding:0 16px calc(92px + env(safe-area-inset-bottom));background:#F6F8FC}
   .schedule-mobile-head{
-    display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:14px;
-    margin:0 -16px 0;padding:28px 20px 48px;background:#073A7A;color:#FFFFFF;position:relative;top:auto;
+    display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:12px;
+    margin:0 -16px 0;padding:22px 20px 26px;background:#073A7A;color:#FFFFFF;position:relative;top:auto;
     box-shadow:none;border-radius:0;
   }
   .leader-mobile-title h2{margin:0;font-size:23px;line-height:1.05;color:#FFFFFF;font-weight:800;letter-spacing:0}
@@ -842,14 +842,16 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
     color:#FFFFFF;display:grid;place-items:center;font-size:24px;font-weight:800;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);
   }
   .schedule-toolbar,.app-route-leaderAttendance .toolbar{
-    position:relative;z-index:2;margin:-24px 0 14px;padding:0;background:transparent;border:none;box-shadow:none;
+    position:relative;z-index:2;margin:12px 0 14px;padding:0;background:transparent;border:none;box-shadow:none;
   }
   .app-route-schedules .schedule-toolbar{grid-template-columns:1fr}
   .app-route-schedules .schedule-toolbar .filter:nth-of-type(2){display:none}
-  .app-route-leaderAttendance .toolbar{grid-template-columns:minmax(116px,.42fr) 1fr}
+  .app-route-leaderAttendance .toolbar{grid-template-columns:minmax(96px,.38fr) minmax(0,1fr);gap:8px}
   .schedule-toolbar .filter,.app-route-leaderAttendance .toolbar .filter{
     height:56px;background:#FFFFFF;border:1px solid #DFE5EE;border-radius:10px;padding:0 14px;box-shadow:0 7px 18px rgba(15,36,71,.06);
   }
+  .schedule-toolbar .filter,
+  .app-route-leaderAttendance .toolbar .filter{overflow:visible}
   .schedule-toolbar .filter label,.app-route-leaderAttendance .toolbar .filter label{font-size:10px;font-weight:800;color:#7B8798}
   .schedule-toolbar .filter input,.schedule-toolbar .filter select,
   .app-route-leaderAttendance .toolbar .filter input,.app-route-leaderAttendance .toolbar .filter select{font-size:14px;font-weight:650;color:#0F2447}
@@ -895,25 +897,27 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   .leader-filter-tabs{
     display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:0 0 18px;background:#FFFFFF;border:1px solid #E0E5EF;border-radius:8px;overflow:hidden;
   }
-  .leader-filter-tabs button{height:48px;border:0;border-right:1px solid #E0E5EF;background:#FFFFFF;color:#172A4A;font-weight:800}
+  .leader-filter-tabs button{height:48px;border:0;border-right:1px solid #E0E5EF;background:#FFFFFF;color:#172A4A;font-size:12px;font-weight:800;padding:0 4px;min-width:0}
   .leader-filter-tabs button:last-child{border-right:0}
   .leader-filter-tabs button.active{background:#073A7A;color:#FFFFFF}
   .leader-filter-tabs span{display:inline-grid;place-items:center;min-width:20px;height:20px;margin-left:4px;border-radius:999px;background:rgba(15,36,71,.1);font-size:12px}
   .leader-filter-tabs button.active span{background:rgba(255,255,255,.18)}
   .attendance-card{
-    display:grid;grid-template-columns:62px 1fr;gap:0;border:1px solid #E4E9F1;border-radius:10px;padding:18px 18px;background:#FFFFFF;box-shadow:0 10px 24px rgba(15,36,71,.06);
+    width:100%;max-width:100%;display:grid;grid-template-columns:52px minmax(0,1fr);gap:0;border:1px solid #E4E9F1;border-radius:10px;padding:14px 14px;background:#FFFFFF;box-shadow:0 10px 24px rgba(15,36,71,.06);
   }
   .attendance-avatar{
     width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:#DDF3E9;color:#07935C;font-size:19px;font-weight:850;align-self:center;
   }
   .attendance-avatar.danger{background:#F9DDE1;color:#B41F2B}
-  .attendance-card-main{border-bottom:0;padding:0;align-items:flex-start}
-  .attendance-card-main h3{font-size:17px;font-weight:850;color:#071D44}
+  .attendance-card-main{min-width:0;border-bottom:0;padding:0;align-items:flex-start;gap:8px}
+  .attendance-card-main > div{min-width:0}
+  .attendance-card-main h3{font-size:16px;font-weight:850;color:#071D44}
   .attendance-card-main p{font-size:14px;color:#69778D}
   .attendance-card-main small{display:flex;align-items:center;gap:6px;margin-top:8px;color:#69778D;font-size:13px}
   .attendance-card-main .pill{height:30px;border-radius:6px;font-size:12px}
-  .attendance-actions{grid-column:2;display:flex;justify-content:flex-end;padding-top:12px}
-  .attendance-actions .btn{min-width:150px;height:44px;border-radius:8px;font-size:14px}
+  .attendance-actions{grid-column:1 / -1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding-top:12px}
+  .attendance-actions .btn{width:100%;min-width:0;height:42px;border-radius:8px;font-size:14px}
+  .attendance-actions .btn:only-child{grid-column:2}
   .attendance-finish-card{
     display:grid;grid-template-columns:34px 1fr auto;gap:14px;align-items:center;background:#EAF4FF;border:1px solid #CFE4FF;border-radius:8px;padding:16px;color:#073A7A;
   }
