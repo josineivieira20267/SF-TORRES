@@ -755,11 +755,12 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 .schedule-table-panel{display:block}
 
 @media (max-width:820px){
-  .app-route-schedules{display:block;height:auto;min-height:100vh}
-  .app-route-schedules .sidebar,.app-route-schedules .topbar{display:none}
-  .app-route-schedules .main{min-height:100vh;overflow:visible;background:#EEF3F8}
-  .app-route-schedules .page{padding:12px 12px 28px}
-  .app-route-schedules .page-head{display:none}
+  .app-route-schedules,.app-route-leaderAttendance{display:block;height:auto;min-height:100vh}
+  .app-route-schedules .sidebar,.app-route-schedules .topbar,
+  .app-route-leaderAttendance .sidebar,.app-route-leaderAttendance .topbar{display:none}
+  .app-route-schedules .main,.app-route-leaderAttendance .main{min-height:100vh;overflow:visible;background:#EEF3F8}
+  .app-route-schedules .page,.app-route-leaderAttendance .page{padding:12px 12px 28px}
+  .app-route-schedules .page-head,.app-route-leaderAttendance .page-head{display:none}
   .schedule-mobile-head{
     display:flex;align-items:center;justify-content:space-between;gap:12px;
     margin:-12px -12px 12px;padding:16px 14px 14px;
@@ -773,17 +774,25 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   }
   .schedule-mobile-head h2{margin:2px 0 0;font-size:22px;line-height:1.1;color:#FFFFFF}
   .schedule-mobile-head .btn{height:38px;border-color:rgba(255,255,255,.18);background:#FFFFFF;color:#0F2447;font-weight:700}
-  .schedule-toolbar{display:grid;grid-template-columns:1fr;gap:8px;padding:10px;background:transparent;border:none;margin-bottom:10px}
-  .schedule-toolbar .filter{width:100%;height:44px;background:#FFFFFF;border-color:#CAD4E2;border-radius:8px;padding:0 12px}
-  .schedule-toolbar .filter input,.schedule-toolbar .filter select{width:100%;min-width:0;font-size:14px}
-  .schedule-toolbar .soft{justify-self:end;font-size:12px;padding-right:4px}
-  .schedule-toolbar .spacer{display:none}
-  .app-route-schedules .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px}
-  .app-route-schedules .kpi{padding:10px;border-radius:8px;gap:9px}
-  .app-route-schedules .kpi .ico{width:34px;height:34px;border-radius:8px}
-  .app-route-schedules .kpi .label{font-size:10.5px;letter-spacing:.2px}
-  .app-route-schedules .kpi .value{font-size:20px}
-  .app-route-schedules .kpi .delta{font-size:11px}
+  .leader-mobile-title{min-width:0}
+  .leader-mobile-tabs{display:flex;gap:6px;margin-top:10px}
+  .leader-mobile-tabs button{
+    height:30px;padding:0 10px;border:1px solid rgba(255,255,255,.22);border-radius:8px;
+    background:rgba(255,255,255,.08);color:#DCE8F8;font-size:12px;font-weight:700;
+  }
+  .leader-mobile-tabs button.active{background:#FFFFFF;color:#0F2447}
+  .schedule-toolbar,.app-route-leaderAttendance .toolbar{display:grid;grid-template-columns:1fr;gap:8px;padding:10px;background:transparent;border:none;margin-bottom:10px}
+  .schedule-toolbar .filter,.app-route-leaderAttendance .toolbar .filter{width:100%;height:44px;background:#FFFFFF;border-color:#CAD4E2;border-radius:8px;padding:0 12px}
+  .schedule-toolbar .filter input,.schedule-toolbar .filter select,
+  .app-route-leaderAttendance .toolbar .filter input,.app-route-leaderAttendance .toolbar .filter select{width:100%;min-width:0;font-size:14px}
+  .schedule-toolbar .soft,.app-route-leaderAttendance .toolbar .soft{justify-self:end;font-size:12px;padding-right:4px}
+  .schedule-toolbar .spacer,.app-route-leaderAttendance .toolbar .spacer{display:none}
+  .app-route-schedules .kpi-grid,.app-route-leaderAttendance .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px}
+  .app-route-schedules .kpi,.app-route-leaderAttendance .kpi{padding:10px;border-radius:8px;gap:9px}
+  .app-route-schedules .kpi .ico,.app-route-leaderAttendance .kpi .ico{width:34px;height:34px;border-radius:8px}
+  .app-route-schedules .kpi .label,.app-route-leaderAttendance .kpi .label{font-size:10.5px;letter-spacing:.2px}
+  .app-route-schedules .kpi .value,.app-route-leaderAttendance .kpi .value{font-size:20px}
+  .app-route-schedules .kpi .delta,.app-route-leaderAttendance .kpi .delta{font-size:11px}
   .schedule-table-panel{display:none}
   .schedule-mobile-list{display:grid;gap:12px}
   .schedule-card{background:#FFFFFF;border:1px solid #D4DDE9;border-radius:10px;padding:14px;box-shadow:0 10px 24px rgba(15,36,71,.08)}

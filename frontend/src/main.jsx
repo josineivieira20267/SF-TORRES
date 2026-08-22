@@ -950,6 +950,27 @@ function AccessDenied() {
   return <Panel title="Acesso restrito" padded><p>Seu usuario nao tem permissao para abrir esta tela.</p><p className="soft">Peça ao administrador para liberar acesso de visualizacao ou edicao em Usuarios & Perfis.</p></Panel>;
 }
 
+function LeaderMobileNav({ active, title, onRefresh }) {
+  const user = currentUser();
+  const go = (key) => {
+    if (!canView(key, user)) return;
+    window.location.hash = `#/${key}`;
+  };
+  return (
+    <div className="schedule-mobile-head">
+      <div className="leader-mobile-title">
+        <span>{user.name || user.email || 'Líder'}</span>
+        <h2>{title}</h2>
+        <div className="leader-mobile-tabs">
+          <button type="button" className={active === 'schedules' ? 'active' : ''} onClick={() => go('schedules')}>Minhas OS</button>
+          <button type="button" className={active === 'leaderAttendance' ? 'active' : ''} onClick={() => go('leaderAttendance')}>Chamada</button>
+        </div>
+      </div>
+      <button className="btn btn-primary" onClick={onRefresh}>Atualizar</button>
+    </div>
+  );
+}
+
 function OperationsDashboard() {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1177,13 +1198,7 @@ function Schedules({ notify, editable = true }) {
   return (
     <>
       <PageHead title="Programação de Equipes" subtitle="Fila de OS criadas pela administração para o líder vincular e acompanhar pelo próprio usuário." ghostAction="Exportar OS" onGhostAction={exportRows} action="Atualizar" onAction={load} />
-      <div className="schedule-mobile-head">
-        <div>
-          <span>{user.name || user.email || 'Líder'}</span>
-          <h2>Minhas OS</h2>
-        </div>
-        <button className="btn btn-primary" onClick={load}>Atualizar</button>
-      </div>
+      <LeaderMobileNav active="schedules" title="Minhas OS" onRefresh={load} />
       <div className="toolbar schedule-toolbar">
         <div className="filter"><label>Buscar</label><input type="text" value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="OS, cliente, equipamento..." /></div>
         <div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Programado</option><option>Em execucao</option><option>Finalizado</option><option>Cancelado</option></select></div>
@@ -1247,6 +1262,7 @@ function LeaderAttendance({ notify, editable = true }) {
   ]);
   return (
     <>
+      <LeaderMobileNav active="leaderAttendance" title="Chamada" onRefresh={() => load(dateValue, query)} />
       <PageHead title="Chamada de Ponto" subtitle="Pesquise o colaborador e marque presença ou falta, separado das ordens de serviço." action="Atualizar" onAction={() => load(dateValue, query)} />
       <div className="toolbar">
         <div className="filter"><label>Data</label><input type="date" value={dateValue} onChange={(event) => setDateValue(event.target.value || localDateValue(new Date()))} /></div>
