@@ -388,6 +388,15 @@ function triggerAction(label) {
   window.dispatchEvent(new CustomEvent('sf:action', { detail: label }));
 }
 
+async function withBusy(task) {
+  window.dispatchEvent(new CustomEvent('sf:busy', { detail: 1 }));
+  try {
+    return await task();
+  } finally {
+    window.dispatchEvent(new CustomEvent('sf:busy', { detail: -1 }));
+  }
+}
+
 function downloadCsv(filename, rows) {
   const csv = rows.map((row) => row.map((cell) => `"${String(cell ?? '').replaceAll('"', '""')}"`).join(';')).join('\n');
   const blob = new Blob(['\ufeff', csv], { type: 'text/csv;charset=utf-8;' });
@@ -497,8 +506,7 @@ class ErrorBoundary extends React.Component {
       return (
         <div className="panel">
           <div className="panel-body">
-            <h3>Carregando painel...</h3>
-            <p className="soft">Sincronizando os dados desta tela.</p>
+            <LoadingSpinner />
           </div>
         </div>
       );
@@ -528,6 +536,22 @@ function Pill({ value }) {
   return <span className={`pill ${pillClass(value)} pill-dot`}>{value || '-'}</span>;
 }
 
+function LoadingSpinner({ small = false }) {
+  return <span className={`loading-spinner ${small ? 'loading-spinner-sm' : ''}`} aria-label="Carregando" role="status" />;
+}
+
+function LoadingCell({ colSpan = 1 }) {
+  return <tr><td colSpan={colSpan} className="loading-cell"><LoadingSpinner /></td></tr>;
+}
+
+function LoadingBlock() {
+  return <div className="loading-block"><LoadingSpinner /></div>;
+}
+
+function BusyOverlay() {
+  return <div className="busy-overlay" aria-live="polite" aria-busy="true"><LoadingSpinner /></div>;
+}
+
 function App() {
   const [authenticated, setAuthenticated] = useState(() => Boolean(localStorage.getItem('sfTorresToken')));
   const [route, setRoute] = useState(() => localStorage.getItem('sfTorresToken') ? cleanRoute(window.location.hash) : 'login');
@@ -535,6 +559,7 @@ function App() {
   const [settings, setSettings] = useState(readStoredSettings);
   const [profile, setProfile] = useState(readStoredProfile);
   const [panel, setPanel] = useState(null);
+  const [busyCount, setBusyCount] = useState(0);
 
   useEffect(() => {
     const onHash = () => {
@@ -575,6 +600,12 @@ function App() {
     return () => window.removeEventListener('sf:action', onAction);
   }, []);
 
+  useEffect(() => {
+    const onBusy = (event) => setBusyCount((count) => Math.max(0, count + Number(event.detail || 0)));
+    window.addEventListener('sf:busy', onBusy);
+    return () => window.removeEventListener('sf:busy', onBusy);
+  }, []);
+
   const goLogin = () => {
     localStorage.removeItem('sfTorresToken');
     localStorage.removeItem('sfTorresUser');
@@ -587,10 +618,10 @@ function App() {
   const saveProfile = async (data) => {
     const user = currentUser();
     const nextProfile = { name: data.name || user.name || 'Administrador SF', role: data.role || user.role || 'Usuário', photo: data.photo || '' };
-    const payload = await api(`/api/users/${user.id}`, {
+    const payload = await withBusy(() => api(`/api/users/${user.id}`, {
       method: 'PUT',
       body: JSON.stringify({ name: nextProfile.name, displayRole: nextProfile.role, profilePhoto: nextProfile.photo })
-    });
+    }));
     const updatedUser = { ...user, ...(payload.data || {}) };
     localStorage.setItem('sfTorresProfile', JSON.stringify(nextProfile));
     localStorage.setItem('sfTorresUser', JSON.stringify(updatedUser));
@@ -624,6 +655,7 @@ function App() {
       </main>
       {panel === 'profile' && <ProfileModal profile={profile} onCancel={() => setPanel(null)} onSave={saveProfile} />}
       {panel && panel !== 'profile' && <ActionPanel type={panel} setRoute={setRoute} onClose={() => setPanel(null)} />}
+      {busyCount > 0 && <BusyOverlay />}
       <div className={`sf-toast ${toast ? 'show' : ''}`}>{toast}</div>
     </div>
   );
@@ -641,7 +673,7 @@ function Login({ settings, onLogin }) {
     setLoading(true);
     setMessage('Validando credenciais...');
     try {
-      const payload = await fetch(`${API_URL}/api/auth/login`, {
+      const payload = await withBusy(() => fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -649,7 +681,7 @@ function Login({ settings, onLogin }) {
         const data = await r.json();
         if (!r.ok) throw new Error(data.error?.message || 'Falha no login');
         return data;
-      });
+      }));
       localStorage.setItem('sfTorresToken', payload.data.token);
       localStorage.setItem('sfTorresUser', JSON.stringify(payload.data.user));
       onLogin(payload.data.user);
@@ -681,7 +713,7 @@ function Login({ settings, onLogin }) {
             <div className="form-field"><label>Senha</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" /></div>
             <div className="form-field"><label>Empresa / Filial</label><select><option>SF TORRES - Matriz Manaus/AM</option><option>ST Serviços de Logística - Filial</option></select></div>
             <div className="aux"><label className="row"><input type="checkbox" /> Manter conectado</label><a href="#/login">Esqueci minha senha</a></div>
-            <button className="btn btn-primary" disabled={loading}>{loading ? 'Entrando...' : 'Entrar no sistema'}</button>
+            <button className="btn btn-primary" disabled={loading}>{loading ? <LoadingSpinner small /> : 'Entrar no sistema'}</button>
           </form>
           <div className="login-foot">{message}</div>
         </div>
@@ -705,6 +737,7 @@ function UserAvatar({ profile, className = '' }) {
 
 function ProfileModal({ profile, onCancel, onSave }) {
   const [form, setForm] = useState(profile);
+  const [submitting, setSubmitting] = useState(false);
   const inputRef = useRef(null);
   const choosePhoto = () => inputRef.current?.click();
   const changePhoto = async (event) => {
@@ -713,10 +746,19 @@ function ProfileModal({ profile, onCancel, onSave }) {
     const photo = await fileToDataUrl(file);
     setForm((old) => ({ ...old, photo }));
   };
+  const save = async () => {
+    if (submitting) return;
+    try {
+      setSubmitting(true);
+      await onSave(form);
+    } finally {
+      setSubmitting(false);
+    }
+  };
   return (
     <div className="modal-backdrop">
       <div className="modal profile-modal">
-        <div className="modal-head"><h3>Editar perfil</h3><button className="btn btn-sm" onClick={onCancel}>Fechar</button></div>
+        <div className="modal-head"><h3>Editar perfil</h3><button className="btn btn-sm" onClick={onCancel} disabled={submitting}>Fechar</button></div>
         <div className="modal-body">
           <div className="profile-editor">
             <UserAvatar profile={form} className="profile-photo" />
@@ -734,7 +776,7 @@ function ProfileModal({ profile, onCancel, onSave }) {
             <div className="form-field"><label>Nome exibido</label><input value={form.name || ''} onChange={(event) => setForm((old) => ({ ...old, name: event.target.value }))} /></div>
             <div className="form-field"><label>Perfil</label><input value={form.role || ''} onChange={(event) => setForm((old) => ({ ...old, role: event.target.value }))} /></div>
           </div>
-          <div className="modal-actions"><button className="btn" onClick={onCancel}>Cancelar</button><button className="btn btn-primary" onClick={() => onSave(form)}>Salvar perfil</button></div>
+          <div className="modal-actions"><button className="btn" onClick={onCancel} disabled={submitting}>Cancelar</button><button className="btn btn-primary" onClick={save} disabled={submitting}>{submitting ? <LoadingSpinner small /> : 'Salvar perfil'}</button></div>
         </div>
       </div>
     </div>
@@ -819,92 +861,34 @@ function AccessDenied() {
 }
 
 function OperationsDashboard() {
-  const [orders, setOrders] = useState([]);
-  const [employees, setEmployees] = useState([]);
-  const [occurrences, setOccurrences] = useState([]);
+  const [summary, setSummary] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState(currentMonthValue());
   const load = () => {
-    Promise.all([
-      api(workOrdersEndpoint(month)),
-      api('/api/employees'),
-      api('/api/occurrences').catch(() => ({ data: [] }))
-    ]).then(([orderPayload, employeePayload, occurrencePayload]) => {
-      setOrders(listData(orderPayload));
-      setEmployees(listData(employeePayload));
-      setOccurrences(listData(occurrencePayload));
-    }).catch((error) => triggerAction(error.message));
+    setLoading(true);
+    api(`/api/dashboard/summary?month=${encodeURIComponent(month)}`)
+      .then((payload) => setSummary(payload.data))
+      .catch((error) => triggerAction(error.message))
+      .finally(() => setLoading(false));
   };
   useEffect(load, [month]);
-  const employeeByName = Object.fromEntries(employees.map((item) => [normalize(item.name), item]));
-  const criterionFor = bonusCriterionFor;
-  const memberEntries = orders.flatMap((order) => {
-    const members = Array.isArray(order.teamMembers) ? order.teamMembers : Object.keys(order.attendance || {});
-    return members.map((name) => {
-      const attendance = order.attendance?.[name];
-      const status = attendance ? (typeof attendance === 'object' ? attendance.status : attendance) : 'Pendente';
-      return { order, name, status };
-    });
-  });
-  const productivity = Object.values(memberEntries.reduce((acc, entry) => {
-    const key = normalize(entry.name);
-    const employee = employeeByName[key] || { name: entry.name, role: '-', team: '-' };
-    const criterion = criterionFor(employee);
-    acc[key] = acc[key] || { employee, criterion, os: 0, present: 0, absences: 0, pending: 0 };
-    acc[key].os += 1;
-    const status = normalize(entry.status);
-    if (status === 'falta') acc[key].absences += 1;
-    else if (status === 'pendente') acc[key].pending += 1;
-    else acc[key].present += 1;
-    return acc;
-  }, {})).map((item) => {
-    const factor = bonusDiscountFor(item.absences);
-    return { ...item, factor, bonus: bonusAmountFor(item) };
-  }).sort((a, b) => b.bonus - a.bonus || b.present - a.present);
-  const activeOrders = orders.filter((order) => normalize(order.status).includes('exec'));
-  const programmedOrders = orders.filter((order) => normalize(order.status).includes('program'));
-  const finalOrders = orders.filter((order) => isFinalStatus(order.status));
-  const totalAbsences = orders.reduce((sum, order) => sum + absenceCount(order), 0);
-  const pendingCalls = productivity.reduce((sum, item) => sum + item.pending, 0);
-  const totalBonus = productivity.reduce((sum, item) => sum + item.bonus, 0);
-  const openOccurrences = occurrences.filter((item) => !normalize(item.status).includes('resolvida'));
-  const totalOrders = orders.length;
-  const pendingAndAbsences = programmedOrders.length + pendingCalls + totalAbsences;
-  const totalAttendances = productivity.reduce((sum, item) => sum + item.present + item.absences + item.pending, 0);
-  const productivityRate = totalAttendances ? Math.round((productivity.reduce((sum, item) => sum + item.present, 0) / totalAttendances) * 1000) / 10 : 0;
+  const totalOrders = summary?.workOrders?.total || 0;
+  const activeOrders = summary?.workOrders?.active || 0;
+  const finalOrders = summary?.workOrders?.final || 0;
+  const pendingAndAbsences = summary?.workOrders?.pendingAndAbsences || 0;
+  const pendingCalls = summary?.workOrders?.pendingCalls || 0;
+  const productivityRate = Number(summary?.productivityRate || 0);
+  const avgDuration = Number(summary?.avgDurationHours || 0);
   const exportRows = [
     ['OS', 'Cliente', 'Servico', 'Responsavel', 'Integrantes', 'Status', 'Faltas', 'Data programada', 'Inicio', 'Fim'],
-    ...orders.map((o) => [o.number, o.client, o.service, o.responsible, Array.isArray(o.teamMembers) ? o.teamMembers.join(', ') : '', o.status, absenceCount(o), o.date, o.operationStart, o.operationEnd])
+    ...(summary?.exportRows || [])
   ];
-  const productivityRows = productivity.slice(0, 8).map((item, index) => [index + 1, <EmployeeCell item={item} />, item.employee.team || '-', item.criterion.name, item.os, item.present, item.absences, <ProgressValue value={Math.round(item.factor * 100)} />, money(item.bonus)]);
-  const statusChart = [
-    ['Finalizadas', finalOrders.length],
-    ['Em execucao', activeOrders.length],
-    ['Pendentes', programmedOrders.length],
-    ['Faltas', totalAbsences],
-    ['Ocorrencias', openOccurrences.length]
-  ].map(([label, value]) => ({ label, value }));
-  const monthStart = new Date(`${month}-01T00:00:00`);
-  const monthDays = Number.isNaN(monthStart.getTime()) ? 31 : new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0).getDate();
-  const days = Array.from({ length: monthDays }, (_, index) => `${month}-${pad2(index + 1)}`);
-  const dailyOrders = days.map((day) => ({ label: date(day).slice(0, 5), value: orders.filter((order) => String(order.date || '').slice(0, 10) === day).length }));
-  const trendChart = dailyOrders.filter((_, index) => index % Math.max(Math.ceil(monthDays / 12), 1) === 0 || index === monthDays - 1);
-  const countBy = (items, readLabel) => Object.values(items.reduce((acc, item) => {
-    const label = readLabel(item) || 'Nao informado';
-    acc[label] = acc[label] || { label, value: 0 };
-    acc[label].value += 1;
-    return acc;
-  }, {})).sort((a, b) => b.value - a.value);
-  const clientChart = countBy(orders, (order) => order.client).slice(0, 7);
-  const ranking = productivity.slice(0, 6).map((item, index) => ({ ...item, label: item.employee.name, value: item.present, percent: Math.round(item.factor * 100), index: index + 1 }));
-  const durationHours = (order) => {
-    if (!order.operationStart || !order.operationEnd) return 0;
-    const start = new Date(String(order.operationStart).replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1'));
-    const end = new Date(String(order.operationEnd).replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1'));
-    const diff = end - start;
-    return Number.isFinite(diff) && diff > 0 ? diff / 36e5 : 0;
-  };
-  const durationData = orders.map(durationHours).filter((value) => value > 0);
-  const avgDuration = durationData.length ? durationData.reduce((sum, value) => sum + value, 0) / durationData.length : 0;
+  const productivityRows = (summary?.ranking || []).map((item) => [item.index, <EmployeeCell item={item} />, item.employee.team || '-', item.criterion.name, item.os, item.present, item.absences, <ProgressValue value={item.percent} />, money(item.bonus)]);
+  const statusChart = summary?.charts?.status || [];
+  const dailyOrders = summary?.charts?.dailyOrders || [];
+  const trendChart = summary?.charts?.trendChart || [];
+  const clientChart = summary?.charts?.clientChart || [];
+  const ranking = (summary?.ranking || []).slice(0, 6);
   const formatDuration = (hours) => {
     const totalMinutes = Math.round(Number(hours || 0) * 60);
     return `${Math.floor(totalMinutes / 60)}h ${pad2(totalMinutes % 60)}m`;
@@ -920,8 +904,8 @@ function OperationsDashboard() {
       </div>
       <div className="metric-grid">
         <MetricCard icon="file" label="Total de OS" value={totalOrders} sub="100% do periodo" color="#4466E8" progress={100} />
-        <MetricCard icon="pulse" label="Em execucao" value={activeOrders.length} sub={percentOfTotal(activeOrders.length)} color="#395BDB" progress={totalOrders ? activeOrders.length / totalOrders * 100 : 0} />
-        <MetricCard icon="check" label="Finalizadas" value={finalOrders.length} sub={percentOfTotal(finalOrders.length)} color="#08A86B" progress={totalOrders ? finalOrders.length / totalOrders * 100 : 0} />
+        <MetricCard icon="pulse" label="Em execucao" value={activeOrders} sub={percentOfTotal(activeOrders)} color="#395BDB" progress={totalOrders ? activeOrders / totalOrders * 100 : 0} />
+        <MetricCard icon="check" label="Finalizadas" value={finalOrders} sub={percentOfTotal(finalOrders)} color="#08A86B" progress={totalOrders ? finalOrders / totalOrders * 100 : 0} />
         <MetricCard icon="clock" label="Pendentes / Faltas" value={pendingAndAbsences} sub={`${pendingCalls} pendentes na chamada`} color="#F29A1F" progress={totalOrders ? pendingAndAbsences / Math.max(totalOrders, pendingAndAbsences) * 100 : 0} />
         <MetricCard icon="chart" label="Produtividade" value={`${productivityRate.toFixed(1)}%`} sub="Indice de desempenho" color="#7048E8" progress={productivityRate} />
         <MetricCard icon="clock" label="Tempo medio" value={formatDuration(avgDuration)} sub="Por OS finalizada" color="#2598B8" progress={Math.min((avgDuration / 8) * 100, 100)} />
@@ -935,7 +919,7 @@ function OperationsDashboard() {
         <Panel title="Ranking de colaboradores por finalizacoes" actions={<select className="panel-select"><option>Finalizadas</option><option>Presencas</option></select>} padded><RankingBars data={ranking} /></Panel>
         <Panel title="OS por cliente" actions={<select className="panel-select"><option>Todos</option><option>Top 5</option></select>} padded><BarChart data={clientChart} /></Panel>
       </div>
-      <Panel title="Ranking geral de produtividade" padded><DataTable columns={['#', 'Colaborador', 'Equipe', 'Criterio', 'OS', 'Finalizadas', 'Faltas', '% Produtividade', 'Bonus Previsto']} rows={productivityRows.length ? productivityRows : [[1, '-', '-', '-', 0, 0, 0, <ProgressValue value={0} />, money(0)]]} /></Panel>
+      <Panel title="Ranking geral de produtividade" padded><DataTable columns={['#', 'Colaborador', 'Equipe', 'Criterio', 'OS', 'Finalizadas', 'Faltas', '% Produtividade', 'Bonus Previsto']} rows={productivityRows.length ? productivityRows : [[1, '-', '-', '-', 0, 0, 0, <ProgressValue value={0} />, money(0)]]} loading={loading} /></Panel>
     </>
   );
 }
@@ -1055,7 +1039,7 @@ function Tower() {
   const assignTeam = async () => {
     const order = visible.find((item) => isOpenQueueStatus(item.status));
     if (!order) return triggerAction('Nenhuma OS na fila');
-    await api(`/api/workOrders/${order.id}`, { method: 'PUT', body: JSON.stringify({ ...order, status: 'Em execucao', carrier: order.carrier || 'Equipe acionada pela torre', progress: Math.max(Number(order.progress || 0), 10) }) });
+    await withBusy(() => api(`/api/workOrders/${order.id}`, { method: 'PUT', body: JSON.stringify({ ...order, status: 'Em execucao', carrier: order.carrier || 'Equipe acionada pela torre', progress: Math.max(Number(order.progress || 0), 10) }) }));
     triggerAction(`Equipe acionada para OS ${order.number}`);
     load();
   };
@@ -1091,7 +1075,7 @@ function Schedules({ notify, editable = true }) {
   });
   const updateOrder = async (order, patch, message) => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
-    await api(`/api/workOrders/${order.id}`, { method: 'PUT', body: JSON.stringify({ ...order, ...patch }) });
+    await withBusy(() => api(`/api/workOrders/${order.id}`, { method: 'PUT', body: JSON.stringify({ ...order, ...patch }) }));
     notify(message);
     setAttendanceModal(null);
     setOperationModal(null);
@@ -1102,10 +1086,10 @@ function Schedules({ notify, editable = true }) {
   const requestLeaderCorrection = async (order) => {
     if (order.correctionRequested && !order.correctionApproved) return notify('Correção já solicitada ao administrativo');
     await updateOrder(order, { correctionRequested: true, correctionApproved: false }, 'Solicitacao de correcao enviada ao administrativo');
-    await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ workOrder: order.number, type: 'Correção', description: `Líder solicitou correção após conclusão da OS`, status: 'Aguardando liberação', createdAt: new Date().toISOString() }) });
+    await withBusy(() => api('/api/occurrences', { method: 'POST', body: JSON.stringify({ workOrder: order.number, type: 'Correção', description: `Líder solicitou correção após conclusão da OS`, status: 'Aguardando liberação', createdAt: new Date().toISOString() }) }));
   };
   const saveLeaderOccurrence = async (data) => {
-    await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ ...data, workOrder: occurrenceModal.number, status: data.status || 'Aberta', createdAt: new Date().toISOString() }) });
+    await withBusy(() => api('/api/occurrences', { method: 'POST', body: JSON.stringify({ ...data, workOrder: occurrenceModal.number, status: data.status || 'Aberta', createdAt: new Date().toISOString() }) }));
     notify('Ocorrência lançada na OS');
     setOccurrenceModal(null);
   };
@@ -1176,7 +1160,7 @@ function Schedules({ notify, editable = true }) {
       </article>
     );
   };
-  const rows = loading ? [['Carregando OS do banco...', '', '', '', '', '', '', '', '', '']] : visibleOrders.map((item) => [<span className="mono">{item.number}</span>, item.client, item.service || '-', item.product || '-', Array.isArray(item.teamMembers) && item.teamMembers.length ? item.teamMembers.join(', ') : '-', <span className="soft">{dateTime(item.date)}</span>, <Pill value={item.status} />, <span className="soft">{item.operationStart || '-'}</span>, <span className="soft">{item.operationEnd || '-'}</span>, leaderActions(item)]);
+  const rows = loading ? null : visibleOrders.map((item) => [<span className="mono">{item.number}</span>, item.client, item.service || '-', item.product || '-', Array.isArray(item.teamMembers) && item.teamMembers.length ? item.teamMembers.join(', ') : '-', <span className="soft">{dateTime(item.date)}</span>, <Pill value={item.status} />, <span className="soft">{item.operationStart || '-'}</span>, <span className="soft">{item.operationEnd || '-'}</span>, leaderActions(item)]);
   return (
     <>
       <PageHead title="Programação de Equipes" subtitle="Fila de OS criadas pela administração para o líder vincular e acompanhar pelo próprio usuário." ghostAction="Exportar OS" onGhostAction={exportRows} action="Atualizar" onAction={load} />
@@ -1199,10 +1183,10 @@ function Schedules({ notify, editable = true }) {
         <Kpi icon="check" label="Finalizadas" value={visibleOrders.filter((item) => item.status === 'Finalizado').length} delta="finalizadas" success />
       </div>
       <div className="schedule-mobile-list">
-        {loading ? <div className="empty-chart">Carregando OS do banco...</div> : visibleOrders.map(scheduleCard)}
+        {loading ? <LoadingBlock /> : visibleOrders.map(scheduleCard)}
         {!loading && !visibleOrders.length && <div className="empty-chart">Nenhuma OS encontrada</div>}
       </div>
-      <div className="schedule-table-panel"><Panel title="OS direcionadas ao lider" actions={<Pill value={user.name || user.email || 'usuario'} />}><DataTable columns={['OS', 'Cliente', 'Servico', 'Produto', 'Integrantes', 'Data programada', 'Status', 'Inicio', 'Fim', 'Acao']} rows={rows} /></Panel></div>
+      <div className="schedule-table-panel"><Panel title="OS direcionadas ao lider" actions={<Pill value={user.name || user.email || 'usuario'} />}><DataTable columns={['OS', 'Cliente', 'Servico', 'Produto', 'Integrantes', 'Data programada', 'Status', 'Inicio', 'Fim', 'Acao']} rows={rows} loading={loading} /></Panel></div>
       {attendanceModal && <AttendanceModal order={attendanceModal} onCancel={() => setAttendanceModal(null)} onSave={(attendance) => updateOrder(attendanceModal, { attendance }, 'Chamada salva na OS')} />}
       {operationModal && <Editor title="Editar operacao da OS" fields={[['carrier', 'Transportador', 'text', null, null, true], ['location', 'Local', 'text', null, null, true], ['product', 'Produto', 'text', null, null, true], ['equipment', 'Equipamento', 'select', equipmentOptions, null, true], ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')], ['trailerPlate', 'Placa da carreta', 'text', null, (form) => normalize(form.equipment).includes('carreta')], ['teamMembers', 'Incluir integrantes da equipe', 'employees', employeeOptions, () => absenceCount(operationModal) > 0], ['teamNote', 'Observacao obrigatoria ao alterar equipe', 'textarea', null, () => absenceCount(operationModal) > 0], ['progress', 'Percentual', 'number', null, null, true]]} initial={operationModal} onCancel={() => setOperationModal(null)} onSave={saveOperationEdit} />}
       {occurrenceModal && <Editor title={`Lançar ocorrência · OS ${occurrenceModal.number}`} fields={occurrenceFields} initial={{ workOrder: occurrenceModal.number, type: 'Operacional', status: 'Aberta' }} onCancel={() => setOccurrenceModal(null)} onSave={saveLeaderOccurrence} />}
@@ -1360,7 +1344,7 @@ function Reports() {
     }
   };
   const generate = async (card = selected) => {
-    const payload = await api(card[2] === '/api/workOrders' ? workOrdersEndpoint() : card[2]);
+    const payload = await withBusy(() => api(card[2] === '/api/workOrders' ? workOrdersEndpoint() : card[2]));
     const rows = listData(payload);
     const model = reportModels[card[0]];
     const headers = model.columns.map(([label]) => label);
@@ -1424,7 +1408,7 @@ function Settings({ notify, settings, setSettings, editable = true }) {
   const integrationRows = integrationItems.map((item, index) => [item.name, item.type, <span className="mono">{item.endpoint}</span>, item.lastSync, <Pill value={item.status} />, <><button className="btn btn-sm" onClick={() => { updateIntegration(index, { lastSync: nowText(), status: 'Ativo' }); notify(`${item.name} testada`); }}>Testar</button> <button className="btn btn-sm" onClick={() => setIntegrationEditor({ ...item, index })}>Editar</button> {item.status !== 'Ativo' && <button className="btn btn-sm btn-primary" onClick={() => { updateIntegration(index, { status: 'Ativo', lastSync: nowText() }); notify(`${item.name} conectada`); }}>Conectar</button>}</>]);
   const saveSettings = async () => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar configuracoes');
-    await api('/api/settings/company', { method: 'PUT', body: JSON.stringify(form) });
+    await withBusy(() => api('/api/settings/company', { method: 'PUT', body: JSON.stringify(form) }));
     setSettings(form);
     notify('Configurações salvas no banco');
   };
@@ -1432,7 +1416,7 @@ function Settings({ notify, settings, setSettings, editable = true }) {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar configuracoes');
     setForm(defaultSettings);
     setSettings(defaultSettings);
-    await api('/api/settings/company', { method: 'PUT', body: JSON.stringify(defaultSettings) });
+    await withBusy(() => api('/api/settings/company', { method: 'PUT', body: JSON.stringify(defaultSettings) }));
     notify('Padrões restaurados');
   };
   return <>
@@ -1544,21 +1528,23 @@ function DailyOps({ notify, editable = true }) {
     const user = currentUser();
     if (items.some((item) => item.id !== modal?.id && normalize(item.number) === normalize(data.number))) return notify('Ja existe uma OS com este numero');
     const payload = modal?.id ? data : { ...data, progress: data.progress || 0, createdBy: data.createdBy || user.name || user.email || 'Administrador SF' };
-    await api(modal?.id ? `/api/workOrders/${modal.id}` : '/api/workOrders', { method: modal?.id ? 'PUT' : 'POST', body: JSON.stringify(payload) });
+    await withBusy(() => api(modal?.id ? `/api/workOrders/${modal.id}` : '/api/workOrders', { method: modal?.id ? 'PUT' : 'POST', body: JSON.stringify(payload) }));
     setModal(null); notify('OS salva'); load();
   };
   const remove = async () => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     if (!selected || !confirm('Apagar esta OS?')) return;
-    await api(`/api/workOrders/${selected.id}`, { method: 'DELETE' });
+    await withBusy(() => api(`/api/workOrders/${selected.id}`, { method: 'DELETE' }));
     notify('OS apagada'); setSelectedId(''); load();
   };
   const exportFiltered = () => downloadCsv('operacao-diaria.csv', [['OS', 'Cliente', 'Equipamento', 'Status', 'Data', 'Serviço', 'Equipe'], ...filteredItems.map((item) => [item.number, item.client, item.equipment, item.status, item.date, item.service, item.carrier])]);
   const releaseCorrection = async () => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     if (!selected) return;
-    await api(`/api/workOrders/${selected.id}`, { method: 'PUT', body: JSON.stringify({ ...selected, correctionApproved: true }) });
-    await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ workOrder: selected.number, type: 'Correção', description: 'Correção liberada pela administração para edição do líder', status: 'Liberada', createdAt: new Date().toISOString() }) });
+    await withBusy(async () => {
+      await api(`/api/workOrders/${selected.id}`, { method: 'PUT', body: JSON.stringify({ ...selected, correctionApproved: true }) });
+      await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ workOrder: selected.number, type: 'Correção', description: 'Correção liberada pela administração para edição do líder', status: 'Liberada', createdAt: new Date().toISOString() }) });
+    });
     notify('Correção liberada para o líder');
     load();
   };
@@ -1568,7 +1554,7 @@ function DailyOps({ notify, editable = true }) {
     setOccurrenceModal(selected);
   };
   const saveOccurrence = async (data) => {
-    await api('/api/occurrences', { method: 'POST', body: JSON.stringify({ ...data, workOrder: occurrenceModal.number, status: data.status || 'Aberta', createdAt: new Date().toISOString() }) });
+    await withBusy(() => api('/api/occurrences', { method: 'POST', body: JSON.stringify({ ...data, workOrder: occurrenceModal.number, status: data.status || 'Aberta', createdAt: new Date().toISOString() }) }));
     notify('Ocorrência registrada no banco');
     setOccurrenceModal(null);
     loadOccurrences();
@@ -1606,7 +1592,7 @@ function DailyOps({ notify, editable = true }) {
       <div className="detail">
         <div className="pane" style={{ overflow: 'hidden' }}>
           <div className="table-tools"><input className="search-input" value={filters.table} onChange={(event) => setFilters((old) => ({ ...old, table: event.target.value }))} placeholder="Filtrar resultados..." /><span className="spacer" /><button className="btn btn-sm" onClick={() => setItems((old) => [...old].sort((a, b) => String(b.date).localeCompare(String(a.date))))}>Ordenar: Data ↓</button></div>
-          <div className="table-scroll"><table className="dtbl"><thead><tr><th>OS</th><th>Cliente</th><th>Equipamento</th><th>Status</th><th className="right">Falta</th><th className="right">Data programada</th></tr></thead><tbody>{loading ? <tr><td colSpan="6">Carregando dados do banco...</td></tr> : filteredItems.map((i) => <tr key={i.id} className={selected?.id === i.id ? 'selected' : ''} onClick={() => setSelectedId(i.id)}><td className="mono">{i.number}</td><td>{i.client}</td><td className="mono">{i.equipment || '-'}</td><td><Pill value={i.status} /></td><td className="right">{absenceCount(i)}</td><td className="right">{dateTime(i.date)}</td></tr>)}</tbody></table></div>
+          <div className="table-scroll"><table className="dtbl"><thead><tr><th>OS</th><th>Cliente</th><th>Equipamento</th><th>Status</th><th className="right">Falta</th><th className="right">Data programada</th></tr></thead><tbody>{loading ? <LoadingCell colSpan={6} /> : filteredItems.map((i) => <tr key={i.id} className={selected?.id === i.id ? 'selected' : ''} onClick={() => setSelectedId(i.id)}><td className="mono">{i.number}</td><td>{i.client}</td><td className="mono">{i.equipment || '-'}</td><td><Pill value={i.status} /></td><td className="right">{absenceCount(i)}</td><td className="right">{dateTime(i.date)}</td></tr>)}</tbody></table></div>
         </div>
         <div className="pane">{selected && <><div className="pane-head"><div><div className="eyebrow">Ordem de Serviço</div><div className="mono-title">OS {selected.number} · {selected.client}</div></div><div className="meta"><Pill value={selected.status} /></div></div><div className="tabs">{['Dados', 'Equipe', 'Horários', 'Ocorrências'].map((tab) => <div key={tab} className={`tab ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>{tab}</div>)}</div><div className="pane-body">{detailContent().map(([k, v]) => <div className="field-row" key={k}><b>{k}</b><span>{displayValue(v)}</span></div>)}</div><div className="action-strip"><button className="btn" onClick={() => setModal(selected)}>Editar OS</button>{selected.correctionRequested && !selected.correctionApproved && <button className="btn btn-primary" onClick={releaseCorrection}>Liberar correção</button>}<button className="btn btn-success" onClick={registerOccurrence}>Lançar ocorrência</button><button className="btn btn-danger push" onClick={remove}>Apagar</button></div></>}</div>
       </div>
@@ -1641,13 +1627,13 @@ function CrudScreen({ config, notify, beforeTable, editable = true }) {
   const save = async (data) => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     const payload = config.beforeSave ? config.beforeSave(data) : data;
-    await api(modal?.id ? `${config.endpoint}/${modal.id}` : config.endpoint, { method: modal?.id ? 'PUT' : 'POST', body: JSON.stringify(payload) });
+    await withBusy(() => api(modal?.id ? `${config.endpoint}/${modal.id}` : config.endpoint, { method: modal?.id ? 'PUT' : 'POST', body: JSON.stringify(payload) }));
     setModal(null); notify('Registro salvo'); load();
   };
   const remove = async (item) => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     if (!confirm('Apagar este registro?')) return;
-    await api(`${config.endpoint}/${item.id}`, { method: 'DELETE' });
+    await withBusy(() => api(`${config.endpoint}/${item.id}`, { method: 'DELETE' }));
     notify('Registro apagado'); load();
   };
   return (
@@ -1656,7 +1642,7 @@ function CrudScreen({ config, notify, beforeTable, editable = true }) {
       {config.toolbar && <Toolbar fields={config.toolbar} count={displayItems.length} values={toolbarFilters} onChange={setToolbarFilters} />}
       {!config.noToolbar && !config.toolbar && <div className="toolbar"><div className="filter"><label>Buscar</label><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar..." /></div><span className="spacer" /><span className="soft">{displayItems.length} registros</span></div>}
       {beforeTable}
-      <div className="panel" style={{ overflow: 'hidden' }}><div className="panel-head"><h3>{panelTitle(config, displayItems.length)}</h3>{config.panelActions && <div className="actions">{typeof config.panelActions === 'function' ? config.panelActions({ items: displayItems, load }) : config.panelActions}</div>}</div><div className="panel-body" style={{ padding: 0 }}><table className="dtbl"><thead><tr>{config.columns.map((c) => <th key={c.label} className={c.right ? 'right' : ''}>{c.label}</th>)}<th /></tr></thead><tbody>{loading ? <tr><td colSpan={config.columns.length + 1}>Carregando dados do banco...</td></tr> : displayItems.map((item) => <tr key={item.id}>{config.columns.map((c) => <td key={c.label} className={`${c.mono ? 'mono' : ''} ${c.right ? 'right' : ''}`}>{c.render ? c.render(item) : item[c.key]}</td>)}<td className="right">{editable ? <><button className="btn btn-sm" onClick={() => setModal(item)}>Editar</button> <button className="btn btn-sm btn-danger" onClick={() => remove(item)}>Apagar</button></> : <span className="soft">Somente leitura</span>}</td></tr>)}</tbody></table></div></div>
+      <div className="panel" style={{ overflow: 'hidden' }}><div className="panel-head"><h3>{panelTitle(config, displayItems.length)}</h3>{config.panelActions && <div className="actions">{typeof config.panelActions === 'function' ? config.panelActions({ items: displayItems, load }) : config.panelActions}</div>}</div><div className="panel-body" style={{ padding: 0 }}><table className="dtbl"><thead><tr>{config.columns.map((c) => <th key={c.label} className={c.right ? 'right' : ''}>{c.label}</th>)}<th /></tr></thead><tbody>{loading ? <LoadingCell colSpan={config.columns.length + 1} /> : displayItems.map((item) => <tr key={item.id}>{config.columns.map((c) => <td key={c.label} className={`${c.mono ? 'mono' : ''} ${c.right ? 'right' : ''}`}>{c.render ? c.render(item) : item[c.key]}</td>)}<td className="right">{editable ? <><button className="btn btn-sm" onClick={() => setModal(item)}>Editar</button> <button className="btn btn-sm btn-danger" onClick={() => remove(item)}>Apagar</button></> : <span className="soft">Somente leitura</span>}</td></tr>)}</tbody></table></div></div>
       {modal && <Editor title={modal.id ? `Editar ${config.title}` : config.newLabel} fields={config.fields} initial={modal} onCancel={() => setModal(null)} onSave={save} />}
     </>
   );
@@ -1670,6 +1656,7 @@ function panelTitle(config, count) {
 
 function Editor({ title, fields, initial, onCancel, onSave }) {
   const [form, setForm] = useState(() => Object.fromEntries(fields.map(([name, , type]) => [name, ['permissions', 'employees'].includes(type) ? (initial?.[name] || (type === 'permissions' ? defaultUserPermissions(initial?.role) : [])) : initial?.[name] ?? ''])));
+  const [submitting, setSubmitting] = useState(false);
   const change = (name, value, type) => setForm((old) => {
     const formatted = type === 'number' ? Number(value || 0) : type === 'cpf' ? formatCpf(value) : type === 'personName' ? formatPersonNameInput(value) : value;
     const next = { ...old, [name]: formatted };
@@ -1682,18 +1669,24 @@ function Editor({ title, fields, initial, onCancel, onSave }) {
   const isVisible = (visible) => !visible || visible(form);
   const isRequired = (required) => typeof required === 'function' ? required(form) : Boolean(required);
   const isEmpty = (value) => Array.isArray(value) ? value.length === 0 : ['', '-'].includes(String(value ?? '').trim());
-  const submit = (event) => {
+  const submit = async (event) => {
     event.preventDefault();
+    if (submitting) return;
     const missing = fields.find(([name, label, , , visible, required]) => isVisible(visible) && isRequired(required) && isEmpty(form[name]));
     if (missing) return alert(`Preencha o campo obrigatorio: ${missing[1]}`);
     const invalidCpf = fields.find(([name, label, type, , visible]) => isVisible(visible) && type === 'cpf' && !isValidCpf(form[name]));
     if (invalidCpf) return alert(`Informe um CPF valido: ${invalidCpf[1]}`);
-    return onSave(form);
+    try {
+      setSubmitting(true);
+      await onSave(form);
+    } finally {
+      setSubmitting(false);
+    }
   };
   return (
     <div className="modal-backdrop">
       <div className="modal">
-        <div className="modal-head"><h3>{title}</h3><button className="btn btn-sm" onClick={onCancel}>Fechar</button></div>
+        <div className="modal-head"><h3>{title}</h3><button className="btn btn-sm" onClick={onCancel} disabled={submitting}>Fechar</button></div>
         <form className="modal-body" onSubmit={submit}>
           <div className="form-grid">{fields.map(([name, label, type = 'text', options, visible, required]) => {
             if (!isVisible(visible)) return null;
@@ -1701,7 +1694,7 @@ function Editor({ title, fields, initial, onCancel, onSave }) {
             if (type === 'employees') return <EmployeePicker key={name} label={`${label}${isRequired(required) ? ' *' : ''}`} options={options || []} value={form[name]} onChange={(value) => change(name, value, type)} />;
             return <div className="form-field" key={name}><label>{label}{isRequired(required) ? ' *' : ''}</label>{type === 'select' ? <select value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)}>{options.map((o) => <option key={o || '-'} value={o}>{o || '-'}</option>)}</select> : type === 'textarea' ? <textarea value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)} /> : <input type={['cpf', 'personName'].includes(type) ? 'text' : type} value={form[name]} required={isRequired(required)} maxLength={type === 'cpf' ? 14 : undefined} onChange={(e) => change(name, e.target.value, type)} />}</div>;
           })}</div>
-          <div className="modal-actions"><button type="button" className="btn" onClick={onCancel}>Cancelar</button><button className="btn btn-primary">Salvar</button></div>
+          <div className="modal-actions"><button type="button" className="btn" onClick={onCancel} disabled={submitting}>Cancelar</button><button className="btn btn-primary" disabled={submitting}>{submitting ? <LoadingSpinner small /> : 'Salvar'}</button></div>
         </form>
       </div>
     </div>
@@ -1747,9 +1740,11 @@ function AttendanceModal({ order, onCancel, onSave }) {
   const readStatus = (name) => typeof existing[name] === 'object' ? existing[name].status : existing[name];
   const readNote = (name) => typeof existing[name] === 'object' ? existing[name].note : '';
   const [attendance, setAttendance] = useState(() => Object.fromEntries(members.map((name) => [name, { status: readStatus(name) || 'Presente', note: readNote(name) || '' }])));
+  const [submitting, setSubmitting] = useState(false);
   const change = (name, patch) => setAttendance((old) => ({ ...old, [name]: { ...(old[name] || { status: 'Presente', note: '' }), ...patch } }));
-  const submit = (event) => {
+  const submit = async (event) => {
     event.preventDefault();
+    if (submitting) return;
     const missingNote = members.find((name) => {
       const previous = readStatus(name) || 'Presente';
       const current = attendance[name]?.status || 'Presente';
@@ -1757,19 +1752,24 @@ function AttendanceModal({ order, onCancel, onSave }) {
       return (current === 'Falta' || changed) && !String(attendance[name]?.note || '').trim();
     });
     if (missingNote) return alert(`Informe a observacao da chamada para ${missingNote}`);
-    return onSave(attendance);
+    try {
+      setSubmitting(true);
+      await onSave(attendance);
+    } finally {
+      setSubmitting(false);
+    }
   };
   return (
     <div className="modal-backdrop">
       <div className="modal">
-        <div className="modal-head"><h3>Chamada da equipe</h3><button className="btn btn-sm" onClick={onCancel}>Fechar</button></div>
+        <div className="modal-head"><h3>Chamada da equipe</h3><button className="btn btn-sm" onClick={onCancel} disabled={submitting}>Fechar</button></div>
         <form className="modal-body" onSubmit={submit}>
           <div className="permissions-grid">
             <div className="permissions-head">OS {order.number} - presença</div>
             {members.map((name) => <div className="attendance-row" key={name}><div><b>{name}</b><span>Integrante da equipe</span></div><select value={attendance[name]?.status || 'Presente'} onChange={(event) => change(name, { status: event.target.value })}><option>Presente</option><option>Falta</option></select><input value={attendance[name]?.note || ''} onChange={(event) => change(name, { note: event.target.value })} placeholder="Observação obrigatória se faltar ou alterar presença" /></div>)}
             {!members.length && <div className="employee-picker"><span className="soft">Esta OS ainda nao tem integrantes definidos.</span></div>}
           </div>
-          <div className="modal-actions"><button type="button" className="btn" onClick={onCancel}>Cancelar</button><button className="btn btn-primary">Salvar chamada</button></div>
+          <div className="modal-actions"><button type="button" className="btn" onClick={onCancel} disabled={submitting}>Cancelar</button><button className="btn btn-primary" disabled={submitting}>{submitting ? <LoadingSpinner small /> : 'Salvar chamada'}</button></div>
         </form>
       </div>
     </div>
@@ -1862,9 +1862,9 @@ function Panel({ title, actions, children, padded = false }) {
   return <div className="panel"><div className="panel-head"><h3>{title}</h3>{actions && <div className="actions">{actions}</div>}</div><div className={`panel-body ${padded ? '' : 'table-panel-body'}`}>{children}</div></div>;
 }
 
-function DataTable({ columns, rows }) {
+function DataTable({ columns, rows, loading = false }) {
   const safeRows = Array.isArray(rows) ? rows : [];
-  return <table className="dtbl"><thead><tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>{safeRows.map((row, index) => <tr key={index}>{(Array.isArray(row) ? row : [row]).map((cell, cellIndex) => <td key={cellIndex}>{displayValue(cell)}</td>)}</tr>)}</tbody></table>;
+  return <table className="dtbl"><thead><tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>{loading ? <LoadingCell colSpan={columns.length} /> : safeRows.map((row, index) => <tr key={index}>{(Array.isArray(row) ? row : [row]).map((cell, cellIndex) => <td key={cellIndex}>{displayValue(cell)}</td>)}</tr>)}</tbody></table>;
 }
 
 function ActivityPanel() {
