@@ -956,6 +956,11 @@ function LeaderMobileNav({ active, title, onRefresh }) {
     if (!canView(key, user)) return;
     window.location.hash = `#/${key}`;
   };
+  const logout = () => {
+    localStorage.removeItem('sfTorresToken');
+    localStorage.removeItem('sfTorresUser');
+    window.location.hash = '#/login';
+  };
   return (
     <div className="schedule-mobile-head">
       <div className="leader-mobile-title">
@@ -966,7 +971,10 @@ function LeaderMobileNav({ active, title, onRefresh }) {
           <button type="button" className={active === 'leaderAttendance' ? 'active' : ''} onClick={() => go('leaderAttendance')}>Chamada</button>
         </div>
       </div>
-      <button className="btn btn-primary" onClick={onRefresh}>Atualizar</button>
+      <div className="leader-mobile-actions">
+        <button className="btn btn-primary" onClick={onRefresh}>Atualizar</button>
+        <button className="btn leader-logout" onClick={logout}>Sair</button>
+      </div>
     </div>
   );
 }
@@ -1260,6 +1268,21 @@ function LeaderAttendance({ notify, editable = true }) {
     item.status ? <Pill value={item.status} /> : <span className="soft">Sem marcação</span>,
     <div className="inline-actions"><button className="btn btn-sm btn-success" onClick={() => mark(item, 'Presente')} disabled={!editable}>Presente</button><button className="btn btn-sm btn-danger" onClick={() => mark(item, 'Falta')} disabled={!editable}>Falta</button></div>
   ]);
+  const attendanceCard = (item) => (
+    <article className="attendance-card" key={item.name}>
+      <div className="attendance-card-main">
+        <div>
+          <h3>{item.name}</h3>
+          <p>{[item.role, item.team].filter(Boolean).join(' · ') || '-'}</p>
+        </div>
+        {item.status ? <Pill value={item.status} /> : <span className="attendance-pending">Sem marcação</span>}
+      </div>
+      <div className="attendance-actions">
+        <button className="btn btn-success" onClick={() => mark(item, 'Presente')} disabled={!editable}>Presente</button>
+        <button className="btn btn-danger" onClick={() => mark(item, 'Falta')} disabled={!editable}>Falta</button>
+      </div>
+    </article>
+  );
   return (
     <>
       <LeaderMobileNav active="leaderAttendance" title="Chamada" onRefresh={() => load(dateValue, query)} />
@@ -1276,10 +1299,16 @@ function LeaderAttendance({ notify, editable = true }) {
         <Kpi icon="alert" label="Faltas" value={summary.absences} delta="registradas no dia" warning />
         <Kpi icon="clock" label="Resultados" value={employees.length} delta={query.trim() ? 'da busca no banco' : 'ja marcados'} />
       </div>
-      <Panel title="Presença dos colaboradores" actions={<Pill value={date(dateValue)} />} padded>
-        <DataTable columns={['Colaborador', 'Função', 'Equipe', 'Status', 'Marcar']} rows={rows} loading={loading} />
+      <div className="attendance-mobile-list">
+        {loading ? <LoadingBlock /> : employees.map(attendanceCard)}
         {!loading && !employees.length && <div className="empty-chart">{query.trim() ? 'Nenhum colaborador encontrado para a busca.' : 'Pesquise um colaborador para marcar presença ou falta.'}</div>}
-      </Panel>
+      </div>
+      <div className="attendance-table-panel">
+        <Panel title="Presença dos colaboradores" actions={<Pill value={date(dateValue)} />} padded>
+          <DataTable columns={['Colaborador', 'Função', 'Equipe', 'Status', 'Marcar']} rows={rows} loading={loading} />
+          {!loading && !employees.length && <div className="empty-chart">{query.trim() ? 'Nenhum colaborador encontrado para a busca.' : 'Pesquise um colaborador para marcar presença ou falta.'}</div>}
+        </Panel>
+      </div>
     </>
   );
 }
