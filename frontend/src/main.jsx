@@ -400,9 +400,13 @@ function monthRange(month = currentMonthValue()) {
   };
 }
 
-function workOrdersEndpoint(month = currentMonthValue()) {
+function workOrdersEndpoint(month = currentMonthValue(), params = {}) {
   const range = monthRange(month);
-  return `/api/workOrders?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}&limit=500`;
+  const query = new URLSearchParams({ from: range.from, to: range.to, limit: String(params.limit || 500) });
+  Object.entries(params).forEach(([key, value]) => {
+    if (key !== 'limit' && value !== undefined && value !== '') query.set(key, String(value));
+  });
+  return `/api/workOrders?${query.toString()}`;
 }
 
 function workOrdersRangeEndpoint(from, to) {
@@ -1162,12 +1166,25 @@ function Schedules({ notify, editable = true }) {
   const [items, setItems] = useState([]);
   const [equipment, setEquipment] = useState([]);
   const [productivityRules, setProductivityRules] = useState(defaultProductivityRules);
+  const [statusCounts, setStatusCounts] = useState({ abertos: 0, finalizados: 0, todos: 0 });
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ q: '', status: 'Abertos' });
   const [operationModal, setOperationModal] = useState(null);
   const [occurrenceModal, setOccurrenceModal] = useState(null);
-  const load = () => { setLoading(true); api(workOrdersEndpoint()).then((p) => setItems(listData(p))).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false)); };
-  useEffect(() => { load(); }, []);
+  const load = (nextFilters = filters) => {
+    setLoading(true);
+    api(workOrdersEndpoint(currentMonthValue(), { mine: true, statusGroup: nextFilters.status, q: nextFilters.q, limit: 80 }))
+      .then((p) => {
+        setItems(listData(p));
+        setStatusCounts(p.meta?.statusCounts || { abertos: 0, finalizados: 0, todos: 0 });
+      })
+      .catch((error) => { setItems([]); notify(error.message); })
+      .finally(() => setLoading(false));
+  };
+  useEffect(() => {
+    const timer = window.setTimeout(() => load(filters), filters.q && filters.q.trim().length < 2 ? 0 : 250);
+    return () => window.clearTimeout(timer);
+  }, [filters.q, filters.status]);
   useEffect(() => {
     api('/api/equipment').then((payload) => setEquipment(listData(payload))).catch(() => {});
     api('/api/settings/productivityRules').then((payload) => setProductivityRules(mergeProductivityRules(payload.data))).catch(() => {});
@@ -1177,17 +1194,7 @@ function Schedules({ notify, editable = true }) {
     const haystack = normalize(`${order.responsible} ${order.carrier}`);
     return haystack.includes(normalize(user.name)) || haystack.includes(normalize(user.email));
   };
-  const leaderOrders = items.filter((item) => {
-    const queryOk = normalize(`${item.number} ${item.client} ${item.service} ${item.equipment} ${item.location} ${item.responsible}`).includes(normalize(filters.q));
-    return belongsToLeader(item) && queryOk;
-  });
-  const visibleOrders = leaderOrders.filter((item) => {
-    const status = normalize(item.status);
-    if (filters.status === 'Todos') return true;
-    if (filters.status === 'Finalizados') return isFinalStatus(item.status);
-    if (filters.status === 'Abertos') return !isFinalStatus(item.status) && !status.includes('cancel');
-    return status === normalize(filters.status);
-  });
+  const visibleOrders = items.filter(belongsToLeader);
   const updateOrder = async (order, patch, message) => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     await withBusy(() => api(`/api/workOrders/${order.id}`, { method: 'PUT', body: JSON.stringify({ ...order, ...patch }) }));
@@ -1304,12 +1311,12 @@ function Schedules({ notify, editable = true }) {
     );
   };
   const rows = loading ? null : visibleOrders.map((item) => [<span className="mono">{item.number}</span>, item.client, item.service || '-', item.product || '-', Array.isArray(item.teamMembers) && item.teamMembers.length ? item.teamMembers.join(', ') : '-', <span className="soft">{dateTime(item.date)}</span>, <Pill value={item.status} />, <span className="soft">{item.operationStart || '-'}</span>, <span className="soft">{item.operationEnd || '-'}</span>, leaderActions(item)]);
-  const openCount = leaderOrders.filter((item) => !isFinalStatus(item.status) && !normalize(item.status).includes('cancel')).length;
-  const finalCount = leaderOrders.filter((item) => isFinalStatus(item.status)).length;
+  const openCount = statusCounts.abertos || 0;
+  const finalCount = statusCounts.finalizados || 0;
   return (
     <>
-      <PageHead title="Programação de Equipes" subtitle="Fila de OS criadas pela administração para o líder vincular e acompanhar pelo próprio usuário." ghostAction="Exportar OS" onGhostAction={exportRows} action="Atualizar" onAction={load} />
-      <LeaderMobileNav active="schedules" title="Minhas ordens de serviço" onRefresh={load} />
+      <PageHead title="Programação de Equipes" subtitle="Fila de OS criadas pela administração para o líder vincular e acompanhar pelo próprio usuário." ghostAction="Exportar OS" onGhostAction={exportRows} action="Atualizar" onAction={() => load(filters)} />
+      <LeaderMobileNav active="schedules" title="Minhas ordens de serviço" onRefresh={() => load(filters)} />
       <div className="toolbar schedule-toolbar">
         <div className="filter"><label>Buscar</label><input type="text" value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="OS, cliente, equipamento..." /></div>
         <div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Abertos</option><option>Finalizados</option><option>Todos</option></select></div>
@@ -1319,7 +1326,7 @@ function Schedules({ notify, editable = true }) {
         {[
           ['Abertos', openCount],
           ['Finalizados', finalCount],
-          ['Todos', leaderOrders.length]
+          ['Todos', statusCounts.todos || 0]
         ].map(([label, count]) => <button type="button" key={label} className={filters.status === label ? 'active' : ''} onClick={() => setFilters((old) => ({ ...old, status: label }))}>{label} <span>{count}</span></button>)}
       </div>
       <div className="kpi-grid">

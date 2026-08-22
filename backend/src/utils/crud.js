@@ -9,6 +9,7 @@ function normalize(value) {
 function applyQuery(items, query, searchableFields, options = {}) {
   let result = [...items];
   const dateField = options.dateField;
+  const skipKeys = new Set(['q', 'limit', 'offset', 'from', 'to', ...(options.filterKeys || [])]);
 
   if (query.q) {
     const needle = normalize(query.q);
@@ -27,8 +28,12 @@ function applyQuery(items, query, searchableFields, options = {}) {
     });
   }
 
+  if (options.applyJsonFilters) {
+    result = options.applyJsonFilters(result, query, options.request) || result;
+  }
+
   for (const [key, value] of Object.entries(query)) {
-    if (['q', 'limit', 'offset', 'from', 'to'].includes(key) || value === undefined || value === '') continue;
+    if (skipKeys.has(key) || value === undefined || value === '') continue;
     result = result.filter((item) => normalize(item[key]) === normalize(value));
   }
 
@@ -43,6 +48,7 @@ function applyQuery(items, query, searchableFields, options = {}) {
 function buildWhere(query, searchableFields, options = {}) {
   const where = {};
   const dateField = options.dateField;
+  const skipKeys = new Set(['q', 'limit', 'offset', 'from', 'to', ...(options.filterKeys || [])]);
 
   if (query.q) {
     where.OR = searchableFields.map((field) => ({
@@ -57,7 +63,7 @@ function buildWhere(query, searchableFields, options = {}) {
   }
 
   for (const [key, value] of Object.entries(query)) {
-    if (['q', 'limit', 'offset', 'from', 'to'].includes(key) || value === undefined || value === '') continue;
+    if (skipKeys.has(key) || value === undefined || value === '') continue;
     where[key] = String(value);
   }
 
@@ -69,18 +75,22 @@ function createController(collection, searchableFields = ['name', 'code', 'descr
     async list(req, res, next) {
       try {
         if (hasDatabaseUrl) {
-          const where = buildWhere(req.query, searchableFields, options);
+          let where = buildWhere(req.query, searchableFields, options);
+          if (options.applyPrismaWhere) where = options.applyPrismaWhere(where, req.query, req) || where;
           const skip = Math.max(Number(req.query.offset || 0), 0);
           const take = Math.min(Math.max(Number(req.query.limit || 100), 1), 500);
           const [data, total] = await Promise.all([
             prisma[prismaModel].findMany({ where, skip, take, orderBy: { createdAt: 'desc' } }),
             prisma[prismaModel].count({ where })
           ]);
-          return res.json({ data, meta: { total, limit: take, offset: skip } });
+          const extraMeta = options.metaPrisma ? await options.metaPrisma(req.query, req) : {};
+          return res.json({ data, meta: { total, limit: take, offset: skip, ...extraMeta } });
         }
 
         const db = await readDb();
-        res.json(applyQuery(db[collection] || [], req.query, searchableFields, options));
+        const result = applyQuery(db[collection] || [], req.query, searchableFields, { ...options, request: req });
+        const extraMeta = options.metaJson ? await options.metaJson(db[collection] || [], req.query, req) : {};
+        res.json({ ...result, meta: { ...result.meta, ...extraMeta } });
       } catch (error) {
         next(error);
       }
@@ -169,4 +179,4 @@ function createController(collection, searchableFields = ['name', 'code', 'descr
   };
 }
 
-module.exports = { createController };
+module.exports = { createController, buildWhere, normalize };
