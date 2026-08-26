@@ -1435,7 +1435,7 @@ function LeaderAttendance({ notify, editable = true }) {
     return true;
   });
   const monthlyEmployees = [...(monthlySummary.employees || [])].sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
-  const monthlySelected = monthlyEmployees.find((item) => item.name === selectedEmployee) || monthlyEmployees[0] || null;
+  const monthlySelected = selectedEmployee ? monthlyEmployees.find((item) => item.name === selectedEmployee) || null : null;
   const selectedDays = [...(monthlySelected?.days || [])].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
   const selectedAbsences = selectedDays.filter((item) => normalize(item.status) === 'falta');
   const monthlyRows = selectedDays.map((item) => [
@@ -1533,8 +1533,8 @@ function LeaderAttendance({ notify, editable = true }) {
       {!leaderProfile && (
         <Panel title="Folha de ponto mensal" actions={<Pill value={monthValue} />} padded>
           <div className="monthly-point-toolbar">
-            <div className="filter"><label>Mês</label><input type="month" value={monthValue} onChange={(event) => setMonthValue(event.target.value || currentMonthValue())} /></div>
-            <div className="filter grow"><label>Colaborador</label><select value={monthlySelected?.name || ''} onChange={(event) => setSelectedEmployee(event.target.value)} disabled={monthlyLoading || !monthlyEmployees.length}>{monthlyEmployees.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}</select></div>
+            <div className="filter"><label>Mês</label><input type="month" value={monthValue} onChange={(event) => { setMonthValue(event.target.value || currentMonthValue()); setSelectedEmployee(''); }} /></div>
+            <div className="filter grow"><label>Colaborador</label><select value={selectedEmployee} onChange={(event) => setSelectedEmployee(event.target.value)} disabled={monthlyLoading || !monthlyEmployees.length}><option value="">Selecione um colaborador</option>{monthlyEmployees.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}</select></div>
             <div className="monthly-point-summary"><span>Presentes</span><b>{monthlySelected?.present || 0}</b></div>
             <div className="monthly-point-summary danger"><span>Faltas</span><b>{monthlySelected?.absences || 0}</b></div>
           </div>
@@ -1546,7 +1546,7 @@ function LeaderAttendance({ notify, editable = true }) {
               </div>
               <DataTable columns={['Data', 'Status', 'Observação']} rows={monthlyRows} />
             </>
-          ) : <div className="empty-chart">Nenhuma marcação encontrada para este mês.</div>}
+          ) : <div className="empty-chart">{monthlyEmployees.length ? 'Selecione um colaborador para ver a folha mensal.' : 'Nenhuma marcação encontrada para este mês.'}</div>}
         </Panel>
       )}
       <div className="leader-filter-tabs">

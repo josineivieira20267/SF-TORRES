@@ -153,21 +153,31 @@ router.get('/summary', async (req, res, next) => {
       ? await prisma.setting.findMany({ where: { key: { startsWith: prefix } } })
       : ((await readDb()).settings || []).filter((item) => String(item.key || '').startsWith(prefix));
     const byName = {};
+    const byNameDate = {};
     settings.filter((setting) => {
       if (!from || !to) return true;
       const date = String(setting.key || '').replace('leaderAttendance:', '').slice(0, 10);
       return date >= from && date <= to;
     }).forEach((setting) => {
+      const date = String(setting.key || '').replace('leaderAttendance:', '').slice(0, 10);
+      const canonical = String(setting.key || '') === attendanceKey(date);
+      const updatedAt = String(setting.value?.updatedAt || setting.updatedAt || '');
       Object.entries(setting.value?.attendance || {}).forEach(([name, item]) => {
-        const date = String(setting.key || '').replace('leaderAttendance:', '').slice(0, 10);
-        byName[name] = byName[name] || { name, present: 0, absences: 0, days: [] };
         const status = normalize(item?.status || item);
-        if (status === 'presente') byName[name].present += 1;
-        if (status === 'falta') byName[name].absences += 1;
-        if (status === 'presente' || status === 'falta') {
-          byName[name].days.push({ date, status: item?.status || item, note: item?.note || '' });
-        }
+        if (status !== 'presente' && status !== 'falta') return;
+        const key = `${normalize(name)}:${date}`;
+        const current = byNameDate[key];
+        const next = { name, date, status: item?.status || item, note: item?.note || '', canonical, updatedAt };
+        const shouldReplace = !current || (canonical && !current.canonical) || (canonical === current.canonical && updatedAt > current.updatedAt);
+        if (shouldReplace) byNameDate[key] = next;
       });
+    });
+    Object.values(byNameDate).forEach((item) => {
+      byName[item.name] = byName[item.name] || { name: item.name, present: 0, absences: 0, days: [] };
+      const status = normalize(item.status);
+      if (status === 'presente') byName[item.name].present += 1;
+      if (status === 'falta') byName[item.name].absences += 1;
+      byName[item.name].days.push({ date: item.date, status: item.status, note: item.note });
     });
     return res.json({ data: { month, from: from || null, to: to || null, employees: Object.values(byName) } });
   } catch (error) {
