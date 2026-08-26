@@ -1410,15 +1410,19 @@ function LeaderAttendance({ notify, editable = true }) {
     return () => window.clearTimeout(timer);
   }, [dateValue, query]);
   const employees = payload?.employees || [];
+  const absenceEmployees = employees.filter((item) => normalize(item.status) === 'falta');
+  const presentEmployees = employees.filter((item) => normalize(item.status) === 'presente');
+  const pendingEmployees = employees.filter((item) => !item.status);
   const attendanceCounts = {
     marked: employees.filter((item) => Boolean(item.status)).length,
-    present: employees.filter((item) => normalize(item.status) === 'presente').length,
-    absences: employees.filter((item) => normalize(item.status) === 'falta').length,
+    present: presentEmployees.length,
+    absences: absenceEmployees.length,
     results: employees.length
   };
   const filteredEmployees = employees.filter((item) => {
     if (mobileFilter === 'Presentes') return normalize(item.status) === 'presente';
     if (mobileFilter === 'Faltas') return normalize(item.status) === 'falta';
+    if (mobileFilter === 'Pendentes') return !item.status;
     if (mobileFilter === 'Resultados') return Boolean(item.status);
     return true;
   });
@@ -1477,6 +1481,19 @@ function LeaderAttendance({ notify, editable = true }) {
     item.status ? <Pill value={item.status} /> : <span className="soft">Sem marcação</span>,
     <div className="inline-actions">{markActions(item)}</div>
   ]);
+  const pointList = (list, emptyText) => loading ? <LoadingBlock /> : list.length ? (
+    <div className="point-list">
+      {list.map((item) => (
+        <div className="point-person" key={item.name}>
+          <div>
+            <b>{item.name}</b>
+            <span>{[item.role, item.team].filter(Boolean).join(' · ') || '-'}</span>
+          </div>
+          <div className="inline-actions">{markActions(item)}</div>
+        </div>
+      ))}
+    </div>
+  ) : <div className="point-empty">{emptyText}</div>;
   const attendanceCard = (item) => (
     <article className="attendance-card" key={item.name}>
       <div className={`attendance-avatar ${normalize(item.status) === 'falta' ? 'danger' : ''}`}>{initials(item.name)}</div>
@@ -1507,13 +1524,27 @@ function LeaderAttendance({ notify, editable = true }) {
         <Kpi icon="users" label="Marcados" value={attendanceCounts.marked} delta="no dia selecionado" />
         <Kpi icon="check" label="Presentes" value={attendanceCounts.present} delta="confirmados na chamada" success />
         <Kpi icon="alert" label="Faltas" value={attendanceCounts.absences} delta="registradas no dia" warning />
-        <Kpi icon="clock" label="Resultados" value={attendanceCounts.results} delta={query.trim() ? 'da busca no banco' : 'ja marcados'} />
+        <Kpi icon="clock" label={leaderProfile ? 'Resultados' : 'Sem marcação'} value={leaderProfile ? attendanceCounts.results : pendingEmployees.length} delta={query.trim() ? 'da busca no banco' : leaderProfile ? 'ja marcados' : 'aguardando ponto'} />
       </div>
-      <div className="leader-filter-tabs">
+      {!leaderProfile && (
+        <div className="attendance-admin-board">
+          <Panel title="Faltas do dia" actions={<Pill value={`${absenceEmployees.length} faltas`} />} padded>
+            {pointList(absenceEmployees, 'Nenhuma falta registrada para esta data.')}
+          </Panel>
+          <Panel title="Sem marcação" actions={<Pill value={`${pendingEmployees.length} pendentes`} />} padded>
+            {pointList(pendingEmployees, 'Todos os colaboradores ja foram marcados.')}
+          </Panel>
+          <Panel title="Presentes" actions={<Pill value={`${presentEmployees.length} presentes`} />} padded>
+            {pointList(presentEmployees, 'Nenhum presente confirmado para esta data.')}
+          </Panel>
+        </div>
+      )}
+      <div className={`leader-filter-tabs ${leaderProfile ? '' : 'attendance-admin-tabs'}`}>
         {[
           ['Todos', attendanceCounts.results],
           ['Presentes', attendanceCounts.present],
           ['Faltas', attendanceCounts.absences],
+          ...(!leaderProfile ? [['Pendentes', pendingEmployees.length]] : []),
           ['Resultados', attendanceCounts.marked]
         ].map(([label, count]) => <button type="button" key={label} className={mobileFilter === label ? 'active' : ''} onClick={() => setMobileFilter(label)}>{label} <span>{count}</span></button>)}
       </div>
