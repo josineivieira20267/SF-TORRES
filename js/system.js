@@ -87,6 +87,7 @@ function openModal(title, fields, initial, onSubmit) {
     const data = Object.fromEntries(new FormData(form).entries());
     fields.forEach((field) => {
       if (field.type === 'number') data[field.name] = Number(data[field.name] || 0);
+      if (field.type === 'uppercaseText') data[field.name] = String(data[field.name] || '').toUpperCase();
     });
     await onSubmit(data);
     overlay.remove();
@@ -342,7 +343,7 @@ const crudPages = {
     fields: [
       { name: 'code', label: 'Codigo' }, { name: 'name', label: 'Nome' }, { name: 'cpf', label: 'CPF' },
       { name: 'role', label: 'Funcao' }, { name: 'team', label: 'Equipe' },
-      { name: 'location', label: 'Local' }, { name: 'shift', label: 'Turno' },
+      { name: 'location', label: 'Local', type: 'uppercaseText' }, { name: 'shift', label: 'Turno', type: 'uppercaseText' },
       { name: 'admissionDate', label: 'Admissao', type: 'date' },
       { name: 'status', label: 'Status', type: 'select', options: ['Ativo', 'Ferias', 'Afastado', 'Cadastro'] }
     ]

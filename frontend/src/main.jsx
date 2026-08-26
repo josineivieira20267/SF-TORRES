@@ -259,8 +259,8 @@ const crudConfigs = {
       ['cpf', 'CPF', 'cpf', null, null, true],
       ['role', 'Função', 'select', ['', 'Auxiliar', 'Líder'], null, true],
       ['team', 'Equipe', 'select', ['', 'Equipe PA', 'Conferente', 'Apoio', 'Batedor'], null, true],
-      ['location', 'Local', 'select', ['', 'SEMP TCL', 'ADF Logistica', 'Porto CSF', 'Patio 2', 'Patio 3']],
-      ['shift', 'Turno', 'select', ['', 'Manhã', 'Tarde', 'Noite', 'Administrativo']],
+      ['location', 'Local', 'uppercaseText'],
+      ['shift', 'Turno', 'uppercaseText'],
       ['admissionDate', 'Admissão', 'date', null, null, true],
       ['status', 'Status', 'select', ['', 'Ativo', 'Férias', 'Afastado', 'Cadastro'], null, true]
     ],
@@ -2098,7 +2098,7 @@ function Editor({ title, fields, initial, onCancel, onSave, uppercase = false, c
   const [submitting, setSubmitting] = useState(false);
   const change = (name, value, type) => setForm((old) => {
     const shouldUppercase = uppercase && ['text', 'textarea'].includes(type || 'text');
-    const formatted = type === 'number' ? Number(value || 0) : type === 'cpf' ? formatCpf(value) : type === 'personName' ? formatPersonNameInput(value) : shouldUppercase ? String(value || '').toUpperCase() : value;
+    const formatted = type === 'number' ? Number(value || 0) : type === 'cpf' ? formatCpf(value) : type === 'personName' ? formatPersonNameInput(value) : (shouldUppercase || type === 'uppercaseText') ? String(value || '').toUpperCase() : value;
     const next = { ...old, [name]: formatted };
     if (name === 'equipment') {
       if (!normalize(value).includes('container')) next.containerNumber = '';
@@ -2132,7 +2132,7 @@ function Editor({ title, fields, initial, onCancel, onSave, uppercase = false, c
             if (!isVisible(visible)) return null;
             if (type === 'permissions') return <PermissionMatrix key={name} label={label} value={form[name]} onChange={(value) => change(name, value, type)} />;
             if (type === 'employees') return <EmployeePicker key={name} label={`${label}${isRequired(required) ? ' *' : ''}`} source={typeof options === 'function' ? options(form) : options} value={form[name]} rolesValue={form.teamRoles || {}} onChange={(value) => change(name, value, type)} onRolesChange={(value) => change('teamRoles', value)} />;
-            return <div className="form-field" key={name}><label>{label}{isRequired(required) ? ' *' : ''}</label>{type === 'select' ? <select value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)}>{options.map((o) => <option key={o || '-'} value={o}>{o || '-'}</option>)}</select> : type === 'textarea' ? <textarea value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)} /> : <input type={['cpf', 'personName'].includes(type) ? 'text' : type} value={form[name]} required={isRequired(required)} maxLength={type === 'cpf' ? 14 : undefined} onFocus={(e) => type === 'number' && String(form[name]) === '0' && e.target.select()} onChange={(e) => change(name, e.target.value, type)} />}</div>;
+            return <div className="form-field" key={name}><label>{label}{isRequired(required) ? ' *' : ''}</label>{type === 'select' ? <select value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)}>{options.map((o) => <option key={o || '-'} value={o}>{o || '-'}</option>)}</select> : type === 'textarea' ? <textarea value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)} /> : <input type={['cpf', 'personName', 'uppercaseText'].includes(type) ? 'text' : type} value={form[name]} required={isRequired(required)} maxLength={type === 'cpf' ? 14 : undefined} onFocus={(e) => type === 'number' && String(form[name]) === '0' && e.target.select()} onChange={(e) => change(name, e.target.value, type)} />}</div>;
           })}</div>
           <div className="modal-actions"><button type="button" className="btn" onClick={onCancel} disabled={submitting}>Cancelar</button><button className="btn btn-primary" disabled={submitting}>{submitting ? <LoadingSpinner small /> : 'Salvar'}</button></div>
         </form>
