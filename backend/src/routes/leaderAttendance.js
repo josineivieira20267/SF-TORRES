@@ -159,10 +159,14 @@ router.get('/summary', async (req, res, next) => {
       return date >= from && date <= to;
     }).forEach((setting) => {
       Object.entries(setting.value?.attendance || {}).forEach(([name, item]) => {
-        byName[name] = byName[name] || { name, present: 0, absences: 0 };
+        const date = String(setting.key || '').replace('leaderAttendance:', '').slice(0, 10);
+        byName[name] = byName[name] || { name, present: 0, absences: 0, days: [] };
         const status = normalize(item?.status || item);
         if (status === 'presente') byName[name].present += 1;
         if (status === 'falta') byName[name].absences += 1;
+        if (status === 'presente' || status === 'falta') {
+          byName[name].days.push({ date, status: item?.status || item, note: item?.note || '' });
+        }
       });
     });
     return res.json({ data: { month, from: from || null, to: to || null, employees: Object.values(byName) } });

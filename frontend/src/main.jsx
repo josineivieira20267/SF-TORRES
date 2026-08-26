@@ -1394,10 +1394,14 @@ function LeaderAttendance({ notify, editable = true }) {
   const leaderProfile = isLeaderUser(user);
   const approverProfile = canApproveAttendance(user);
   const [dateValue, setDateValue] = useState(localDateValue(new Date()));
+  const [monthValue, setMonthValue] = useState(currentMonthValue());
   const [query, setQuery] = useState('');
   const [mobileFilter, setMobileFilter] = useState('Todos');
   const [payload, setPayload] = useState(null);
+  const [monthlySummary, setMonthlySummary] = useState({ employees: [] });
+  const [selectedEmployee, setSelectedEmployee] = useState('');
   const [loading, setLoading] = useState(true);
+  const [monthlyLoading, setMonthlyLoading] = useState(false);
   const load = (date = dateValue, q = query) => {
     setLoading(true);
     api(`/api/leader-attendance?date=${encodeURIComponent(date)}&q=${encodeURIComponent(q)}`)
@@ -1409,23 +1413,36 @@ function LeaderAttendance({ notify, editable = true }) {
     const timer = window.setTimeout(() => load(dateValue, query), query && query.trim().length < 2 ? 0 : 250);
     return () => window.clearTimeout(timer);
   }, [dateValue, query]);
+  useEffect(() => {
+    if (leaderProfile) return;
+    setMonthlyLoading(true);
+    api(`/api/leader-attendance/summary?month=${encodeURIComponent(monthValue)}`)
+      .then((response) => setMonthlySummary(response.data || { employees: [] }))
+      .catch((error) => { setMonthlySummary({ employees: [] }); notify(error.message); })
+      .finally(() => setMonthlyLoading(false));
+  }, [monthValue, leaderProfile]);
   const employees = payload?.employees || [];
-  const absenceEmployees = employees.filter((item) => normalize(item.status) === 'falta');
-  const presentEmployees = employees.filter((item) => normalize(item.status) === 'presente');
-  const pendingEmployees = employees.filter((item) => !item.status);
   const attendanceCounts = {
     marked: employees.filter((item) => Boolean(item.status)).length,
-    present: presentEmployees.length,
-    absences: absenceEmployees.length,
+    present: employees.filter((item) => normalize(item.status) === 'presente').length,
+    absences: employees.filter((item) => normalize(item.status) === 'falta').length,
     results: employees.length
   };
   const filteredEmployees = employees.filter((item) => {
     if (mobileFilter === 'Presentes') return normalize(item.status) === 'presente';
     if (mobileFilter === 'Faltas') return normalize(item.status) === 'falta';
-    if (mobileFilter === 'Pendentes') return !item.status;
     if (mobileFilter === 'Resultados') return Boolean(item.status);
     return true;
   });
+  const monthlyEmployees = [...(monthlySummary.employees || [])].sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+  const monthlySelected = monthlyEmployees.find((item) => item.name === selectedEmployee) || monthlyEmployees[0] || null;
+  const selectedDays = [...(monthlySelected?.days || [])].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+  const selectedAbsences = selectedDays.filter((item) => normalize(item.status) === 'falta');
+  const monthlyRows = selectedDays.map((item) => [
+    date(item.date),
+    <Pill value={item.status} />,
+    item.note || '-'
+  ]);
   const updateEmployee = (name, patch) => setPayload((old) => ({
     ...old,
     employees: (old?.employees || []).map((item) => item.name === name ? { ...item, ...patch } : item)
@@ -1481,19 +1498,6 @@ function LeaderAttendance({ notify, editable = true }) {
     item.status ? <Pill value={item.status} /> : <span className="soft">Sem marcação</span>,
     <div className="inline-actions">{markActions(item)}</div>
   ]);
-  const pointList = (list, emptyText) => loading ? <LoadingBlock /> : list.length ? (
-    <div className="point-list">
-      {list.map((item) => (
-        <div className="point-person" key={item.name}>
-          <div>
-            <b>{item.name}</b>
-            <span>{[item.role, item.team].filter(Boolean).join(' · ') || '-'}</span>
-          </div>
-          <div className="inline-actions">{markActions(item)}</div>
-        </div>
-      ))}
-    </div>
-  ) : <div className="point-empty">{emptyText}</div>;
   const attendanceCard = (item) => (
     <article className="attendance-card" key={item.name}>
       <div className={`attendance-avatar ${normalize(item.status) === 'falta' ? 'danger' : ''}`}>{initials(item.name)}</div>
@@ -1524,27 +1528,32 @@ function LeaderAttendance({ notify, editable = true }) {
         <Kpi icon="users" label="Marcados" value={attendanceCounts.marked} delta="no dia selecionado" />
         <Kpi icon="check" label="Presentes" value={attendanceCounts.present} delta="confirmados na chamada" success />
         <Kpi icon="alert" label="Faltas" value={attendanceCounts.absences} delta="registradas no dia" warning />
-        <Kpi icon="clock" label={leaderProfile ? 'Resultados' : 'Sem marcação'} value={leaderProfile ? attendanceCounts.results : pendingEmployees.length} delta={query.trim() ? 'da busca no banco' : leaderProfile ? 'ja marcados' : 'aguardando ponto'} />
+        <Kpi icon="clock" label="Resultados" value={attendanceCounts.results} delta={query.trim() ? 'da busca no banco' : 'ja marcados'} />
       </div>
       {!leaderProfile && (
-        <div className="attendance-admin-board">
-          <Panel title="Faltas do dia" actions={<Pill value={`${absenceEmployees.length} faltas`} />} padded>
-            {pointList(absenceEmployees, 'Nenhuma falta registrada para esta data.')}
-          </Panel>
-          <Panel title="Sem marcação" actions={<Pill value={`${pendingEmployees.length} pendentes`} />} padded>
-            {pointList(pendingEmployees, 'Todos os colaboradores ja foram marcados.')}
-          </Panel>
-          <Panel title="Presentes" actions={<Pill value={`${presentEmployees.length} presentes`} />} padded>
-            {pointList(presentEmployees, 'Nenhum presente confirmado para esta data.')}
-          </Panel>
-        </div>
+        <Panel title="Folha de ponto mensal" actions={<Pill value={monthValue} />} padded>
+          <div className="monthly-point-toolbar">
+            <div className="filter"><label>Mês</label><input type="month" value={monthValue} onChange={(event) => setMonthValue(event.target.value || currentMonthValue())} /></div>
+            <div className="filter grow"><label>Colaborador</label><select value={monthlySelected?.name || ''} onChange={(event) => setSelectedEmployee(event.target.value)} disabled={monthlyLoading || !monthlyEmployees.length}>{monthlyEmployees.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}</select></div>
+            <div className="monthly-point-summary"><span>Presentes</span><b>{monthlySelected?.present || 0}</b></div>
+            <div className="monthly-point-summary danger"><span>Faltas</span><b>{monthlySelected?.absences || 0}</b></div>
+          </div>
+          {monthlyLoading ? <LoadingBlock /> : monthlySelected ? (
+            <>
+              <div className="monthly-absence-list">
+                <b>Datas com falta</b>
+                <span>{selectedAbsences.length ? selectedAbsences.map((item) => date(item.date)).join(', ') : 'Nenhuma falta no mês selecionado.'}</span>
+              </div>
+              <DataTable columns={['Data', 'Status', 'Observação']} rows={monthlyRows} />
+            </>
+          ) : <div className="empty-chart">Nenhuma marcação encontrada para este mês.</div>}
+        </Panel>
       )}
-      <div className={`leader-filter-tabs ${leaderProfile ? '' : 'attendance-admin-tabs'}`}>
+      <div className="leader-filter-tabs">
         {[
           ['Todos', attendanceCounts.results],
           ['Presentes', attendanceCounts.present],
           ['Faltas', attendanceCounts.absences],
-          ...(!leaderProfile ? [['Pendentes', pendingEmployees.length]] : []),
           ['Resultados', attendanceCounts.marked]
         ].map(([label, count]) => <button type="button" key={label} className={mobileFilter === label ? 'active' : ''} onClick={() => setMobileFilter(label)}>{label} <span>{count}</span></button>)}
       </div>
