@@ -335,12 +335,14 @@ const crudPages = {
     columns: [
       { label: '#', key: 'code', mono: true }, { label: 'Nome', key: 'name' }, { label: 'CPF', key: 'cpf', mono: true },
       { label: 'Função', key: 'role' }, { label: 'Equipe', key: 'team' },
+      { label: 'Local', key: 'location' }, { label: 'Turno', key: 'shift' },
       { label: 'Admissão', key: 'admissionDate', render: (item) => fmtDate(item.admissionDate) },
       { label: 'Status', key: 'status', render: (item) => statusPill(item.status) }
     ],
     fields: [
       { name: 'code', label: 'Codigo' }, { name: 'name', label: 'Nome' }, { name: 'cpf', label: 'CPF' },
       { name: 'role', label: 'Funcao' }, { name: 'team', label: 'Equipe' },
+      { name: 'location', label: 'Local' }, { name: 'shift', label: 'Turno' },
       { name: 'admissionDate', label: 'Admissao', type: 'date' },
       { name: 'status', label: 'Status', type: 'select', options: ['Ativo', 'Ferias', 'Afastado', 'Cadastro'] }
     ]

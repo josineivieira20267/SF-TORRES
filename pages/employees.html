@@ -14,6 +14,8 @@
   <div class="filter"><label>Buscar</label><input type="text" placeholder="Nome, CPF, função..."></div>
   <div class="filter"><label>Função</label><select><option>Todas</option><option>Líder de turno</option><option>Operador</option><option>Motorista</option><option>Auxiliar</option></select></div>
   <div class="filter"><label>Equipe</label><select><option>Todas</option><option>Aliança</option><option>TransNorte</option><option>Mov. Sul</option></select></div>
+  <div class="filter"><label>Local</label><select><option>Todos</option><option>SEMP TCL</option><option>ADF Logistica</option><option>Porto CSF</option></select></div>
+  <div class="filter"><label>Turno</label><select><option>Todos</option><option>Manhã</option><option>Tarde</option><option>Noite</option><option>Administrativo</option></select></div>
   <div class="filter"><label>Status</label><select><option>Todos</option><option>Ativo</option><option>Férias</option><option>Afastado</option></select></div>
   <span class="spacer"></span>
   <span style="font-size:12px;color:var(--c-text-soft);margin-right:6px">14 registros</span>
@@ -29,56 +31,56 @@
     <table class="dtbl">
       <thead>
         <tr>
-          <th>#</th><th>Nome</th><th>CPF</th><th>Função</th><th>Equipe</th>
+          <th>#</th><th>Nome</th><th>CPF</th><th>Função</th><th>Equipe</th><th>Local</th><th>Turno</th>
           <th>Admissão</th><th>Status</th><th></th>
         </tr>
       </thead>
       <tbody>
         <tr>
           <td class="mono">0001</td><td>Joana Almeida</td><td class="mono">123.456.789-00</td>
-          <td>Líder de turno</td><td>Aliança</td><td>15/03/2022</td>
+          <td>Líder de turno</td><td>Aliança</td><td>SEMP TCL</td><td>Manhã</td><td>15/03/2022</td>
           <td><span class="pill pill-success pill-dot">Ativo</span></td>
           <td><button class="btn btn-sm">Editar</button></td>
         </tr>
         <tr>
           <td class="mono">0002</td><td>Marcelo Souza</td><td class="mono">234.567.890-11</td>
-          <td>Operador</td><td>Aliança</td><td>08/05/2023</td>
+          <td>Operador</td><td>Aliança</td><td>SEMP TCL</td><td>Tarde</td><td>08/05/2023</td>
           <td><span class="pill pill-success pill-dot">Ativo</span></td>
           <td><button class="btn btn-sm">Editar</button></td>
         </tr>
         <tr>
           <td class="mono">0003</td><td>Beatriz Lima</td><td class="mono">345.678.901-22</td>
-          <td>Operadora</td><td>TransNorte</td><td>02/09/2024</td>
+          <td>Operadora</td><td>TransNorte</td><td>Porto CSF</td><td>Noite</td><td>02/09/2024</td>
           <td><span class="pill pill-success pill-dot">Ativo</span></td>
           <td><button class="btn btn-sm">Editar</button></td>
         </tr>
         <tr>
           <td class="mono">0004</td><td>Ronaldo Pena</td><td class="mono">456.789.012-33</td>
-          <td>Operador</td><td>Mov. Sul</td><td>20/01/2021</td>
+          <td>Operador</td><td>Mov. Sul</td><td>ADF Logistica</td><td>Manhã</td><td>20/01/2021</td>
           <td><span class="pill pill-warning pill-dot">Férias</span></td>
           <td><button class="btn btn-sm">Editar</button></td>
         </tr>
         <tr>
           <td class="mono">0005</td><td>Carla Borges</td><td class="mono">567.890.123-44</td>
-          <td>Operadora</td><td>—</td><td>11/06/2025</td>
+          <td>Operadora</td><td>—</td><td>—</td><td>—</td><td>11/06/2025</td>
           <td><span class="pill pill-success pill-dot">Ativo</span></td>
           <td><button class="btn btn-sm">Editar</button></td>
         </tr>
         <tr>
           <td class="mono">0006</td><td>Tiago Nogueira</td><td class="mono">678.901.234-55</td>
-          <td>Motorista</td><td>TransNorte</td><td>03/11/2023</td>
+          <td>Motorista</td><td>TransNorte</td><td>Porto CSF</td><td>Administrativo</td><td>03/11/2023</td>
           <td><span class="pill pill-danger pill-dot">Afastado</span></td>
           <td><button class="btn btn-sm">Editar</button></td>
         </tr>
         <tr>
           <td class="mono">0007</td><td>Sandra Sales</td><td class="mono">789.012.345-66</td>
-          <td>Auxiliar</td><td>Aliança</td><td>19/04/2024</td>
+          <td>Auxiliar</td><td>Aliança</td><td>SEMP TCL</td><td>Tarde</td><td>19/04/2024</td>
           <td><span class="pill pill-success pill-dot">Ativo</span></td>
           <td><button class="btn btn-sm">Editar</button></td>
         </tr>
         <tr>
           <td class="mono">0008</td><td>Pedro Henrique</td><td class="mono">890.123.456-77</td>
-          <td>Operador</td><td>—</td><td>—</td>
+          <td>Operador</td><td>—</td><td>—</td><td>—</td><td>—</td>
           <td><span class="pill pill-info pill-dot">Cadastro</span></td>
           <td><button class="btn btn-sm">Editar</button></td>
         </tr>

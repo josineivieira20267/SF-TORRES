@@ -198,7 +198,7 @@ function michelinShareForEntry(order, name, employeeByName, rules = defaultProdu
     ? (isTruck ? Number(config.commercialTruck) : Number(config.commercialContainer))
     : (isTruck ? Number(config.afterTruck) : Number(config.afterContainer));
   const members = Array.isArray(order.teamMembers) ? order.teamMembers : Object.keys(order.attendance || {});
-  const payableMembers = members.filter((memberName) => !isLeaderForOrder(employeeByName[normalize(memberName)], order, memberName));
+  const payableMembers = members;
   if (!payableMembers.includes(name) || !payableMembers.length) return 0;
   return total / payableMembers.length;
 }
@@ -243,11 +243,14 @@ const crudConfigs = {
       ['Buscar', 'Nome, CPF, função...', 'input'],
       ['Função', ['Todas', 'Auxiliar', 'Líder'], 'select'],
       ['Equipe', ['Todas', 'Equipe PA', 'Conferente', 'Apoio', 'Batedor'], 'select'],
+      ['Local', ['Todos', 'SEMP TCL', 'ADF Logistica', 'Porto CSF', 'Patio 2', 'Patio 3'], 'select'],
+      ['Turno', ['Todos', 'Manhã', 'Tarde', 'Noite', 'Administrativo'], 'select'],
       ['Status', ['Todos', 'Ativo', 'Férias', 'Afastado'], 'select']
     ],
     columns: [
       { label: '#', key: 'code', mono: true }, { label: 'Nome', key: 'name' }, { label: 'CPF', key: 'cpf', mono: true },
       { label: 'Função', key: 'role' }, { label: 'Equipe', key: 'team' },
+      { label: 'Local', key: 'location' }, { label: 'Turno', key: 'shift' },
       { label: 'Admissão', render: (i) => date(i.admissionDate) }, { label: 'Status', render: (i) => <Pill value={i.status} /> }
     ],
     fields: [
@@ -256,6 +259,8 @@ const crudConfigs = {
       ['cpf', 'CPF', 'cpf', null, null, true],
       ['role', 'Função', 'select', ['', 'Auxiliar', 'Líder'], null, true],
       ['team', 'Equipe', 'select', ['', 'Equipe PA', 'Conferente', 'Apoio', 'Batedor'], null, true],
+      ['location', 'Local', 'select', ['', 'SEMP TCL', 'ADF Logistica', 'Porto CSF', 'Patio 2', 'Patio 3']],
+      ['shift', 'Turno', 'select', ['', 'Manhã', 'Tarde', 'Noite', 'Administrativo']],
       ['admissionDate', 'Admissão', 'date', null, null, true],
       ['status', 'Status', 'select', ['', 'Ativo', 'Férias', 'Afastado', 'Cadastro'], null, true]
     ],
@@ -2009,7 +2014,7 @@ function DailyOps({ notify, editable = true }) {
   };
   return (
     <>
-      <PageHead title="Operação Diária" subtitle="Gestão detalhada das OS com filtros, confirmação de equipe, horários e ocorrências." ghostActions={['Histórico', 'Exportar planilha']} onGhostAction={(label) => label === 'Histórico' ? setHistoryOpen(true) : exportFiltered()} action="Nova OS" onAction={() => setModal({ status: 'Programado', progress: 0 })} />
+      <PageHead title="Operação Diária" subtitle="Gestão detalhada das OS com filtros, confirmação de equipe, horários e ocorrências." ghostActions={['Histórico', 'Exportar planilha']} onGhostAction={(label) => label === 'Histórico' ? setHistoryOpen(true) : exportFiltered()} action="Nova OS" onAction={() => setModal({ status: 'Programado' })} />
       <div className="toolbar">
         <div className="filter"><label>Buscar</label><input type="text" value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="OS, cliente, equipamento..." /></div>
         <div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Programado</option><option>Em execucao</option><option>Finalizado</option><option>Cancelado</option></select></div>
@@ -2045,7 +2050,7 @@ function CrudScreen({ config, notify, beforeTable, editable = true }) {
     api(`${config.endpoint}${q ? `${separator}q=${encodeURIComponent(q)}` : ''}`).then((p) => setItems(listData(p))).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, [q, config.endpoint]);
-  const fieldMap = { Função: 'role', Equipe: 'team', Status: 'status', Tipo: 'type' };
+  const fieldMap = { Função: 'role', Equipe: 'team', Local: 'location', Turno: 'shift', Status: 'status', Tipo: 'type' };
   const displayItems = (config.toolbar || []).reduce((list, [label]) => {
     const value = toolbarFilters[label];
     const key = fieldMap[label];
@@ -2127,7 +2132,7 @@ function Editor({ title, fields, initial, onCancel, onSave, uppercase = false, c
             if (!isVisible(visible)) return null;
             if (type === 'permissions') return <PermissionMatrix key={name} label={label} value={form[name]} onChange={(value) => change(name, value, type)} />;
             if (type === 'employees') return <EmployeePicker key={name} label={`${label}${isRequired(required) ? ' *' : ''}`} source={typeof options === 'function' ? options(form) : options} value={form[name]} rolesValue={form.teamRoles || {}} onChange={(value) => change(name, value, type)} onRolesChange={(value) => change('teamRoles', value)} />;
-            return <div className="form-field" key={name}><label>{label}{isRequired(required) ? ' *' : ''}</label>{type === 'select' ? <select value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)}>{options.map((o) => <option key={o || '-'} value={o}>{o || '-'}</option>)}</select> : type === 'textarea' ? <textarea value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)} /> : <input type={['cpf', 'personName'].includes(type) ? 'text' : type} value={form[name]} required={isRequired(required)} maxLength={type === 'cpf' ? 14 : undefined} onChange={(e) => change(name, e.target.value, type)} />}</div>;
+            return <div className="form-field" key={name}><label>{label}{isRequired(required) ? ' *' : ''}</label>{type === 'select' ? <select value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)}>{options.map((o) => <option key={o || '-'} value={o}>{o || '-'}</option>)}</select> : type === 'textarea' ? <textarea value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)} /> : <input type={['cpf', 'personName'].includes(type) ? 'text' : type} value={form[name]} required={isRequired(required)} maxLength={type === 'cpf' ? 14 : undefined} onFocus={(e) => type === 'number' && String(form[name]) === '0' && e.target.select()} onChange={(e) => change(name, e.target.value, type)} />}</div>;
           })}</div>
           <div className="modal-actions"><button type="button" className="btn" onClick={onCancel} disabled={submitting}>Cancelar</button><button className="btn btn-primary" disabled={submitting}>{submitting ? <LoadingSpinner small /> : 'Salvar'}</button></div>
         </form>

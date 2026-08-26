@@ -44,6 +44,8 @@ model Employee {
   cpf           String?
   role          String?
   team          String?
+  location      String?
+  shift         String?
   admissionDate String?
   status        String @default("Ativo")
   createdAt     DateTime @default(now())

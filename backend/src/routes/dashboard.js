@@ -145,7 +145,7 @@ function michelinShareForEntry(order, name, employeeByName, rules = defaultProdu
     ? (isTruck ? Number(config.commercialTruck) : Number(config.commercialContainer))
     : (isTruck ? Number(config.afterTruck) : Number(config.afterContainer));
   const members = Array.isArray(order.teamMembers) ? order.teamMembers : Object.keys(order.attendance || {});
-  const payableMembers = members.filter((memberName) => !isLeaderForOrder(employeeByName[normalize(memberName)], order, memberName));
+  const payableMembers = members;
   if (!payableMembers.includes(name) || !payableMembers.length) return 0;
   return total / payableMembers.length;
 }
