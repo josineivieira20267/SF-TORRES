@@ -2144,6 +2144,9 @@ function Editor({ title, fields, initial, onCancel, onSave, uppercase = false, c
       if (!normalize(value).includes('container')) next.containerNumber = '';
       if (!normalize(value).includes('carreta')) next.trailerPlate = '';
     }
+    if (name === 'role' && fields.some(([, , fieldType]) => fieldType === 'permissions')) {
+      next.permissions = defaultUserPermissions(value);
+    }
     return next;
   });
   const isVisible = (visible) => !visible || visible(form);
