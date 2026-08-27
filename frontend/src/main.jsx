@@ -1488,22 +1488,76 @@ function TalentProfile({ id, onClose, onEdit, onStatus, editable }) {
 }
 
 function TalentReports({ notify }) {
-  const [summary, setSummary] = useState(null);
-  useEffect(() => { api('/api/talents/summary').then((payload) => setSummary(payload.data)).catch((error) => notify(error.message)); }, []);
-  const statusRows = [
-    ['Disponiveis', summary?.available || 0],
-    ['Em analise', summary?.analysis || 0],
-    ['Selecionados', summary?.selected || 0],
-    ['Contratados', summary?.hired || 0],
-    ['Recentes', summary?.recent || 0]
-  ];
-  const roleRows = (summary?.roles || []).map((item) => [item.desiredRole || 'Nao informado', item._count?.desiredRole || 0]);
+  const baseFilters = { from: '', to: '', status: 'Todos', desiredRole: '', city: '', state: '', hasCnh: 'Todos' };
+  const [filters, setFilters] = useState(baseFilters);
+  const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const load = () => {
+    const query = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value && !['Todos', 'Todas'].includes(value)) query.set(key, value);
+    });
+    setLoading(true);
+    api(`/api/talents/reports?${query.toString()}`).then((payload) => setReport(payload.data)).catch((error) => notify(error.message)).finally(() => setLoading(false));
+  };
+  useEffect(() => { load(); }, [filters.from, filters.to, filters.status, filters.desiredRole, filters.city, filters.state, filters.hasCnh]);
+  const indicators = report?.indicators || {};
+  const statusRows = (report?.statuses || []).map((item) => [<Pill value={item.status} />, item._count?.status || 0]);
+  const roleRows = (report?.roles || []).map((item) => [item.desiredRole || 'Nao informado', item._count?.desiredRole || 0]);
+  const cityRows = (report?.cities || []).map((item) => [item.city || 'Nao informado', item._count?.city || 0]);
+  const educationRows = (report?.education || []).map((item) => [item.education || 'Nao informado', item._count?.education || 0]);
+  const cnhRows = (report?.cnhCategories || []).map((item) => [item.cnhCategory || 'Sem categoria', item._count?.cnhCategory || 0]);
+  const salaryRows = (report?.salaryByRole || []).map((item) => [item.desiredRole || 'Nao informado', item._count?.desiredRole || 0, money(item._avg?.salaryExpectation || 0)]);
+  const monthlyRows = (report?.monthly || []).map((item) => [item.month, item.total]);
+  const exportReport = () => downloadCsv('relatorio-banco-talentos.csv', [
+    ['Indicador', 'Total'],
+    ['Total filtrado', indicators.total || 0],
+    ['Recentes 30 dias', indicators.recent || 0],
+    ['Disponiveis', indicators.available || 0],
+    ['Em analise', indicators.analysis || 0],
+    ['Contratados', indicators.hired || 0],
+    ['Arquivados', indicators.archived || 0],
+    ['Com CNH', indicators.cnhCount || 0],
+    [],
+    ['Funcao', 'Total'],
+    ...roleRows.map(([role, total]) => [displayText(role), total]),
+    [],
+    ['Cidade', 'Total'],
+    ...cityRows
+  ]);
   return (
     <>
-      <PageHead title="Relatorios do Banco de Talentos" subtitle="Indicadores simples para acompanhamento do cadastro reserva." action="Exportar resumo" onAction={() => downloadCsv('relatorio-banco-talentos.csv', [['Indicador', 'Total'], ...statusRows, ...roleRows])} />
+      <PageHead title="Relatorios do Banco de Talentos" subtitle="Indicadores, filtros e leitura gerencial do cadastro reserva." ghostAction="Limpar filtros" onGhostAction={() => setFilters(baseFilters)} action="Exportar resumo" onAction={exportReport} />
+      <div className="toolbar talent-toolbar">
+        <div className="filter"><label>De</label><input type="date" value={filters.from} onChange={(event) => setFilters((old) => ({ ...old, from: event.target.value }))} /></div>
+        <div className="filter"><label>Ate</label><input type="date" value={filters.to} onChange={(event) => setFilters((old) => ({ ...old, to: event.target.value }))} /></div>
+        <div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option>{talentStatuses.map((item) => <option key={item}>{item}</option>)}</select></div>
+        <div className="filter"><label>Funcao</label><input value={filters.desiredRole} onChange={(event) => setFilters((old) => ({ ...old, desiredRole: event.target.value }))} placeholder="Motorista, auxiliar..." /></div>
+        <div className="filter"><label>Cidade</label><input value={filters.city} onChange={(event) => setFilters((old) => ({ ...old, city: event.target.value }))} /></div>
+        <div className="filter"><label>UF</label><input value={filters.state} onChange={(event) => setFilters((old) => ({ ...old, state: event.target.value.toUpperCase().slice(0, 2) }))} /></div>
+        <div className="filter"><label>CNH</label><select value={filters.hasCnh} onChange={(event) => setFilters((old) => ({ ...old, hasCnh: event.target.value }))}><option>Todos</option><option>Sim</option><option>Nao</option></select></div>
+        <span className="spacer" /><span className="soft">{loading ? 'Atualizando...' : `${indicators.total || 0} candidatos filtrados`}</span>
+      </div>
+      <div className="kpi-grid talent-report-kpis">
+        <Kpi icon="users" label="Total filtrado" value={indicators.total || 0} delta="conforme filtros" />
+        <Kpi icon="file" label="Recentes" value={indicators.recent || 0} delta="ultimos 30 dias" />
+        <Kpi icon="check" label="Disponiveis" value={indicators.available || 0} delta="prontos para contato" success />
+        <Kpi icon="clock" label="Em analise" value={indicators.analysis || 0} delta="triagem aberta" warning />
+        <Kpi icon="home" label="Contratados" value={indicators.hired || 0} delta="efetivados" success />
+        <Kpi icon="shield" label="Com CNH" value={indicators.cnhCount || 0} delta="habilitacao registrada" />
+      </div>
+      <div className="talent-report-grid wide">
+        <Panel title="Funil por status"><DataTable columns={['Status', 'Total']} rows={statusRows} loading={loading} /></Panel>
+        <Panel title="Cadastros por mes"><DataTable columns={['Mes', 'Total']} rows={monthlyRows} loading={loading} /></Panel>
+      </div>
       <div className="talent-dashboard-grid">
-        <Panel title="Candidatos por status"><DataTable columns={['Status', 'Total']} rows={statusRows.map(([label, value]) => [<Pill value={label} />, value])} /></Panel>
-        <Panel title="Candidatos por funcao"><DataTable columns={['Funcao', 'Total']} rows={roleRows} /></Panel>
+        <Panel title="Candidatos por funcao"><DataTable columns={['Funcao', 'Total']} rows={roleRows} loading={loading} /></Panel>
+        <Panel title="Pretensao media por funcao"><DataTable columns={['Funcao', 'Candidatos', 'Media']} rows={salaryRows} loading={loading} /></Panel>
+      </div>
+      <div className="talent-report-grid">
+        <Panel title="Candidatos por cidade"><DataTable columns={['Cidade', 'Total']} rows={cityRows} loading={loading} /></Panel>
+        <Panel title="Escolaridade"><DataTable columns={['Escolaridade', 'Total']} rows={educationRows} loading={loading} /></Panel>
+        <Panel title="CNH por categoria"><DataTable columns={['Categoria', 'Total']} rows={cnhRows} loading={loading} /></Panel>
       </div>
     </>
   );

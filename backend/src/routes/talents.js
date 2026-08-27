@@ -146,6 +146,27 @@ function buildCandidateWhere(query) {
   return where;
 }
 
+function appendReportWhere(where, extra) {
+  return { ...where, AND: [...(Array.isArray(where.AND) ? where.AND : []), extra] };
+}
+
+function daysAgo(days) {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return date;
+}
+
+function monthlyCounts(rows) {
+  const map = new Map();
+  rows.forEach((row) => {
+    const date = new Date(row.createdAt);
+    if (Number.isNaN(date.getTime())) return;
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    map.set(key, (map.get(key) || 0) + 1);
+  });
+  return Array.from(map.entries()).map(([month, total]) => ({ month, total }));
+}
+
 router.use(requireAuth);
 router.use(requireTalent('view'));
 
@@ -169,6 +190,42 @@ router.get('/summary', async (req, res, next) => {
       prisma.talentCandidate.count({ where: { hasCnh: true } })
     ]);
     res.json({ data: { total, available, analysis, selected, hired, recent, latest, roles, movements, statusBreakdown, cityBreakdown, educationBreakdown, cnhCount } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/reports', async (req, res, next) => {
+  try {
+    const where = buildCandidateWhere(req.query);
+    const [total, recent, available, analysis, hired, archived, cnhCount, rows, roles, statuses, cities, education, cnhCategories, salaryByRole] = await Promise.all([
+      prisma.talentCandidate.count({ where }),
+      prisma.talentCandidate.count({ where: appendReportWhere(where, { createdAt: { gte: daysAgo(30) } }) }),
+      prisma.talentCandidate.count({ where: appendReportWhere(where, { status: 'Disponivel' }) }),
+      prisma.talentCandidate.count({ where: appendReportWhere(where, { status: 'Em analise' }) }),
+      prisma.talentCandidate.count({ where: appendReportWhere(where, { status: 'Contratado' }) }),
+      prisma.talentCandidate.count({ where: appendReportWhere(where, { status: 'Arquivado' }) }),
+      prisma.talentCandidate.count({ where: appendReportWhere(where, { hasCnh: true }) }),
+      prisma.talentCandidate.findMany({ where, select: { createdAt: true }, orderBy: { createdAt: 'asc' } }),
+      prisma.talentCandidate.groupBy({ by: ['desiredRole'], _count: { desiredRole: true }, where: appendReportWhere(where, { desiredRole: { not: null } }), orderBy: { _count: { desiredRole: 'desc' } }, take: 10 }),
+      prisma.talentCandidate.groupBy({ by: ['status'], _count: { status: true }, where, orderBy: { _count: { status: 'desc' } } }),
+      prisma.talentCandidate.groupBy({ by: ['city'], _count: { city: true }, where: appendReportWhere(where, { city: { not: null } }), orderBy: { _count: { city: 'desc' } }, take: 10 }),
+      prisma.talentCandidate.groupBy({ by: ['education'], _count: { education: true }, where: appendReportWhere(where, { education: { not: null } }), orderBy: { _count: { education: 'desc' } }, take: 10 }),
+      prisma.talentCandidate.groupBy({ by: ['cnhCategory'], _count: { cnhCategory: true }, where: appendReportWhere(where, { cnhCategory: { not: null } }), orderBy: { _count: { cnhCategory: 'desc' } } }),
+      prisma.talentCandidate.groupBy({ by: ['desiredRole'], _avg: { salaryExpectation: true }, _count: { desiredRole: true }, where: appendReportWhere(where, { desiredRole: { not: null }, salaryExpectation: { not: null } }), orderBy: { _count: { desiredRole: 'desc' } }, take: 10 })
+    ]);
+    res.json({
+      data: {
+        indicators: { total, recent, available, analysis, hired, archived, cnhCount },
+        roles,
+        statuses,
+        cities,
+        education,
+        cnhCategories,
+        salaryByRole,
+        monthly: monthlyCounts(rows)
+      }
+    });
   } catch (error) {
     next(error);
   }

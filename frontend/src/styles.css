@@ -615,6 +615,7 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 }
 
 .talent-kpis{grid-template-columns:repeat(6,minmax(0,1fr))}
+.talent-report-kpis{grid-template-columns:repeat(6,minmax(0,1fr))}
 .talent-dashboard-grid,
 .talent-profile-grid{
   display:grid;
@@ -623,6 +624,13 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   margin-bottom:12px;
 }
 .talent-dashboard-grid.compact{grid-template-columns:1fr 1fr}
+.talent-report-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:12px;
+  margin-bottom:12px;
+}
+.talent-report-grid.wide{grid-template-columns:1.1fr .9fr}
 .talent-command-grid{
   display:grid;
   grid-template-columns:1.35fr 1fr;
@@ -863,10 +871,13 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 
 @media (max-width:1100px){
   .talent-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .talent-report-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
   .talent-dashboard-grid,
   .talent-profile-grid,
   .talent-command-grid,
-  .talent-dashboard-grid.compact{grid-template-columns:1fr}
+  .talent-dashboard-grid.compact,
+  .talent-report-grid,
+  .talent-report-grid.wide{grid-template-columns:1fr}
   .talent-pipeline{grid-template-columns:repeat(3,minmax(0,1fr))}
   .talent-row{grid-template-columns:minmax(220px,1.2fr) minmax(160px,1fr) minmax(150px,.85fr)}
   .talent-status-cell{grid-column:2}
@@ -875,6 +886,7 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 
 @media (max-width:720px){
   .talent-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .talent-report-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
   .talent-start-panel{display:block}
   .talent-start-actions{margin-top:10px}
   .talent-pipeline{grid-template-columns:repeat(2,minmax(0,1fr))}
