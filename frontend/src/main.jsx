@@ -744,6 +744,7 @@ function App() {
   const [profile, setProfile] = useState(readStoredProfile);
   const [panel, setPanel] = useState(null);
   const [busyCount, setBusyCount] = useState(0);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('sfTorresSidebarCollapsed') === 'true');
 
   useEffect(() => {
     const onHash = () => {
@@ -877,8 +878,11 @@ function App() {
   }
 
   return (
-    <div className={`app app-route-${route}`}>
-      <Sidebar route={route} setRoute={setRoute} settings={settings} profile={profile} onProfile={() => setPanel('profile')} onLogout={goLogin} />
+    <div className={`app app-route-${route} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+      <Sidebar route={route} setRoute={setRoute} settings={settings} profile={profile} collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((value) => {
+        localStorage.setItem('sfTorresSidebarCollapsed', String(!value));
+        return !value;
+      })} onProfile={() => setPanel('profile')} onLogout={goLogin} />
       <Topbar route={route} settings={settings} profile={profile} openPanel={setPanel} />
       <main className="main">
         <div className="page">
@@ -1022,7 +1026,7 @@ function ProfileModal({ profile, onCancel, onSave }) {
   );
 }
 
-function Sidebar({ route, setRoute, settings, profile, onProfile, onLogout }) {
+function Sidebar({ route, setRoute, settings, profile, collapsed, onToggle, onProfile, onLogout }) {
   const groups = [
     ['Principal', [['dashboard', 'PR', 'Principal']]],
     ['Operações', [['tower', 'TO', 'Torre Operacional'], ['dailyOps', 'OD', 'Operação Diária'], ['schedules', 'PD', 'Programação de Equipes'], ['leaderAttendance', 'CP', 'Chamada de Ponto']]],
@@ -1044,7 +1048,7 @@ function Sidebar({ route, setRoute, settings, profile, onProfile, onLogout }) {
   };
   return (
     <aside className="sidebar">
-      <div className="brand"><div className="brand-emblem"><img src={stLogoTransparent} alt="SF Torres" /></div><div className="brand-text"><strong>{settings.fantasyName}</strong><span>{environment === 'talents' ? 'Banco de Talentos' : 'Centro Operacional'}</span></div></div>
+      <div className="brand"><div className="brand-emblem"><img src={stLogoTransparent} alt="SF Torres" /></div><div className="brand-text"><strong>{settings.fantasyName}</strong><span>{environment === 'talents' ? 'Banco de Talentos' : 'Centro Operacional'}</span></div><button className="sidebar-toggle" onClick={onToggle} title={collapsed ? 'Expandir menu' : 'Recolher menu'}>{collapsed ? '›' : '‹'}</button></div>
       <div className="search"><span>⌕</span><input placeholder="Buscar módulo, tela ou ação..." /></div>
       <nav className="nav">
         {visibleGroups.map(([title, items]) => {
@@ -1339,7 +1343,33 @@ function TalentBank({ notify, editable = true, mode = 'list' }) {
       </div>
       <div className="panel" style={{ overflow: 'hidden' }}>
         <div className="panel-head"><h3>Candidatos cadastrados</h3><div className="actions"><button className="btn btn-sm" disabled={(meta.offset || 0) <= 0} onClick={() => load(filters, Math.max((meta.offset || 0) - (meta.limit || 25), 0))}>Anterior</button><span className="soft">Pagina {page}</span><button className="btn btn-sm" disabled={(meta.offset || 0) + (meta.limit || 25) >= (meta.total || 0)} onClick={() => load(filters, (meta.offset || 0) + (meta.limit || 25))}>Proxima</button></div></div>
-        <div className="panel-body" style={{ padding: 0 }}><div className="table-scroll"><table className="dtbl"><thead><tr><th>Nome</th><th>Telefone</th><th>Cidade</th><th>Funcao de interesse</th><th>Ultima funcao</th><th>Escolaridade</th><th>Disponibilidade</th><th className="right">Pretensao</th><th>Status</th><th>Cadastro</th><th /></tr></thead><tbody>{loading ? <LoadingCell colSpan={11} /> : items.length ? items.map((item) => <tr key={item.id}><td><b>{item.fullName}</b><div className="soft">{item.relatedCompany}</div></td><td>{formatPhone(item.phone)}</td><td>{[item.city, item.state].filter(Boolean).join(' / ') || '-'}</td><td>{item.desiredRole || '-'}</td><td>{item.lastRole || '-'}</td><td>{item.education || '-'}</td><td>{item.startAvailability || '-'}</td><td className="right">{money(item.salaryExpectation)}</td><td><Pill value={item.status} /></td><td>{date(item.createdAt)}</td><td className="right"><button className="btn btn-sm" onClick={() => setProfileId(item.id)}>Visualizar</button> {editable && <button className="btn btn-sm" onClick={() => { setEditing(item); setFormOpen(true); }}>Editar</button>} {editable && <button className="btn btn-sm" onClick={() => changeStatus(item)}>Status</button>} {editable && item.status !== 'Arquivado' && <button className="btn btn-sm btn-danger" onClick={() => archive(item)}>Arquivar</button>}</td></tr>) : <tr><td colSpan={11}><div className="empty-state"><b>Nenhum candidato encontrado</b><span>Nao encontramos candidatos utilizando os filtros selecionados.</span><button className="btn btn-sm" onClick={() => setFilters(baseFilters)}>Limpar filtros</button></div></td></tr>}</tbody></table></div></div>
+        <div className="panel-body talent-list-body">{loading ? <LoadingBlock /> : items.length ? <div className="talent-list">{items.map((item) => <div className="talent-row" key={item.id}>
+          <div className="talent-person">
+            <b>{item.fullName}</b>
+            <span>{[formatPhone(item.phone), item.email].filter(Boolean).join(' · ') || 'Contato nao informado'}</span>
+            <small>{[item.city, item.state].filter(Boolean).join(' / ') || 'Cidade nao informada'} · {item.relatedCompany || 'Banco Geral'}</small>
+          </div>
+          <div className="talent-role">
+            <span>Funcao de interesse</span>
+            <b>{item.desiredRole || '-'}</b>
+            <small>Ultima funcao: {item.lastRole || '-'}</small>
+          </div>
+          <div className="talent-profile-summary">
+            <span>{item.education || 'Escolaridade nao informada'}</span>
+            <b>{item.startAvailability || 'Disponibilidade nao informada'}</b>
+            <small>{money(item.salaryExpectation)}</small>
+          </div>
+          <div className="talent-status-cell">
+            <Pill value={item.status} />
+            <small>Cadastro: {date(item.createdAt)}</small>
+          </div>
+          <div className="talent-row-actions">
+            <button className="btn btn-sm" onClick={() => setProfileId(item.id)}>Visualizar</button>
+            {editable && <button className="btn btn-sm" onClick={() => { setEditing(item); setFormOpen(true); }}>Editar</button>}
+            {editable && <button className="btn btn-sm" onClick={() => changeStatus(item)}>Status</button>}
+            {editable && item.status !== 'Arquivado' && <button className="btn btn-sm btn-danger" onClick={() => archive(item)}>Arquivar</button>}
+          </div>
+        </div>)}</div> : <div className="empty-state"><b>Nenhum candidato encontrado</b><span>Nao encontramos candidatos utilizando os filtros selecionados.</span><button className="btn btn-sm" onClick={() => setFilters(baseFilters)}>Limpar filtros</button></div>}</div>
       </div>
       {formOpen && <TalentForm initial={editing ? talentToForm(editing) : talentInitialForm()} onCancel={() => { setFormOpen(false); setEditing(null); if (mode === 'new') window.location.hash = '#/talents'; }} onSave={save} />}
       {profileId && <TalentProfile id={profileId} onClose={() => setProfileId('')} onEdit={(candidate) => { setProfileId(''); setEditing(candidate); setFormOpen(true); }} onStatus={changeStatus} editable={editable} />}

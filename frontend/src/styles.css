@@ -85,6 +85,7 @@ a:hover{text-decoration:underline}
   height:100vh;
   min-height:600px;
 }
+.app.sidebar-collapsed{grid-template-columns:72px 1fr}
 
 /* ---------- Sidebar ------------------------------------- */
 .sidebar{
@@ -101,6 +102,20 @@ a:hover{text-decoration:underline}
   background:linear-gradient(180deg,#0E274D 0%,var(--c-side-700) 100%);
   height:52px;
 }
+.sidebar-toggle{
+  width:26px;
+  height:26px;
+  margin-left:auto;
+  display:grid;
+  place-items:center;
+  border:1px solid rgba(255,255,255,.16);
+  border-radius:var(--radius-sm);
+  color:#FFFFFF;
+  background:rgba(255,255,255,.06);
+  font-size:20px;
+  line-height:1;
+}
+.sidebar-toggle:hover{background:#163A6A}
 .brand .brand-emblem{
   width:36px;height:36px;display:grid;place-items:center;flex:0 0 auto;
   border-radius:50%;
@@ -205,6 +220,42 @@ a:hover{text-decoration:underline}
   color:var(--c-side-muted);border-radius:var(--radius-sm);
 }
 .user-card .logout:hover{background:#13315A;color:#FFFFFF}
+
+.sidebar-collapsed .brand{justify-content:center;padding:8px}
+.sidebar-collapsed .brand .brand-text,
+.sidebar-collapsed .search input,
+.sidebar-collapsed .search span,
+.sidebar-collapsed .nav-title,
+.sidebar-collapsed .user-card .info{display:none}
+.sidebar-collapsed .sidebar-toggle{
+  position:absolute;
+  top:13px;
+  right:-13px;
+  z-index:5;
+  background:#0F2447;
+}
+.sidebar-collapsed .sidebar{position:relative}
+.sidebar-collapsed .search{
+  height:36px;
+  margin:10px 14px;
+  padding:0;
+  justify-content:center;
+}
+.sidebar-collapsed .nav{padding-top:8px}
+.sidebar-collapsed .nav-group{margin-top:2px}
+.sidebar-collapsed .nav-item{
+  justify-content:center;
+  padding:10px 0;
+  gap:0;
+  font-size:0;
+  border-left-color:transparent;
+}
+.sidebar-collapsed .nav-item.active{
+  border-left-color:transparent;
+}
+.sidebar-collapsed .nav-item .num{width:32px;font-size:12px}
+.sidebar-collapsed .user-card{justify-content:center;padding:10px 0}
+.sidebar-collapsed .user-card .logout{display:none}
 
 /* ---------- Topbar -------------------------------------- */
 .topbar{
@@ -691,6 +742,62 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 }
 .talent-toolbar .filter input,
 .talent-toolbar .filter select{min-width:110px}
+.talent-list-body{padding:0}
+.talent-list{display:flex;flex-direction:column}
+.talent-row{
+  display:grid;
+  grid-template-columns:minmax(220px,1.4fr) minmax(150px,1fr) minmax(170px,1fr) minmax(130px,.75fr) minmax(220px,auto);
+  gap:14px;
+  align-items:center;
+  padding:12px 14px;
+  border-bottom:1px solid var(--c-border);
+  background:var(--c-surface);
+}
+.talent-row:nth-child(even){background:#FAFCFF}
+.talent-row:hover{background:#F3F7FC}
+.talent-person,
+.talent-role,
+.talent-profile-summary,
+.talent-status-cell{min-width:0}
+.talent-person b,
+.talent-role b,
+.talent-profile-summary b{
+  display:block;
+  color:var(--c-text);
+  font-size:var(--fs-14);
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.talent-person span,
+.talent-role span,
+.talent-profile-summary span{
+  display:block;
+  color:var(--c-text-muted);
+  font-size:12px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.talent-person small,
+.talent-role small,
+.talent-profile-summary small,
+.talent-status-cell small{
+  display:block;
+  margin-top:2px;
+  color:var(--c-text-soft);
+  font-size:11.5px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.talent-row-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:6px;
+  flex-wrap:wrap;
+}
 .empty-state{
   min-height:150px;
   display:grid;
@@ -761,6 +868,9 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   .talent-command-grid,
   .talent-dashboard-grid.compact{grid-template-columns:1fr}
   .talent-pipeline{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .talent-row{grid-template-columns:minmax(220px,1.2fr) minmax(160px,1fr) minmax(150px,.85fr)}
+  .talent-status-cell{grid-column:2}
+  .talent-row-actions{grid-column:3;grid-row:1 / span 2}
 }
 
 @media (max-width:720px){
@@ -773,6 +883,9 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   .talent-toolbar .filter{width:100%}
   .talent-toolbar .filter input,
   .talent-toolbar .filter select{width:100%;min-width:0}
+  .talent-row{grid-template-columns:1fr;gap:8px}
+  .talent-status-cell,
+  .talent-row-actions{grid-column:auto;grid-row:auto;justify-content:flex-start}
   .check-grid{grid-template-columns:1fr}
   .talent-profile-head{display:block}
   .talent-profile-head .actions{margin-top:10px}
