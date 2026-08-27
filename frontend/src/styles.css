@@ -869,6 +869,47 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 }
 .profile-info-grid .field-row b{color:var(--c-text)}
 .profile-info-grid .field-row span{color:var(--c-text-muted)}
+.application-list{display:grid;gap:10px;padding:10px}
+.application-card{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:14px;
+  align-items:center;
+  padding:12px;
+  border:1px solid var(--c-border);
+  background:#FFFFFF;
+}
+.application-card:hover{border-color:#B8C4D6;background:#FBFCFE}
+.application-main{
+  display:grid;
+  grid-template-columns:minmax(220px,1.4fr) minmax(170px,1fr) minmax(120px,.65fr);
+  gap:16px;
+  align-items:center;
+  min-width:0;
+}
+.application-person,
+.application-job,
+.application-status{min-width:0}
+.application-person b,
+.application-job b{
+  display:block;
+  color:var(--c-text);
+  font-size:var(--fs-14);
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.application-person span,
+.application-person small,
+.application-job span,
+.application-job small,
+.application-status small{
+  display:block;
+  margin-top:3px;
+  color:var(--c-text-muted);
+  font-size:var(--fs-12);
+}
+.application-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap}
 .resume-box{
   display:flex;
   align-items:center;
@@ -882,6 +923,7 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 .resume-box b,
 .resume-box span{display:block}
 .resume-box span{margin-top:3px;color:var(--c-text-muted);font-size:var(--fs-12)}
+.resume-actions{display:flex;gap:8px;flex-wrap:wrap}
 .multiline{white-space:pre-wrap;line-height:1.55}
 
 @media (max-width:1100px){
@@ -909,6 +951,9 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   .talent-start-actions{margin-top:10px}
   .talent-pipeline{grid-template-columns:repeat(2,minmax(0,1fr))}
   .talent-readiness{grid-template-columns:1fr}
+  .application-card{grid-template-columns:1fr}
+  .application-main{grid-template-columns:1fr;gap:10px}
+  .application-actions{justify-content:flex-start}
   .resume-box{align-items:flex-start;flex-direction:column}
   .talent-toolbar{display:grid;grid-template-columns:1fr}
   .talent-toolbar .filter{width:100%}

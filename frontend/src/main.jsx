@@ -653,6 +653,38 @@ function downloadDataFile(file) {
   document.body.removeChild(link);
 }
 
+async function openProtectedFile(path, filename, download = false) {
+  const token = localStorage.getItem('sfTorresToken');
+  const response = await fetch(`${API_URL}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new Error(payload?.error?.message || 'Nao foi possivel abrir o arquivo');
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  if (download) {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename || 'curriculo';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    return;
+  }
+  window.open(url, '_blank', 'noopener,noreferrer');
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+function whatsappUrl(phone, message) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return '';
+  const number = digits.startsWith('55') ? digits : `55${digits}`;
+  return `https://wa.me/${number}?text=${encodeURIComponent(message || '')}`;
+}
+
 function cleanRoute(hash) {
   const route = String(hash || '').replace(/^#\/?/, '') || defaultRouteForEnvironment();
   if (route === 'login') return 'login';
@@ -1688,7 +1720,7 @@ function TalentJobForm({ initial, onCancel, onSave }) {
   </form></div></div>;
 }
 
-function TalentApplications({ notify, editable = true }) {
+function TalentApplicationsLegacy({ notify, editable = true }) {
   const [items, setItems] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [filters, setFilters] = useState({ q: '', status: 'Todos', jobId: 'Todos' });
@@ -1726,10 +1758,98 @@ function TalentApplications({ notify, editable = true }) {
   </>;
 }
 
-function TalentApplicationReview({ item, onClose, onSaveStatus, onConvert }) {
+function TalentApplications({ notify, editable = true }) {
+  const [items, setItems] = useState([]);
+  const [jobs, setJobs] = useState([]);
+  const [filters, setFilters] = useState({ q: '', status: 'Todos', jobId: 'Todos' });
+  const [loading, setLoading] = useState(true);
+  const [review, setReview] = useState(null);
+  const [busyId, setBusyId] = useState('');
+
+  const load = () => {
+    const query = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => value && value !== 'Todos' && query.set(key, value));
+    setLoading(true);
+    Promise.all([api(`/api/talents/applications?${query.toString()}`), api('/api/talents/jobs')]).then(([apps, jobPayload]) => {
+      setItems(listData(apps));
+      setJobs(listData(jobPayload));
+    }).catch((error) => notify(error.message)).finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, [filters.q, filters.status, filters.jobId]);
+
+  const setStatus = async (item, status, internalNotes = item.internalNotes || '') => {
+    try {
+      setBusyId(item.id);
+      const payload = await withBusy(() => api(`/api/talents/applications/${item.id}/status`, { method: 'PATCH', body: JSON.stringify({ status, internalNotes }) }));
+      notify('Candidatura atualizada');
+      setReview(null);
+      load();
+      return payload.data;
+    } finally {
+      setBusyId('');
+    }
+  };
+
+  const openReview = async (item) => {
+    try {
+      setBusyId(item.id);
+      const detail = await withBusy(() => api(`/api/talents/applications/${item.id}`));
+      const current = detail.data;
+      if (current.status === 'Nova') {
+        const updated = await api(`/api/talents/applications/${item.id}/status`, { method: 'PATCH', body: JSON.stringify({ status: 'Em analise', internalNotes: current.internalNotes || '' }) });
+        notify('Candidatura em analise');
+        setReview(updated.data);
+        load();
+        return;
+      }
+      setReview(current);
+    } catch (error) {
+      notify(error.message);
+    } finally {
+      setBusyId('');
+    }
+  };
+
+  const convert = async (item) => {
+    try {
+      setBusyId(item.id);
+      await withBusy(() => api(`/api/talents/applications/${item.id}/convert`, { method: 'POST', body: JSON.stringify({}) }));
+      notify('Candidatura enviada para o Banco de Talentos');
+      setReview(null);
+      load();
+    } finally {
+      setBusyId('');
+    }
+  };
+
+  return <>
+    <PageHead title="Candidaturas externas" subtitle="Triagem das inscricoes recebidas pela pagina publica antes de entrar no Banco de Talentos." action="Atualizar" onAction={load} />
+    <div className="toolbar"><div className="filter"><label>Buscar</label><input value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="Nome, email, cidade..." /></div><div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Nova</option><option>Em analise</option><option>Convertida</option><option>Reprovada</option></select></div><div className="filter"><label>Vaga</label><select value={filters.jobId} onChange={(event) => setFilters((old) => ({ ...old, jobId: event.target.value }))}><option>Todos</option>{jobs.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}</select></div><span className="spacer" /><span className="soft">{items.length} candidaturas</span></div>
+    <Panel title="Candidaturas recebidas">
+      {loading ? <LoadingBlock /> : items.length ? <div className="application-list">{items.map((item) => <div className="application-card" key={item.id}>
+        <div className="application-main">
+          <div className="application-person"><b>{item.fullName}</b><span>{item.email} · {formatPhone(item.phone)}</span><small>{[item.city, item.state].filter(Boolean).join(' / ') || 'Cidade nao informada'} · Recebida em {date(item.createdAt)}</small></div>
+          <div className="application-job"><span>Vaga</span><b>{item.job?.title || '-'}</b><small>{item.experienceYears || 'Experiencia nao informada'} · {money(item.desiredSalary)}</small></div>
+          <div className="application-status"><Pill value={item.status} />{item.resume?.name && <small>Curriculo anexado</small>}</div>
+        </div>
+        <div className="application-actions">
+          <button className="btn btn-sm" disabled={!editable || busyId === item.id} onClick={() => openReview(item)}>{busyId === item.id ? 'Abrindo...' : 'Analisar'}</button>
+          <button className="btn btn-sm btn-primary" disabled={!editable || busyId === item.id || item.status === 'Convertida'} onClick={() => convert(item)}>Aprovar para banco</button>
+          <button className="btn btn-sm btn-danger" disabled={!editable || busyId === item.id || item.status === 'Reprovada'} onClick={() => setStatus(item, 'Reprovada')}>Reprovar</button>
+        </div>
+      </div>)}</div> : <TalentEmptyState title="Nenhuma candidatura recebida" text="As inscricoes vindas da pagina publica aparecerao aqui para triagem." />}
+    </Panel>
+    {review && <TalentApplicationReview item={review} onClose={() => setReview(null)} onSaveStatus={setStatus} onConvert={convert} notify={notify} />}
+  </>;
+}
+
+function TalentApplicationReview({ item, onClose, onSaveStatus, onConvert, notify }) {
   const [status, setStatus] = useState(item.status || 'Em analise');
   const [internalNotes, setInternalNotes] = useState(item.internalNotes || '');
+  const [openingResume, setOpeningResume] = useState(false);
   const resume = item.resume || null;
+  const whatsapp = whatsappUrl(item.phone, `Ola, ${item.fullName}. Somos da SF TORRES e estamos falando sobre sua candidatura para a vaga ${item.job?.title || 'Trabalhe Conosco'}. Podemos conversar?`);
   const info = [
     ['Candidato', item.fullName],
     ['CPF', formatCpf(item.cpf)],
@@ -1747,17 +1867,27 @@ function TalentApplicationReview({ item, onClose, onSaveStatus, onConvert }) {
     ['Recebida em', date(item.createdAt)]
   ];
   const save = () => onSaveStatus(item, status, internalNotes);
+  const openResume = async (download = false) => {
+    try {
+      setOpeningResume(true);
+      await openProtectedFile(`/api/talents/applications/${item.id}/resume`, resume?.name || 'curriculo', download);
+    } catch (error) {
+      notify?.(error.message);
+    } finally {
+      setOpeningResume(false);
+    }
+  };
   return <div className="modal-backdrop">
     <div className="modal talent-application-modal">
       <div className="modal-head"><h3>Analisar candidatura</h3><button className="btn btn-sm" onClick={onClose}>Fechar</button></div>
       <div className="modal-body">
         <div className="talent-profile-head">
           <div><h2>{item.fullName}</h2><Pill value={status} /></div>
-          <div className="talent-row-actions"><button className="btn btn-sm btn-primary" onClick={() => onConvert(item)}>Aprovar para banco</button><button className="btn btn-sm btn-danger" onClick={() => onSaveStatus(item, 'Reprovada', internalNotes)}>Reprovar</button></div>
+          <div className="talent-row-actions">{whatsapp && <a className="btn btn-sm btn-success" href={whatsapp} target="_blank" rel="noreferrer">WhatsApp</a>}<button className="btn btn-sm btn-primary" onClick={() => onConvert(item)}>Aprovar para banco</button><button className="btn btn-sm btn-danger" onClick={() => onSaveStatus(item, 'Reprovada', internalNotes)}>Reprovar</button></div>
         </div>
         <Panel title="Dados recebidos" padded><div className="profile-info-grid">{info.map(([label, value]) => <div key={label} className="field-row"><b>{label}</b><span>{displayValue(value)}</span></div>)}</div></Panel>
         <Panel title="Curriculo" padded>
-          {resume?.name ? <div className="resume-box"><div><b>{resume.name}</b><span>{formatFileSize(resume.size)} {resume.type ? `- ${resume.type}` : ''}</span></div>{resume.content ? <button className="btn btn-sm btn-primary" onClick={() => downloadDataFile(resume)}>Baixar curriculo</button> : <span className="soft">Arquivo antigo sem conteudo salvo.</span>}</div> : <p className="soft">Nenhum curriculo anexado.</p>}
+          {resume?.name ? <div className="resume-box"><div><b>{resume.name}</b><span>{formatFileSize(resume.size)} {resume.type ? `- ${resume.type}` : ''}</span></div><div className="resume-actions"><button className="btn btn-sm btn-primary" disabled={openingResume} onClick={() => openResume(false)}>{openingResume ? 'Abrindo...' : 'Abrir curriculo'}</button><button className="btn btn-sm" disabled={openingResume} onClick={() => openResume(true)}>Baixar</button></div></div> : <p className="soft">Nenhum curriculo anexado.</p>}
         </Panel>
         <Panel title="Apresentacao do candidato" padded><p className="soft multiline">{item.coverLetter || 'Sem apresentacao informada.'}</p></Panel>
         <Panel title="Parecer interno" padded>

@@ -398,6 +398,22 @@ router.get('/applications/:id', async (req, res, next) => {
   }
 });
 
+router.get('/applications/:id/resume', async (req, res, next) => {
+  try {
+    const application = await prisma.talentApplication.findUnique({ where: { id: req.params.id }, select: { resume: true } });
+    const resume = application?.resume;
+    if (!resume?.content) return res.status(404).json({ error: { message: 'Curriculo nao encontrado para esta candidatura' } });
+    const match = String(resume.content).match(/^data:([^;]+);base64,(.+)$/);
+    if (!match) return res.status(422).json({ error: { message: 'Arquivo do curriculo esta em formato invalido' } });
+    const buffer = Buffer.from(match[2], 'base64');
+    res.setHeader('Content-Type', resume.type || match[1] || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `inline; filename="${String(resume.name || 'curriculo').replace(/"/g, '')}"`);
+    res.send(buffer);
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.patch('/applications/:id/status', requireTalent('edit'), async (req, res, next) => {
   try {
     const application = await prisma.talentApplication.update({
