@@ -95,6 +95,12 @@ const applicationSchema = z.object({
   consentStorage: z.coerce.boolean().optional().default(false)
 });
 
+const allowedResumeTypes = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+]);
+
 function cpfDigits(value) {
   return String(value || '').replace(/\D/g, '');
 }
@@ -134,6 +140,42 @@ function normalizeCandidate(data, req) {
 
 function textLines(value) {
   return String(value || '').split('\n').map((item) => item.trim()).filter(Boolean);
+}
+
+function normalizeResume(resume) {
+  if (!resume || typeof resume !== 'object') return null;
+  const name = String(resume.name || '').trim();
+  const type = String(resume.type || '').trim();
+  const content = String(resume.content || '').trim();
+  const size = Number(resume.size || 0);
+  if (!name || !content) return name ? { name, type: type || null, size: Number.isFinite(size) ? size : null } : null;
+  if (size > 4 * 1024 * 1024 || content.length > 6 * 1024 * 1024) {
+    const error = new Error('Curriculo deve ter no maximo 4 MB');
+    error.status = 400;
+    throw error;
+  }
+  if (type && !allowedResumeTypes.has(type)) {
+    const error = new Error('Envie o curriculo em PDF, DOC ou DOCX');
+    error.status = 400;
+    throw error;
+  }
+  return {
+    name,
+    type: type || null,
+    size: Number.isFinite(size) ? size : null,
+    content,
+    uploadedAt: resume.uploadedAt || new Date().toISOString()
+  };
+}
+
+function resumeMeta(resume) {
+  if (!resume || typeof resume !== 'object') return null;
+  return {
+    name: resume.name || null,
+    type: resume.type || null,
+    size: resume.size || null,
+    uploadedAt: resume.uploadedAt || null
+  };
 }
 
 function normalizeJob(data, req) {
@@ -272,6 +314,7 @@ router.post('/public/applications', async (req, res, next) => {
       data: {
         ...parsed.data,
         cpf: parsed.data.cpf ? cpfDigits(parsed.data.cpf) : null,
+        resume: normalizeResume(parsed.data.resume),
         status: 'Nova'
       }
     });
@@ -338,7 +381,18 @@ router.get('/applications', async (req, res, next) => {
       ];
     }
     const data = await prisma.talentApplication.findMany({ where, orderBy: { createdAt: 'desc' }, include: { job: true } });
-    res.json({ data, meta: { total: data.length, limit: data.length, offset: 0 } });
+    const cleanData = data.map((item) => ({ ...item, resume: resumeMeta(item.resume) }));
+    res.json({ data: cleanData, meta: { total: data.length, limit: data.length, offset: 0 } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/applications/:id', async (req, res, next) => {
+  try {
+    const application = await prisma.talentApplication.findUnique({ where: { id: req.params.id }, include: { job: true } });
+    if (!application) return res.status(404).json({ error: { message: 'Candidatura nao encontrada' } });
+    res.json({ data: application });
   } catch (error) {
     next(error);
   }

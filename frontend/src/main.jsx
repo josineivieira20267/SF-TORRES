@@ -636,6 +636,23 @@ function fileToDataUrl(file) {
   });
 }
 
+function formatFileSize(size) {
+  const bytes = Number(size || 0);
+  if (!bytes) return '-';
+  if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1).replace('.', ',')} MB`;
+}
+
+function downloadDataFile(file) {
+  if (!file?.content) return;
+  const link = document.createElement('a');
+  link.href = file.content;
+  link.download = file.name || 'curriculo';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
 function cleanRoute(hash) {
   const route = String(hash || '').replace(/^#\/?/, '') || defaultRouteForEnvironment();
   if (route === 'login') return 'login';
@@ -1005,9 +1022,24 @@ function PublicJobs({ settings }) {
     setApplying(false);
     setMessage('Candidatura enviada. Nossa equipe ira analisar suas informacoes.');
   };
-  const fileChange = (event) => {
+  const fileChange = async (event) => {
     const file = event.target.files?.[0];
-    change('resume', file ? { name: file.name, size: file.size, type: file.type, uploadedAt: new Date().toISOString() } : null);
+    if (!file) return change('resume', null);
+    const allowed = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    const validExtension = /\.(pdf|doc|docx)$/i.test(file.name || '');
+    if (file.type && !allowed.includes(file.type) && !validExtension) {
+      event.target.value = '';
+      change('resume', null);
+      return setMessage('Envie o curriculo em PDF, DOC ou DOCX.');
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      event.target.value = '';
+      change('resume', null);
+      return setMessage('O curriculo deve ter no maximo 4 MB.');
+    }
+    setMessage('');
+    const content = await fileToDataUrl(file);
+    change('resume', { name: file.name, size: file.size, type: file.type, content, uploadedAt: new Date().toISOString() });
   };
   return (
     <div className="public-jobs-page">
@@ -1053,7 +1085,7 @@ function PublicJobs({ settings }) {
               <div className="form-field"><label>Pretensao salarial</label><input value={form.desiredSalary} onChange={(e) => change('desiredSalary', e.target.value)} onBlur={(e) => change('desiredSalary', money(parseMoney(e.target.value)))} /></div>
               <div className="form-field"><label>Disponibilidade de inicio</label><input type="date" value={form.availableStartDate} onChange={(e) => change('availableStartDate', e.target.value)} /></div>
               <div className="form-field"><label>LinkedIn</label><input value={form.linkedinUrl} onChange={(e) => change('linkedinUrl', e.target.value)} /></div>
-              <div className="form-field"><label>Curriculo</label><input type="file" accept=".pdf,.doc,.docx" onChange={fileChange} /></div>
+              <div className="form-field"><label>Curriculo</label><input type="file" accept=".pdf,.doc,.docx" onChange={fileChange} />{form.resume?.name && <small className="soft">{form.resume.name} - {formatFileSize(form.resume.size)}</small>}</div>
               <div className="form-field full"><label>Apresentacao</label><textarea value={form.coverLetter} onChange={(e) => change('coverLetter', e.target.value)} placeholder="Conte rapidamente sua experiencia e disponibilidade." /></div>
               <div className="form-field full"><label>Consentimento LGPD *</label><label className="public-consent"><input type="checkbox" checked={form.consentStorage} onChange={(e) => change('consentStorage', e.target.checked)} /> Autorizo o armazenamento dos meus dados para processos seletivos e futuras oportunidades profissionais.</label></div>
             </div>
@@ -1661,6 +1693,7 @@ function TalentApplications({ notify, editable = true }) {
   const [jobs, setJobs] = useState([]);
   const [filters, setFilters] = useState({ q: '', status: 'Todos', jobId: 'Todos' });
   const [loading, setLoading] = useState(true);
+  const [review, setReview] = useState(null);
   const load = () => {
     const query = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => value && value !== 'Todos' && query.set(key, value));
@@ -1671,14 +1704,17 @@ function TalentApplications({ notify, editable = true }) {
     }).catch((error) => notify(error.message)).finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, [filters.q, filters.status, filters.jobId]);
-  const setStatus = async (item, status) => {
-    await withBusy(() => api(`/api/talents/applications/${item.id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }));
+  const setStatus = async (item, status, internalNotes = item.internalNotes || '') => {
+    const payload = await withBusy(() => api(`/api/talents/applications/${item.id}/status`, { method: 'PATCH', body: JSON.stringify({ status, internalNotes }) }));
     notify('Candidatura atualizada');
+    setReview(status === 'Em analise' && internalNotes === (item.internalNotes || '') ? payload.data : null);
     load();
+    return payload.data;
   };
   const convert = async (item) => {
     await withBusy(() => api(`/api/talents/applications/${item.id}/convert`, { method: 'POST', body: JSON.stringify({}) }));
     notify('Candidatura enviada para o Banco de Talentos');
+    setReview(null);
     load();
   };
   const rows = items.map((item) => [<><b>{item.fullName}</b><div className="soft">{item.email} · {formatPhone(item.phone)}</div></>, item.job?.title || '-', <Pill value={item.status} />, [item.city, item.state].filter(Boolean).join(' / ') || '-', item.experienceYears || '-', money(item.desiredSalary), date(item.createdAt), editable ? <><button className="btn btn-sm" onClick={() => setStatus(item, 'Em analise')}>Analisar</button> <button className="btn btn-sm btn-primary" onClick={() => convert(item)}>Aprovar para banco</button> <button className="btn btn-sm btn-danger" onClick={() => setStatus(item, 'Reprovada')}>Reprovar</button></> : '-']);
@@ -1686,7 +1722,54 @@ function TalentApplications({ notify, editable = true }) {
     <PageHead title="Candidaturas externas" subtitle="Triagem das inscricoes recebidas pela pagina publica antes de entrar no Banco de Talentos." action="Atualizar" onAction={load} />
     <div className="toolbar"><div className="filter"><label>Buscar</label><input value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="Nome, email, cidade..." /></div><div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Nova</option><option>Em analise</option><option>Convertida</option><option>Reprovada</option></select></div><div className="filter"><label>Vaga</label><select value={filters.jobId} onChange={(event) => setFilters((old) => ({ ...old, jobId: event.target.value }))}><option>Todos</option>{jobs.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}</select></div><span className="spacer" /><span className="soft">{items.length} candidaturas</span></div>
     <Panel title="Candidaturas recebidas"><DataTable columns={['Candidato', 'Vaga', 'Status', 'Cidade', 'Experiencia', 'Pretensao', 'Recebida em', 'Acoes']} rows={rows} loading={loading} /></Panel>
+    {review && <TalentApplicationReview item={review} onClose={() => setReview(null)} onSaveStatus={setStatus} onConvert={convert} />}
   </>;
+}
+
+function TalentApplicationReview({ item, onClose, onSaveStatus, onConvert }) {
+  const [status, setStatus] = useState(item.status || 'Em analise');
+  const [internalNotes, setInternalNotes] = useState(item.internalNotes || '');
+  const resume = item.resume || null;
+  const info = [
+    ['Candidato', item.fullName],
+    ['CPF', formatCpf(item.cpf)],
+    ['E-mail', item.email],
+    ['Telefone', formatPhone(item.phone)],
+    ['Cidade', [item.city, item.state].filter(Boolean).join(' / ')],
+    ['Vaga', item.job?.title],
+    ['Escolaridade', item.education],
+    ['Experiencia', item.experienceYears],
+    ['Ultima funcao', item.lastRole],
+    ['Pretensao', money(item.desiredSalary)],
+    ['Disponibilidade', date(item.availableStartDate)],
+    ['LinkedIn', item.linkedinUrl],
+    ['Portfolio', item.portfolioUrl],
+    ['Recebida em', date(item.createdAt)]
+  ];
+  const save = () => onSaveStatus(item, status, internalNotes);
+  return <div className="modal-backdrop">
+    <div className="modal talent-application-modal">
+      <div className="modal-head"><h3>Analisar candidatura</h3><button className="btn btn-sm" onClick={onClose}>Fechar</button></div>
+      <div className="modal-body">
+        <div className="talent-profile-head">
+          <div><h2>{item.fullName}</h2><Pill value={status} /></div>
+          <div className="talent-row-actions"><button className="btn btn-sm btn-primary" onClick={() => onConvert(item)}>Aprovar para banco</button><button className="btn btn-sm btn-danger" onClick={() => onSaveStatus(item, 'Reprovada', internalNotes)}>Reprovar</button></div>
+        </div>
+        <Panel title="Dados recebidos" padded><div className="profile-info-grid">{info.map(([label, value]) => <div key={label} className="field-row"><b>{label}</b><span>{displayValue(value)}</span></div>)}</div></Panel>
+        <Panel title="Curriculo" padded>
+          {resume?.name ? <div className="resume-box"><div><b>{resume.name}</b><span>{formatFileSize(resume.size)} {resume.type ? `- ${resume.type}` : ''}</span></div>{resume.content ? <button className="btn btn-sm btn-primary" onClick={() => downloadDataFile(resume)}>Baixar curriculo</button> : <span className="soft">Arquivo antigo sem conteudo salvo.</span>}</div> : <p className="soft">Nenhum curriculo anexado.</p>}
+        </Panel>
+        <Panel title="Apresentacao do candidato" padded><p className="soft multiline">{item.coverLetter || 'Sem apresentacao informada.'}</p></Panel>
+        <Panel title="Parecer interno" padded>
+          <div className="form-grid">
+            <div className="form-field"><label>Status</label><select value={status} onChange={(e) => setStatus(e.target.value)}><option>Nova</option><option>Em analise</option><option>Convertida</option><option>Reprovada</option></select></div>
+            <div className="form-field full"><label>Observacoes da triagem</label><textarea value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} placeholder="Registre retorno, pontos fortes, restricoes ou proximo passo." /></div>
+          </div>
+        </Panel>
+        <div className="modal-actions"><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" onClick={save}>Salvar analise</button></div>
+      </div>
+    </div>
+  </div>;
 }
 
 function TalentReports({ notify }) {

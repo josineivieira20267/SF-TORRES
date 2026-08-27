@@ -816,6 +816,7 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 .empty-state b{color:var(--c-text)}
 .talent-modal{width:min(940px,100%)}
 .talent-profile-modal{width:min(1020px,100%)}
+.talent-application-modal{width:min(980px,100%)}
 .talent-form h4{
   grid-column:1 / -1;
   margin:10px 0 8px;
@@ -868,6 +869,20 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 }
 .profile-info-grid .field-row b{color:var(--c-text)}
 .profile-info-grid .field-row span{color:var(--c-text-muted)}
+.resume-box{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px;
+  border:1px solid var(--c-border);
+  border-radius:var(--radius-sm);
+  background:var(--c-surface-2);
+}
+.resume-box b,
+.resume-box span{display:block}
+.resume-box span{margin-top:3px;color:var(--c-text-muted);font-size:var(--fs-12)}
+.multiline{white-space:pre-wrap;line-height:1.55}
 
 @media (max-width:1100px){
   .talent-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -894,6 +909,7 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   .talent-start-actions{margin-top:10px}
   .talent-pipeline{grid-template-columns:repeat(2,minmax(0,1fr))}
   .talent-readiness{grid-template-columns:1fr}
+  .resume-box{align-items:flex-start;flex-direction:column}
   .talent-toolbar{display:grid;grid-template-columns:1fr}
   .talent-toolbar .filter{width:100%}
   .talent-toolbar .filter input,
