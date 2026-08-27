@@ -39,7 +39,11 @@ const routes = {
   services: { title: 'Serviços', group: 'Cadastros' },
   equipment: { title: 'Equipamentos', group: 'Cadastros' },
   users: { title: 'Usuários & Perfis', group: 'Administração' },
-  settings: { title: 'Configurações', group: 'Administração' }
+  settings: { title: 'Configurações', group: 'Administração' },
+  talentDashboard: { title: 'Dashboard', group: 'Banco de Talentos' },
+  talents: { title: 'Banco de Talentos', group: 'Banco de Talentos' },
+  talentNew: { title: 'Novo Candidato', group: 'Banco de Talentos' },
+  talentReports: { title: 'Relatórios', group: 'Banco de Talentos' }
 };
 
 const routeKeys = Object.keys(routes);
@@ -78,6 +82,8 @@ function canEdit(route, user = currentUser()) {
 
 function defaultUserPermissions(role = 'Operacional') {
   if (role === 'Administrador') return { ...defaultAdminPermissions };
+  if (normalize(role).includes('rh') || normalize(role).includes('recrut')) return { talentDashboard: 'edit', talents: 'edit', talentNew: 'edit', talentReports: 'view' };
+  if (normalize(role).includes('consulta')) return { talentDashboard: 'view', talents: 'view', talentReports: 'view' };
   if (normalize(role).includes('lider')) return { schedules: 'edit', leaderAttendance: 'edit' };
   if (normalize(role).includes('operacional')) return { dashboard: 'view', dailyOps: 'view', leaderAttendance: 'edit' };
   return { dashboard: 'view', dailyOps: 'view' };
@@ -424,6 +430,18 @@ function workOrdersRangeEndpoint(from, to, params = {}) {
 
 function money(value) {
   return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function parseMoney(value) {
+  const raw = String(value || '').replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
+  const number = Number(raw);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function formatPhone(value) {
+  const digits = String(value || '').replace(/\D/g, '').slice(0, 11);
+  if (digits.length <= 10) return digits.replace(/^(\d{2})(\d)/, '($1) $2').replace(/(\d{4})(\d)/, '$1-$2');
+  return digits.replace(/^(\d{2})(\d)/, '($1) $2').replace(/(\d{5})(\d)/, '$1-$2');
 }
 
 function normalize(value) {
@@ -825,7 +843,13 @@ function App() {
   const goAfterLogin = (user) => {
     setAuthenticated(true);
     const requestedRoute = requestedRouteFromHash();
-    const nextRoute = requestedRoute && canView(requestedRoute, user) ? requestedRoute : firstAllowedRouteFor(user);
+    const preferredRoute = localStorage.getItem('sfTorresPreferredRoute') || '';
+    localStorage.removeItem('sfTorresPreferredRoute');
+    const nextRoute = preferredRoute && canView(preferredRoute, user)
+      ? preferredRoute
+      : requestedRoute && canView(requestedRoute, user)
+        ? requestedRoute
+        : firstAllowedRouteFor(user);
     window.history.replaceState(null, '', `#/${nextRoute}`);
     setRoute(nextRoute);
   };
@@ -856,6 +880,8 @@ function App() {
 function Login({ settings, onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [environment, setEnvironment] = useState('operational');
+  const [company, setCompany] = useState('SF TORRES - Matriz Manaus/AM');
   const [message, setMessage] = useState('Acesso restrito a colaboradores autorizados. As ações são auditadas conforme LGPD.');
   const [loading, setLoading] = useState(false);
   const loginPrimaryLogo = stLogoTransparent;
@@ -876,6 +902,9 @@ function Login({ settings, onLogin }) {
       }));
       localStorage.setItem('sfTorresToken', payload.data.token);
       localStorage.setItem('sfTorresUser', JSON.stringify(payload.data.user));
+      localStorage.setItem('sfTorresEnvironment', environment);
+      localStorage.setItem('sfTorresCompany', company);
+      localStorage.setItem('sfTorresPreferredRoute', environment === 'talents' ? 'talentDashboard' : 'dailyOps');
       onLogin(payload.data.user);
     } catch (error) {
       setMessage(error.message);
@@ -899,11 +928,12 @@ function Login({ settings, onLogin }) {
             <div><div className="eyebrow">Centro Operacional</div><div className="brand-name">{settings.fantasyName}</div></div>
           </div>
           <h1>Acesse sua conta</h1>
-          <p className="subtitle">Use suas credenciais corporativas para entrar no ambiente operacional.</p>
+          <p className="subtitle">Use suas credenciais corporativas para entrar no ambiente selecionado.</p>
           <form className="login-form" onSubmit={submit} autoComplete="off">
             <div className="form-field"><label>Usuário ou e-mail</label><input value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" /></div>
             <div className="form-field"><label>Senha</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" /></div>
-            <div className="form-field"><label>Empresa / Filial</label><select><option>SF TORRES - Matriz Manaus/AM</option><option>ST Serviços de Logística - Filial</option></select></div>
+            <div className="form-field"><label>Ambiente / Sistema</label><select value={environment} onChange={(e) => setEnvironment(e.target.value)}><option value="operational">Sistema Operacional</option><option value="talents">Banco de Talentos</option></select></div>
+            {environment === 'operational' && <div className="form-field"><label>Empresa / Filial</label><select value={company} onChange={(e) => setCompany(e.target.value)}><option>SF TORRES - Matriz Manaus/AM</option><option>ST Serviços de Logística - Filial</option></select></div>}
             <div className="aux"><label className="row"><input type="checkbox" /> Manter conectado</label><a href="#/login">Esqueci minha senha</a></div>
             <button className="btn btn-primary" disabled={loading}>{loading ? <LoadingSpinner small /> : 'Entrar no sistema'}</button>
           </form>
@@ -982,6 +1012,7 @@ function Sidebar({ route, setRoute, settings, profile, onProfile, onLogout }) {
     ['Gestão', [['productivity', 'PD', 'Produtividade'], ['bonusCriteria', 'CB', 'Critérios de Bonificação'], ['employees', 'FE', 'Funcionários']]],
     ['Movimentações', [['reports', 'RP', 'Relatórios']]],
     ['Cadastros', [['clients', 'CL', 'Clientes'], ['services', 'SV', 'Serviços'], ['equipment', 'EQ', 'Equipamentos']]],
+    ['Banco de Talentos', [['talentDashboard', 'BT', 'Dashboard'], ['talents', 'BC', 'Candidatos'], ['talentNew', 'NC', 'Novo Candidato'], ['talentReports', 'RT', 'Relatórios']]],
     ['Administração', [['users', 'AD', 'Usuários & Perfis'], ['settings', 'CF', 'Configurações']]]
   ];
   const user = currentUser();
@@ -1040,6 +1071,10 @@ function Screen({ route, notify, settings, setSettings }) {
   if (route === 'schedules') return <Schedules notify={notify} editable={editable} />;
   if (route === 'leaderAttendance') return <LeaderAttendance notify={notify} editable={editable} />;
   if (route === 'users') return <Users notify={notify} editable={editable} />;
+  if (route === 'talentDashboard') return <TalentDashboard notify={notify} />;
+  if (route === 'talents') return <TalentBank notify={notify} editable={editable} mode="list" />;
+  if (route === 'talentNew') return <TalentBank notify={notify} editable={editable} mode="new" />;
+  if (route === 'talentReports') return <TalentReports notify={notify} />;
   if (crudConfigs[route]) return <CrudScreen config={crudConfigs[route]} notify={notify} editable={editable} />;
   if (route === 'dashboard') return <OperationsDashboard />;
   if (route === 'tower') return <Tower />;
@@ -1052,6 +1087,322 @@ function Screen({ route, notify, settings, setSettings }) {
 
 function AccessDenied() {
   return <Panel title="Acesso restrito" padded><p>Seu usuario nao tem permissao para abrir esta tela.</p><p className="soft">Peça ao administrador para liberar acesso de visualizacao ou edicao em Usuarios & Perfis.</p></Panel>;
+}
+
+const talentStatuses = ['Novo cadastro', 'Disponivel', 'Em analise', 'Entrevista', 'Aprovado', 'Banco de reserva', 'Contratado', 'Reprovado', 'Indisponivel', 'Arquivado'];
+const talentEducationOptions = ['', 'Ensino Fundamental Incompleto', 'Ensino Fundamental Completo', 'Ensino Medio Incompleto', 'Ensino Medio Completo', 'Ensino Tecnico', 'Ensino Superior Incompleto', 'Ensino Superior Completo', 'Pos-graduacao', 'Mestrado', 'Doutorado', 'Outro'];
+const talentAvailabilityOptions = ['', 'Imediata', 'Ate 7 dias', 'Ate 15 dias', 'Ate 30 dias', 'A combinar'];
+const talentScheduleOptions = ['Comercial', 'Primeiro turno', 'Segundo turno', 'Terceiro turno', 'Noturno', 'Escala', 'Qualquer horario'];
+const talentCompanyOptions = ['Banco Geral', 'SF TORRES', 'ST Servicos de Logistica', 'Ambas'];
+const talentCnhCategories = ['', 'A', 'B', 'AB', 'C', 'D', 'E', 'AC', 'AD', 'AE'];
+
+function talentInitialForm() {
+  return {
+    fullName: '',
+    cpf: '',
+    rg: '',
+    birthDate: '',
+    phone: '',
+    email: '',
+    zipCode: '',
+    street: '',
+    number: '',
+    complement: '',
+    district: '',
+    city: 'Manaus',
+    state: 'AM',
+    education: '',
+    coursesText: '',
+    experiencesText: '',
+    lastRole: '',
+    desiredRole: '',
+    startAvailability: 'Imediata',
+    scheduleAvailability: ['Comercial'],
+    salaryExpectation: '',
+    hasCnh: false,
+    cnhCategory: '',
+    cnhNumber: '',
+    cnhExpiration: '',
+    internalNotes: '',
+    status: 'Novo cadastro',
+    relatedCompany: 'Banco Geral',
+    consentStorage: true,
+    consentDate: localDateValue(new Date()),
+    consentOrigin: 'Cadastro interno',
+    source: 'Indicado internamente'
+  };
+}
+
+function talentToForm(candidate = {}) {
+  const courses = Array.isArray(candidate.courses) ? candidate.courses : [];
+  const experiences = Array.isArray(candidate.experiences) ? candidate.experiences : [];
+  return {
+    ...talentInitialForm(),
+    ...candidate,
+    cpf: formatCpf(candidate.cpf || ''),
+    phone: formatPhone(candidate.phone || ''),
+    salaryExpectation: candidate.salaryExpectation ? money(candidate.salaryExpectation) : '',
+    coursesText: courses.map((item) => [item.name, item.institution, item.year].filter(Boolean).join(' - ')).join('\n'),
+    experiencesText: experiences.map((item) => [item.company, item.role, item.period].filter(Boolean).join(' - ')).join('\n'),
+    scheduleAvailability: Array.isArray(candidate.scheduleAvailability) ? candidate.scheduleAvailability : []
+  };
+}
+
+function parseLines(value, type) {
+  return String(value || '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
+    const [first, second, third] = line.split(' - ').map((item) => item?.trim()).filter(Boolean);
+    return type === 'course'
+      ? { name: first || line, institution: second || '', year: third || '' }
+      : { company: first || '', role: second || line, period: third || '' };
+  });
+}
+
+function talentPayload(form) {
+  const experiences = parseLines(form.experiencesText, 'experience');
+  const { coursesText, experiencesText, id, createdAt, updatedAt, history, ...rest } = form;
+  return {
+    ...rest,
+    fullName: formatPersonName(form.fullName),
+    cpf: formatCpf(form.cpf),
+    phone: formatPhone(form.phone),
+    salaryExpectation: parseMoney(form.salaryExpectation),
+    courses: parseLines(coursesText, 'course'),
+    experiences,
+    lastRole: form.lastRole || experiences[0]?.role || '',
+    resume: form.resume?.name ? form.resume : null
+  };
+}
+
+function TalentDashboard({ notify }) {
+  const [summary, setSummary] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const load = () => {
+    setLoading(true);
+    api('/api/talents/summary').then((payload) => setSummary(payload.data)).catch((error) => notify(error.message)).finally(() => setLoading(false));
+  };
+  useEffect(() => { load(); }, []);
+  const roles = (summary?.roles || []).map((item) => [item.desiredRole || 'Nao informado', item._count?.desiredRole || 0]);
+  const movements = (summary?.movements || []).map((item) => [dateTime(item.createdAt), item.candidate?.fullName || '-', item.action, item.toStatus ? <Pill value={item.toStatus} /> : '-']);
+  const latest = (summary?.latest || []).map((item) => [item.fullName, formatPhone(item.phone), item.desiredRole || '-', <Pill value={item.status} />, date(item.createdAt)]);
+  return (
+    <>
+      <PageHead title="Banco de Talentos" subtitle="Painel de acompanhamento de candidatos, disponibilidade, status e cadastros recentes." action="Novo candidato" onAction={() => { window.location.hash = '#/talentNew'; }} ghostAction="Atualizar" onGhostAction={load} />
+      <div className="kpi-grid talent-kpis">
+        <Kpi icon="users" label="Total de candidatos" value={summary?.total || 0} delta="base cadastrada" />
+        <Kpi icon="check" label="Disponiveis" value={summary?.available || 0} delta="aptos para contato" success />
+        <Kpi icon="clock" label="Em analise" value={summary?.analysis || 0} delta="avaliacao em andamento" warning />
+        <Kpi icon="star" label="Selecionados" value={summary?.selected || 0} delta="aprovados ou reserva" />
+        <Kpi icon="home" label="Contratados" value={summary?.hired || 0} delta="efetivados" success />
+        <Kpi icon="file" label="Recentes" value={summary?.recent || 0} delta="ultimos 30 dias" />
+      </div>
+      <div className="talent-dashboard-grid">
+        <Panel title="Cadastros recentes"><DataTable columns={['Nome', 'Telefone', 'Funcao de interesse', 'Status', 'Cadastro']} rows={latest} loading={loading} /></Panel>
+        <Panel title="Funcoes mais procuradas" padded><BarChart data={roles.map(([label, value]) => ({ label, value }))} /></Panel>
+      </div>
+      <Panel title="Ultimas movimentacoes"><DataTable columns={['Data', 'Candidato', 'Movimento', 'Status']} rows={movements} loading={loading} /></Panel>
+    </>
+  );
+}
+
+function TalentBank({ notify, editable = true, mode = 'list' }) {
+  const baseFilters = { q: '', status: 'Todos', desiredRole: '', city: '', state: '', hasCnh: 'Todos', sort: 'createdAt', direction: 'desc' };
+  const [items, setItems] = useState([]);
+  const [meta, setMeta] = useState({ total: 0, limit: 25, offset: 0 });
+  const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState(baseFilters);
+  const [formOpen, setFormOpen] = useState(mode === 'new');
+  const [profileId, setProfileId] = useState('');
+  const [editing, setEditing] = useState(null);
+  const load = (next = filters, offset = meta.offset || 0) => {
+    const query = new URLSearchParams({ limit: String(meta.limit || 25), offset: String(offset), sort: next.sort, direction: next.direction });
+    Object.entries(next).forEach(([key, value]) => {
+      if (value && !['Todos', 'Todas'].includes(value)) query.set(key, value);
+    });
+    setLoading(true);
+    api(`/api/talents?${query.toString()}`).then((payload) => {
+      setItems(listData(payload));
+      setMeta(payload.meta || { total: listData(payload).length, limit: 25, offset });
+    }).catch((error) => notify(error.message)).finally(() => setLoading(false));
+  };
+  useEffect(() => { load(filters, 0); }, [filters.q, filters.status, filters.desiredRole, filters.city, filters.state, filters.hasCnh, filters.sort, filters.direction]);
+  useEffect(() => { if (mode === 'new') setFormOpen(true); }, [mode]);
+  const save = async (form) => {
+    if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
+    if (!isValidCpf(form.cpf)) return notify('Informe um CPF valido');
+    await withBusy(() => api(editing?.id ? `/api/talents/${editing.id}` : '/api/talents', { method: editing?.id ? 'PUT' : 'POST', body: JSON.stringify(talentPayload(form)) }));
+    notify(editing?.id ? 'Cadastro atualizado' : 'Candidato cadastrado');
+    setFormOpen(false);
+    setEditing(null);
+    load(filters, 0);
+    if (mode === 'new') window.location.hash = '#/talents';
+  };
+  const changeStatus = async (item, status = '') => {
+    if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
+    const nextStatus = status || prompt('Novo status do candidato:', item.status);
+    if (!nextStatus || nextStatus === item.status) return;
+    await withBusy(() => api(`/api/talents/${item.id}/status`, { method: 'PATCH', body: JSON.stringify({ status: nextStatus }) }));
+    notify('Status atualizado');
+    load();
+  };
+  const archive = (item) => {
+    if (!confirm('Deseja realmente arquivar este candidato? O cadastro permanecera disponivel no historico.')) return;
+    changeStatus(item, 'Arquivado');
+  };
+  const exportRows = () => downloadCsv('banco-de-talentos.csv', [['Nome', 'Telefone', 'Cidade', 'Funcao de interesse', 'Ultima funcao', 'Escolaridade', 'Disponibilidade', 'Pretensao salarial', 'Status', 'Cadastro'], ...items.map((item) => [item.fullName, item.phone, item.city, item.desiredRole, item.lastRole, item.education, item.startAvailability, money(item.salaryExpectation), item.status, date(item.createdAt)])]);
+  const page = Math.floor((meta.offset || 0) / (meta.limit || 25)) + 1;
+  return (
+    <>
+      <PageHead title="Banco de Talentos" subtitle="Pesquisa, filtros e acompanhamento dos candidatos cadastrados." ghostActions={['Exportar CSV', 'Limpar filtros']} onGhostAction={(label) => label === 'Exportar CSV' ? exportRows() : setFilters(baseFilters)} action={editable ? 'Novo candidato' : null} onAction={() => { setEditing(null); setFormOpen(true); }} />
+      <div className="toolbar talent-toolbar">
+        <div className="filter"><label>Buscar</label><input value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="Nome, CPF, telefone, funcao..." /></div>
+        <div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option>{talentStatuses.map((item) => <option key={item}>{item}</option>)}</select></div>
+        <div className="filter"><label>Funcao</label><input value={filters.desiredRole} onChange={(event) => setFilters((old) => ({ ...old, desiredRole: event.target.value }))} placeholder="Motorista, auxiliar..." /></div>
+        <div className="filter"><label>Cidade</label><input value={filters.city} onChange={(event) => setFilters((old) => ({ ...old, city: event.target.value }))} /></div>
+        <div className="filter"><label>UF</label><input value={filters.state} onChange={(event) => setFilters((old) => ({ ...old, state: event.target.value.toUpperCase().slice(0, 2) }))} /></div>
+        <div className="filter"><label>CNH</label><select value={filters.hasCnh} onChange={(event) => setFilters((old) => ({ ...old, hasCnh: event.target.value }))}><option>Todos</option><option>Sim</option><option>Nao</option></select></div>
+        <div className="filter"><label>Ordenar</label><select value={filters.sort} onChange={(event) => setFilters((old) => ({ ...old, sort: event.target.value }))}><option value="createdAt">Cadastro</option><option value="fullName">Nome</option><option value="startAvailability">Disponibilidade</option><option value="salaryExpectation">Pretensao</option><option value="status">Status</option></select></div>
+        <span className="spacer" /><span className="soft">{meta.total || 0} registros</span>
+      </div>
+      <div className="panel" style={{ overflow: 'hidden' }}>
+        <div className="panel-head"><h3>Candidatos cadastrados</h3><div className="actions"><button className="btn btn-sm" disabled={(meta.offset || 0) <= 0} onClick={() => load(filters, Math.max((meta.offset || 0) - (meta.limit || 25), 0))}>Anterior</button><span className="soft">Pagina {page}</span><button className="btn btn-sm" disabled={(meta.offset || 0) + (meta.limit || 25) >= (meta.total || 0)} onClick={() => load(filters, (meta.offset || 0) + (meta.limit || 25))}>Proxima</button></div></div>
+        <div className="panel-body" style={{ padding: 0 }}><div className="table-scroll"><table className="dtbl"><thead><tr><th>Nome</th><th>Telefone</th><th>Cidade</th><th>Funcao de interesse</th><th>Ultima funcao</th><th>Escolaridade</th><th>Disponibilidade</th><th className="right">Pretensao</th><th>Status</th><th>Cadastro</th><th /></tr></thead><tbody>{loading ? <LoadingCell colSpan={11} /> : items.length ? items.map((item) => <tr key={item.id}><td><b>{item.fullName}</b><div className="soft">{item.relatedCompany}</div></td><td>{formatPhone(item.phone)}</td><td>{[item.city, item.state].filter(Boolean).join(' / ') || '-'}</td><td>{item.desiredRole || '-'}</td><td>{item.lastRole || '-'}</td><td>{item.education || '-'}</td><td>{item.startAvailability || '-'}</td><td className="right">{money(item.salaryExpectation)}</td><td><Pill value={item.status} /></td><td>{date(item.createdAt)}</td><td className="right"><button className="btn btn-sm" onClick={() => setProfileId(item.id)}>Visualizar</button> {editable && <button className="btn btn-sm" onClick={() => { setEditing(item); setFormOpen(true); }}>Editar</button>} {editable && <button className="btn btn-sm" onClick={() => changeStatus(item)}>Status</button>} {editable && item.status !== 'Arquivado' && <button className="btn btn-sm btn-danger" onClick={() => archive(item)}>Arquivar</button>}</td></tr>) : <tr><td colSpan={11}><div className="empty-state"><b>Nenhum candidato encontrado</b><span>Nao encontramos candidatos utilizando os filtros selecionados.</span><button className="btn btn-sm" onClick={() => setFilters(baseFilters)}>Limpar filtros</button></div></td></tr>}</tbody></table></div></div>
+      </div>
+      {formOpen && <TalentForm initial={editing ? talentToForm(editing) : talentInitialForm()} onCancel={() => { setFormOpen(false); setEditing(null); if (mode === 'new') window.location.hash = '#/talents'; }} onSave={save} />}
+      {profileId && <TalentProfile id={profileId} onClose={() => setProfileId('')} onEdit={(candidate) => { setProfileId(''); setEditing(candidate); setFormOpen(true); }} onStatus={changeStatus} editable={editable} />}
+    </>
+  );
+}
+
+function TalentForm({ initial, onCancel, onSave }) {
+  const [form, setForm] = useState(initial);
+  const [submitting, setSubmitting] = useState(false);
+  const change = (key, value) => setForm((old) => ({ ...old, [key]: value }));
+  const toggleSchedule = (value) => setForm((old) => {
+    const selected = new Set(old.scheduleAvailability || []);
+    selected.has(value) ? selected.delete(value) : selected.add(value);
+    return { ...old, scheduleAvailability: Array.from(selected) };
+  });
+  const submit = async (event) => {
+    event.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      await onSave(form);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  return (
+    <div className="modal-backdrop">
+      <div className="modal talent-modal">
+        <div className="modal-head"><h3>{initial.id ? 'Editar candidato' : 'Novo candidato'}</h3><button className="btn btn-sm" onClick={onCancel} disabled={submitting}>Fechar</button></div>
+        <form className="modal-body talent-form" onSubmit={submit}>
+          <h4>Dados pessoais</h4>
+          <div className="form-grid">
+            <div className="form-field full"><label>Nome completo *</label><input value={form.fullName} required onChange={(e) => change('fullName', formatPersonNameInput(e.target.value))} /></div>
+            <div className="form-field"><label>CPF *</label><input value={form.cpf} required maxLength={14} onChange={(e) => change('cpf', formatCpf(e.target.value))} /></div>
+            <div className="form-field"><label>RG / Identidade</label><input value={form.rg || ''} onChange={(e) => change('rg', e.target.value)} /></div>
+            <div className="form-field"><label>Data de nascimento</label><input type="date" value={form.birthDate || ''} onChange={(e) => change('birthDate', e.target.value)} /></div>
+            <div className="form-field"><label>Telefone / WhatsApp</label><input value={form.phone || ''} onChange={(e) => change('phone', formatPhone(e.target.value))} /></div>
+            <div className="form-field"><label>E-mail</label><input type="email" value={form.email || ''} onChange={(e) => change('email', e.target.value)} /></div>
+          </div>
+          <h4>Endereco</h4>
+          <div className="form-grid">
+            <div className="form-field"><label>CEP</label><input value={form.zipCode || ''} onChange={(e) => change('zipCode', e.target.value)} /></div>
+            <div className="form-field"><label>Logradouro</label><input value={form.street || ''} onChange={(e) => change('street', e.target.value)} /></div>
+            <div className="form-field"><label>Numero</label><input value={form.number || ''} onChange={(e) => change('number', e.target.value)} /></div>
+            <div className="form-field"><label>Complemento</label><input value={form.complement || ''} onChange={(e) => change('complement', e.target.value)} /></div>
+            <div className="form-field"><label>Bairro</label><input value={form.district || ''} onChange={(e) => change('district', e.target.value)} /></div>
+            <div className="form-field"><label>Cidade</label><input value={form.city || ''} onChange={(e) => change('city', e.target.value)} /></div>
+            <div className="form-field"><label>Estado</label><input value={form.state || ''} maxLength={2} onChange={(e) => change('state', e.target.value.toUpperCase())} /></div>
+          </div>
+          <h4>Formacao e experiencia</h4>
+          <div className="form-grid">
+            <div className="form-field"><label>Escolaridade</label><select value={form.education || ''} onChange={(e) => change('education', e.target.value)}>{talentEducationOptions.map((item) => <option key={item || '-'}>{item || '-'}</option>)}</select></div>
+            <div className="form-field"><label>Ultima funcao exercida</label><input value={form.lastRole || ''} onChange={(e) => change('lastRole', e.target.value)} /></div>
+            <div className="form-field full"><label>Cursos e qualificacoes</label><textarea value={form.coursesText || ''} onChange={(e) => change('coursesText', e.target.value)} placeholder="Curso - Instituicao - Ano" /></div>
+            <div className="form-field full"><label>Experiencia profissional</label><textarea value={form.experiencesText || ''} onChange={(e) => change('experiencesText', e.target.value)} placeholder="Empresa - Funcao - Periodo" /></div>
+          </div>
+          <h4>Interesse e disponibilidade</h4>
+          <div className="form-grid">
+            <div className="form-field"><label>Funcao de interesse</label><input value={form.desiredRole || ''} onChange={(e) => change('desiredRole', e.target.value)} /></div>
+            <div className="form-field"><label>Disponibilidade para inicio</label><select value={form.startAvailability || ''} onChange={(e) => change('startAvailability', e.target.value)}>{talentAvailabilityOptions.map((item) => <option key={item || '-'}>{item || '-'}</option>)}</select></div>
+            <div className="form-field"><label>Pretensao salarial</label><input value={form.salaryExpectation || ''} onChange={(e) => change('salaryExpectation', e.target.value)} onBlur={(e) => change('salaryExpectation', money(parseMoney(e.target.value)))} /></div>
+            <div className="form-field"><label>Empresa / Unidade relacionada</label><select value={form.relatedCompany || 'Banco Geral'} onChange={(e) => change('relatedCompany', e.target.value)}>{talentCompanyOptions.map((item) => <option key={item}>{item}</option>)}</select></div>
+            <div className="form-field full"><label>Disponibilidade de horario</label><div className="check-grid">{talentScheduleOptions.map((item) => <label key={item}><input type="checkbox" checked={(form.scheduleAvailability || []).includes(item)} onChange={() => toggleSchedule(item)} /> {item}</label>)}</div></div>
+          </div>
+          <h4>CNH, LGPD e observacoes</h4>
+          <div className="form-grid">
+            <div className="form-field"><label>Possui CNH?</label><select value={form.hasCnh ? 'Sim' : 'Nao'} onChange={(e) => change('hasCnh', e.target.value === 'Sim')}><option>Nao</option><option>Sim</option></select></div>
+            {form.hasCnh && <><div className="form-field"><label>Categoria</label><select value={form.cnhCategory || ''} onChange={(e) => change('cnhCategory', e.target.value)}>{talentCnhCategories.map((item) => <option key={item || '-'}>{item || '-'}</option>)}</select></div><div className="form-field"><label>Numero da CNH</label><input value={form.cnhNumber || ''} onChange={(e) => change('cnhNumber', e.target.value)} /></div><div className="form-field"><label>Validade da CNH</label><input type="date" value={form.cnhExpiration || ''} onChange={(e) => change('cnhExpiration', e.target.value)} /></div></>}
+            <div className="form-field"><label>Status</label><select value={form.status || 'Novo cadastro'} onChange={(e) => change('status', e.target.value)}>{talentStatuses.map((item) => <option key={item}>{item}</option>)}</select></div>
+            <div className="form-field"><label>Origem do cadastro</label><input value={form.source || ''} onChange={(e) => change('source', e.target.value)} /></div>
+            <div className="form-field"><label>Consentimento LGPD</label><select value={form.consentStorage ? 'Sim' : 'Nao'} onChange={(e) => change('consentStorage', e.target.value === 'Sim')}><option>Sim</option><option>Nao</option></select></div>
+            <div className="form-field"><label>Data do consentimento</label><input type="date" value={form.consentDate || ''} onChange={(e) => change('consentDate', e.target.value)} /></div>
+            <div className="form-field full"><label>Observacoes internas</label><textarea value={form.internalNotes || ''} onChange={(e) => change('internalNotes', e.target.value)} /></div>
+          </div>
+          <div className="modal-actions"><button type="button" className="btn" onClick={onCancel} disabled={submitting}>Cancelar</button><button className="btn btn-primary" disabled={submitting}>{submitting ? <LoadingSpinner small /> : 'Salvar candidato'}</button></div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function TalentProfile({ id, onClose, onEdit, onStatus, editable }) {
+  const [candidate, setCandidate] = useState(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    setLoading(true);
+    api(`/api/talents/${id}`).then((payload) => setCandidate(payload.data)).finally(() => setLoading(false));
+  }, [id]);
+  if (loading || !candidate) return <div className="modal-backdrop"><div className="modal"><div className="modal-body"><LoadingBlock /></div></div></div>;
+  const info = [
+    ['CPF', formatCpf(candidate.cpf)], ['RG', candidate.rg], ['Nascimento', date(candidate.birthDate)], ['Telefone', formatPhone(candidate.phone)], ['E-mail', candidate.email],
+    ['Endereco', [candidate.street, candidate.number, candidate.district, candidate.city, candidate.state].filter(Boolean).join(', ')],
+    ['Escolaridade', candidate.education], ['Funcao de interesse', candidate.desiredRole], ['Ultima funcao', candidate.lastRole], ['Disponibilidade', candidate.startAvailability],
+    ['Horario', candidate.scheduleAvailability], ['Pretensao', money(candidate.salaryExpectation)], ['CNH', candidate.hasCnh ? candidate.cnhCategory || 'Sim' : 'Nao'],
+    ['Empresa / Unidade', candidate.relatedCompany], ['Consentimento', candidate.consentStorage ? `Sim - ${date(candidate.consentDate)}` : 'Nao'], ['Origem', candidate.source]
+  ];
+  const historyRows = (candidate.history || []).map((item) => [dateTime(item.createdAt), item.action, item.fromStatus || '-', item.toStatus ? <Pill value={item.toStatus} /> : '-', item.userName || '-']);
+  return (
+    <div className="modal-backdrop">
+      <div className="modal talent-profile-modal">
+        <div className="modal-head"><h3>{candidate.fullName}</h3><button className="btn btn-sm" onClick={onClose}>Fechar</button></div>
+        <div className="modal-body">
+          <div className="talent-profile-head"><div><div className="eyebrow">Perfil do candidato</div><h2>{candidate.fullName}</h2><Pill value={candidate.status} /></div><div className="actions">{editable && <button className="btn" onClick={() => onEdit(candidate)}>Editar cadastro</button>}{editable && <button className="btn btn-primary" onClick={() => onStatus(candidate)}>Alterar status</button>}</div></div>
+          <Panel title="Dados do candidato" padded><div className="profile-info-grid">{info.map(([label, value]) => <div key={label} className="field-row"><b>{label}</b><span>{displayValue(value)}</span></div>)}</div></Panel>
+          <div className="talent-profile-grid">
+            <Panel title="Cursos e qualificacoes" padded>{Array.isArray(candidate.courses) && candidate.courses.length ? candidate.courses.map((item, index) => <p key={index}><b>{item.name}</b><br /><span className="soft">{[item.institution, item.year].filter(Boolean).join(' - ')}</span></p>) : <p className="soft">Nenhum curso registrado.</p>}</Panel>
+            <Panel title="Experiencia profissional" padded>{Array.isArray(candidate.experiences) && candidate.experiences.length ? candidate.experiences.map((item, index) => <p key={index}><b>{item.role}</b><br /><span className="soft">{[item.company, item.period].filter(Boolean).join(' - ')}</span></p>) : <p className="soft">Nenhuma experiencia registrada.</p>}</Panel>
+          </div>
+          <Panel title="Observacoes internas" padded><p>{candidate.internalNotes || '-'}</p></Panel>
+          <Panel title="Historico"><DataTable columns={['Data', 'Acao', 'De', 'Para', 'Usuario']} rows={historyRows} /></Panel>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TalentReports({ notify }) {
+  const [summary, setSummary] = useState(null);
+  useEffect(() => { api('/api/talents/summary').then((payload) => setSummary(payload.data)).catch((error) => notify(error.message)); }, []);
+  const statusRows = [
+    ['Disponiveis', summary?.available || 0],
+    ['Em analise', summary?.analysis || 0],
+    ['Selecionados', summary?.selected || 0],
+    ['Contratados', summary?.hired || 0],
+    ['Recentes', summary?.recent || 0]
+  ];
+  const roleRows = (summary?.roles || []).map((item) => [item.desiredRole || 'Nao informado', item._count?.desiredRole || 0]);
+  return (
+    <>
+      <PageHead title="Relatorios do Banco de Talentos" subtitle="Indicadores simples para acompanhamento do cadastro reserva." action="Exportar resumo" onAction={() => downloadCsv('relatorio-banco-talentos.csv', [['Indicador', 'Total'], ...statusRows, ...roleRows])} />
+      <div className="talent-dashboard-grid">
+        <Panel title="Candidatos por status"><DataTable columns={['Status', 'Total']} rows={statusRows.map(([label, value]) => [<Pill value={label} />, value])} /></Panel>
+        <Panel title="Candidatos por funcao"><DataTable columns={['Funcao', 'Total']} rows={roleRows} /></Panel>
+      </div>
+    </>
+  );
 }
 
 function LeaderMobileNav({ active, title, onRefresh }) {
@@ -1850,7 +2201,7 @@ function Users({ notify, editable = true }) {
       { label: 'Último acesso', render: () => '24/07/2026 09:42' },
       { label: 'Status', render: (i) => <Pill value={i.status} /> }
     ],
-    fields: [['name', 'Nome'], ['email', 'E-mail'], ['password', 'Senha'], ['role', 'Perfil', 'select', ['Administrador', 'Líder', 'Operacional', 'Financeiro']], ['status', 'Status', 'select', ['Ativo', 'Inativo']], ['permissions', 'Permissões por tela', 'permissions']]
+    fields: [['name', 'Nome'], ['email', 'E-mail'], ['password', 'Senha'], ['role', 'Perfil', 'select', ['Administrador', 'RH / Recrutamento', 'Consulta', 'Líder', 'Operacional', 'Financeiro']], ['status', 'Status', 'select', ['Ativo', 'Inativo']], ['permissions', 'Permissões por tela', 'permissions']]
   }} notify={notify} editable={editable} />;
 }
 

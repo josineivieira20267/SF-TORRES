@@ -563,6 +563,98 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   margin:2px 0 0;font-size:12px;color:var(--c-text-muted);
 }
 
+.talent-kpis{grid-template-columns:repeat(6,minmax(0,1fr))}
+.talent-dashboard-grid,
+.talent-profile-grid{
+  display:grid;
+  grid-template-columns:1.35fr 1fr;
+  gap:12px;
+  margin-bottom:12px;
+}
+.talent-toolbar .filter input,
+.talent-toolbar .filter select{min-width:110px}
+.empty-state{
+  min-height:150px;
+  display:grid;
+  place-items:center;
+  gap:6px;
+  color:var(--c-text-muted);
+}
+.empty-state b{color:var(--c-text)}
+.talent-modal{width:min(940px,100%)}
+.talent-profile-modal{width:min(1020px,100%)}
+.talent-form h4{
+  grid-column:1 / -1;
+  margin:10px 0 8px;
+  padding-bottom:6px;
+  border-bottom:1px solid var(--c-border);
+  color:var(--c-text);
+  font-size:var(--fs-14);
+}
+.check-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px;
+  padding:8px;
+  border:1px solid var(--c-border);
+  border-radius:var(--radius-sm);
+  background:var(--c-surface);
+}
+.check-grid label{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:var(--fs-13);
+  color:var(--c-text);
+  text-transform:none;
+  letter-spacing:0;
+}
+.check-grid input{width:15px;height:15px}
+.talent-profile-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:12px;
+}
+.talent-profile-head h2{
+  margin:2px 0 8px;
+  font-size:var(--fs-22);
+  color:var(--c-text);
+}
+.profile-info-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px 18px;
+}
+.profile-info-grid .field-row{
+  display:grid;
+  grid-template-columns:140px 1fr;
+  gap:8px;
+  font-size:var(--fs-13);
+}
+.profile-info-grid .field-row b{color:var(--c-text)}
+.profile-info-grid .field-row span{color:var(--c-text-muted)}
+
+@media (max-width:1100px){
+  .talent-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .talent-dashboard-grid,
+  .talent-profile-grid{grid-template-columns:1fr}
+}
+
+@media (max-width:720px){
+  .talent-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .talent-toolbar{display:grid;grid-template-columns:1fr}
+  .talent-toolbar .filter{width:100%}
+  .talent-toolbar .filter input,
+  .talent-toolbar .filter select{width:100%;min-width:0}
+  .check-grid{grid-template-columns:1fr}
+  .talent-profile-head{display:block}
+  .talent-profile-head .actions{margin-top:10px}
+  .profile-info-grid{grid-template-columns:1fr}
+  .profile-info-grid .field-row{grid-template-columns:1fr}
+}
+
 /* ---------- Login --------------------------------------- */
 .login-shell{
   min-height:100vh;display:grid;grid-template-columns:1fr 1fr;

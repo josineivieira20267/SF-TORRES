@@ -175,3 +175,70 @@ model AuditLog {
   payload   Json?
   createdAt DateTime @default(now())
 }
+
+model TalentCandidate {
+  id                    String   @id @default(cuid())
+  fullName              String
+  cpf                   String   @unique
+  rg                    String?
+  birthDate             String?
+  phone                 String?
+  email                 String?
+  zipCode               String?
+  street                String?
+  number                String?
+  complement            String?
+  district              String?
+  city                  String?
+  state                 String?
+  education             String?
+  courses               Json?
+  experiences           Json?
+  lastRole              String?
+  desiredRole           String?
+  startAvailability     String?
+  scheduleAvailability  Json?
+  salaryExpectation     Float?
+  hasCnh                Boolean  @default(false)
+  cnhCategory           String?
+  cnhNumber             String?
+  cnhExpiration         String?
+  resume                Json?
+  internalNotes         String?
+  status                String   @default("Novo cadastro")
+  relatedCompany        String   @default("Banco Geral")
+  consentStorage        Boolean  @default(false)
+  consentDate           String?
+  consentOrigin         String?
+  source                String?
+  registeredBy          String?
+  archivedAt            DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  history TalentCandidateHistory[]
+
+  @@index([fullName])
+  @@index([status])
+  @@index([desiredRole])
+  @@index([relatedCompany])
+  @@index([city])
+  @@index([createdAt])
+}
+
+model TalentCandidateHistory {
+  id          String   @id @default(cuid())
+  candidateId String
+  action      String
+  fromStatus  String?
+  toStatus    String?
+  note        String?
+  userId      String?
+  userName    String?
+  createdAt   DateTime @default(now())
+
+  candidate TalentCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([candidateId])
+  @@index([createdAt])
+}

@@ -10,6 +10,7 @@ const dashboardRoutes = require('./routes/dashboard');
 const userRoutes = require('./routes/users');
 const settingsRoutes = require('./routes/settings');
 const leaderAttendanceRoutes = require('./routes/leaderAttendance');
+const talentRoutes = require('./routes/talents');
 
 const app = express();
 const allowedOrigins = new Set(env.CORS_ORIGIN.map(normalizeOrigin));
@@ -71,6 +72,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/leader-attendance', leaderAttendanceRoutes);
+app.use('/api/talents', talentRoutes);
 app.use('/api', resourceRoutes);
 
 app.use(notFound);
