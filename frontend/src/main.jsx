@@ -1033,7 +1033,7 @@ function Sidebar({ route, setRoute, settings, profile, collapsed, onToggle, onPr
     ['Gestão', [['productivity', 'PD', 'Produtividade'], ['bonusCriteria', 'CB', 'Critérios de Bonificação'], ['employees', 'FE', 'Funcionários']]],
     ['Movimentações', [['reports', 'RP', 'Relatórios']]],
     ['Cadastros', [['clients', 'CL', 'Clientes'], ['services', 'SV', 'Serviços'], ['equipment', 'EQ', 'Equipamentos']]],
-    ['Banco de Talentos', [['talentDashboard', 'BT', 'Dashboard'], ['talents', 'BC', 'Candidatos'], ['talentNew', 'NC', 'Novo Candidato'], ['talentReports', 'RT', 'Relatórios']]],
+    ['Banco de Talentos', [['talentDashboard', 'BT', 'Dashboard'], ['talents', 'BC', 'Candidatos'], ['talentReports', 'RT', 'Relatórios']]],
     ['Administração', [['users', 'AD', 'Usuários & Perfis'], ['settings', 'CF', 'Configurações']]]
   ];
   const user = currentUser();
