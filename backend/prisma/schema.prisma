@@ -179,7 +179,7 @@ model AuditLog {
 model TalentCandidate {
   id                    String   @id @default(cuid())
   fullName              String
-  cpf                   String   @unique
+  cpf                   String?  @unique
   rg                    String?
   birthDate             String?
   phone                 String?
@@ -240,5 +240,68 @@ model TalentCandidateHistory {
   candidate TalentCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
 
   @@index([candidateId])
+  @@index([createdAt])
+}
+
+model TalentJob {
+  id              String   @id @default(cuid())
+  title           String
+  department      String?
+  location        String?
+  companyUnit     String   @default("SF TORRES")
+  contractType    String?
+  workMode        String?
+  summary         String?
+  responsibilities Json?
+  requirements    Json?
+  benefits        Json?
+  salaryRange     String?
+  status          String   @default("Rascunho")
+  publishedAt     DateTime?
+  expiresAt       String?
+  createdBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  applications TalentApplication[]
+
+  @@index([status])
+  @@index([title])
+  @@index([publishedAt])
+}
+
+model TalentApplication {
+  id                  String   @id @default(cuid())
+  jobId               String
+  fullName            String
+  cpf                 String?
+  email               String
+  phone               String?
+  city                String?
+  state               String?
+  education           String?
+  experienceYears     String?
+  lastRole            String?
+  desiredSalary       Float?
+  availableStartDate  String?
+  linkedinUrl         String?
+  portfolioUrl        String?
+  resume              Json?
+  coverLetter         String?
+  source              String?
+  consentStorage      Boolean  @default(false)
+  status              String   @default("Nova")
+  internalNotes       String?
+  convertedCandidateId String?
+  reviewedBy          String?
+  reviewedAt          DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  job TalentJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@index([status])
+  @@index([email])
   @@index([createdAt])
 }

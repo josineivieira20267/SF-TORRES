@@ -43,11 +43,13 @@ const routes = {
   talentDashboard: { title: 'Dashboard', group: 'Banco de Talentos' },
   talents: { title: 'Banco de Talentos', group: 'Banco de Talentos' },
   talentNew: { title: 'Novo Candidato', group: 'Banco de Talentos' },
+  talentJobs: { title: 'Vagas', group: 'Banco de Talentos' },
+  talentApplications: { title: 'Candidaturas', group: 'Banco de Talentos' },
   talentReports: { title: 'Relatórios', group: 'Banco de Talentos' }
 };
 
 const routeKeys = Object.keys(routes);
-const talentRouteKeys = ['talentDashboard', 'talents', 'talentNew', 'talentReports'];
+const talentRouteKeys = ['talentDashboard', 'talents', 'talentNew', 'talentJobs', 'talentApplications', 'talentReports'];
 const defaultAdminPermissions = Object.fromEntries(routeKeys.map((key) => [key, 'edit']));
 
 function currentUser() {
@@ -95,8 +97,8 @@ function canEdit(route, user = currentUser()) {
 
 function defaultUserPermissions(role = 'Operacional') {
   if (role === 'Administrador') return { ...defaultAdminPermissions };
-  if (normalize(role).includes('rh') || normalize(role).includes('recrut')) return { talentDashboard: 'edit', talents: 'edit', talentNew: 'edit', talentReports: 'view' };
-  if (normalize(role).includes('consulta')) return { talentDashboard: 'view', talents: 'view', talentReports: 'view' };
+  if (normalize(role).includes('rh') || normalize(role).includes('recrut')) return { talentDashboard: 'edit', talents: 'edit', talentNew: 'edit', talentJobs: 'edit', talentApplications: 'edit', talentReports: 'view' };
+  if (normalize(role).includes('consulta')) return { talentDashboard: 'view', talents: 'view', talentJobs: 'view', talentApplications: 'view', talentReports: 'view' };
   if (normalize(role).includes('lider')) return { schedules: 'edit', leaderAttendance: 'edit' };
   if (normalize(role).includes('operacional')) return { dashboard: 'view', dailyOps: 'view', leaderAttendance: 'edit' };
   return { dashboard: 'view', dailyOps: 'view' };
@@ -660,6 +662,10 @@ function requestedRouteFromHash() {
   return routes[route] ? route : '';
 }
 
+function publicRouteFromHash() {
+  return String(window.location.hash || '').replace(/^#\/?/, '');
+}
+
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -737,6 +743,7 @@ function BusyOverlay() {
 }
 
 function App() {
+  const publicRoute = publicRouteFromHash();
   const [authenticated, setAuthenticated] = useState(() => Boolean(localStorage.getItem('sfTorresToken')));
   const [route, setRoute] = useState(() => localStorage.getItem('sfTorresToken') ? cleanRoute(window.location.hash) : 'login');
   const [toast, setToast] = useState('');
@@ -873,6 +880,10 @@ function App() {
     setRoute(nextRoute);
   };
 
+  if (publicRoute === 'trabalhe-conosco') {
+    return <PublicJobs settings={settings} />;
+  }
+
   if (route === 'login' || !authenticated) {
     return <Login settings={settings} onLogin={goAfterLogin} />;
   }
@@ -965,6 +976,90 @@ function Login({ settings, onLogin }) {
   );
 }
 
+function PublicJobs({ settings }) {
+  const [jobs, setJobs] = useState([]);
+  const [selectedId, setSelectedId] = useState('');
+  const [form, setForm] = useState({ fullName: '', cpf: '', email: '', phone: '', city: 'Manaus', state: 'AM', education: '', experienceYears: '', lastRole: '', desiredSalary: '', availableStartDate: '', linkedinUrl: '', portfolioUrl: '', coverLetter: '', source: '', consentStorage: false, resume: null });
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    fetch(`${API_URL}/api/talents/public/jobs`).then((response) => response.json()).then((payload) => {
+      const list = listData(payload);
+      setJobs(list);
+      setSelectedId(list[0]?.id || '');
+    }).catch(() => setMessage('Nao foi possivel carregar as vagas publicadas.')).finally(() => setLoading(false));
+  }, []);
+  const selected = jobs.find((job) => job.id === selectedId);
+  const change = (key, value) => setForm((old) => ({ ...old, [key]: value }));
+  const submit = async (event) => {
+    event.preventDefault();
+    if (!selectedId) return setMessage('Selecione uma vaga para enviar sua candidatura.');
+    if (!form.consentStorage) return setMessage('Para enviar a candidatura, confirme o consentimento de armazenamento dos dados.');
+    setMessage('Enviando candidatura...');
+    const payload = { ...form, jobId: selectedId, cpf: formatCpf(form.cpf), phone: formatPhone(form.phone), desiredSalary: parseMoney(form.desiredSalary) };
+    const response = await fetch(`${API_URL}/api/talents/public/applications`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const data = await response.json();
+    if (!response.ok) return setMessage(data.error?.message || 'Nao foi possivel enviar sua candidatura.');
+    setForm({ fullName: '', cpf: '', email: '', phone: '', city: 'Manaus', state: 'AM', education: '', experienceYears: '', lastRole: '', desiredSalary: '', availableStartDate: '', linkedinUrl: '', portfolioUrl: '', coverLetter: '', source: '', consentStorage: false, resume: null });
+    setMessage('Candidatura enviada. Nossa equipe ira analisar suas informacoes.');
+  };
+  const fileChange = (event) => {
+    const file = event.target.files?.[0];
+    change('resume', file ? { name: file.name, size: file.size, type: file.type, uploadedAt: new Date().toISOString() } : null);
+  };
+  return (
+    <div className="public-jobs-page">
+      <header className="public-jobs-head">
+        <div className="brand"><div className="brand-emblem"><img src={stLogoTransparent} alt="SF Torres" /></div><div className="brand-text"><strong>{settings.fantasyName}</strong><span>Trabalhe Conosco</span></div></div>
+        <a className="btn" href="#/login">Acesso interno</a>
+      </header>
+      <main className="public-jobs-main">
+        <section className="public-jobs-intro">
+          <h1>Trabalhe Conosco</h1>
+          <p>Cadastre-se em uma vaga publicada pela SF TORRES. Suas informacoes serao avaliadas pela equipe interna antes de entrar no Banco de Talentos.</p>
+        </section>
+        <div className="public-jobs-grid">
+          <section className="public-job-list">
+            <h2>Vagas abertas</h2>
+            {loading ? <LoadingBlock /> : jobs.length ? jobs.map((job) => <button type="button" key={job.id} className={selectedId === job.id ? 'active' : ''} onClick={() => setSelectedId(job.id)}><b>{job.title}</b><span>{[job.department, job.location, job.contractType].filter(Boolean).join(' · ')}</span></button>) : <div className="talent-empty"><b>Nenhuma vaga publicada</b><span>Novas oportunidades aparecerao aqui quando forem abertas.</span></div>}
+          </section>
+          <section className="public-job-detail">
+            {selected ? <>
+              <div className="public-job-summary"><h2>{selected.title}</h2><Pill value={selected.contractType || 'Vaga'} /><p>{selected.summary || 'Oportunidade publicada pela SF TORRES.'}</p><div className="public-job-tags"><span>{selected.location || 'Local a definir'}</span><span>{selected.workMode || 'Presencial'}</span>{selected.salaryRange && <span>{selected.salaryRange}</span>}</div></div>
+              <div className="public-job-columns">
+                <div><h3>Requisitos</h3><ul>{(selected.requirements || []).map((item) => <li key={item}>{item}</li>)}</ul></div>
+                <div><h3>Beneficios</h3><ul>{(selected.benefits || []).map((item) => <li key={item}>{item}</li>)}</ul></div>
+              </div>
+            </> : <div className="talent-empty"><b>Selecione uma vaga</b><span>Escolha uma oportunidade para visualizar os detalhes.</span></div>}
+          </section>
+        </div>
+        <form className="public-application-form" onSubmit={submit}>
+          <h2>Enviar candidatura</h2>
+          <div className="form-grid">
+            <div className="form-field full"><label>Vaga</label><select value={selectedId} required onChange={(e) => setSelectedId(e.target.value)}>{jobs.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}</select></div>
+            <div className="form-field full"><label>Nome completo *</label><input required value={form.fullName} onChange={(e) => change('fullName', formatPersonNameInput(e.target.value))} /></div>
+            <div className="form-field"><label>CPF</label><input value={form.cpf} maxLength={14} onChange={(e) => change('cpf', formatCpf(e.target.value))} /></div>
+            <div className="form-field"><label>E-mail *</label><input type="email" required value={form.email} onChange={(e) => change('email', e.target.value)} /></div>
+            <div className="form-field"><label>Telefone / WhatsApp</label><input value={form.phone} onChange={(e) => change('phone', formatPhone(e.target.value))} /></div>
+            <div className="form-field"><label>Cidade</label><input value={form.city} onChange={(e) => change('city', e.target.value)} /></div>
+            <div className="form-field"><label>UF</label><input value={form.state} maxLength={2} onChange={(e) => change('state', e.target.value.toUpperCase())} /></div>
+            <div className="form-field"><label>Escolaridade</label><select value={form.education} onChange={(e) => change('education', e.target.value)}>{talentEducationOptions.map((item) => <option key={item || '-'}>{item || '-'}</option>)}</select></div>
+            <div className="form-field"><label>Anos de experiencia</label><select value={form.experienceYears} onChange={(e) => change('experienceYears', e.target.value)}><option></option><option>Sem experiencia</option><option>1 a 2 anos</option><option>3 a 5 anos</option><option>Mais de 5 anos</option></select></div>
+            <div className="form-field"><label>Ultima funcao</label><input value={form.lastRole} onChange={(e) => change('lastRole', e.target.value)} /></div>
+            <div className="form-field"><label>Pretensao salarial</label><input value={form.desiredSalary} onChange={(e) => change('desiredSalary', e.target.value)} onBlur={(e) => change('desiredSalary', money(parseMoney(e.target.value)))} /></div>
+            <div className="form-field"><label>Disponibilidade de inicio</label><input type="date" value={form.availableStartDate} onChange={(e) => change('availableStartDate', e.target.value)} /></div>
+            <div className="form-field"><label>LinkedIn</label><input value={form.linkedinUrl} onChange={(e) => change('linkedinUrl', e.target.value)} /></div>
+            <div className="form-field"><label>Curriculo</label><input type="file" accept=".pdf,.doc,.docx" onChange={fileChange} /></div>
+            <div className="form-field full"><label>Apresentacao</label><textarea value={form.coverLetter} onChange={(e) => change('coverLetter', e.target.value)} placeholder="Conte rapidamente sua experiencia e disponibilidade." /></div>
+            <div className="form-field full"><label>Consentimento LGPD *</label><label className="public-consent"><input type="checkbox" checked={form.consentStorage} onChange={(e) => change('consentStorage', e.target.checked)} /> Autorizo o armazenamento dos meus dados para processos seletivos e futuras oportunidades profissionais.</label></div>
+          </div>
+          <div className="modal-actions"><span className="soft">{message}</span><button className="btn btn-primary">Enviar candidatura</button></div>
+        </form>
+      </main>
+    </div>
+  );
+}
+
 function profileInitials(name = 'SF') {
   const parts = String(name || 'SF').trim().split(/\s+/).filter(Boolean);
   return (parts.length > 1 ? `${parts[0][0]}${parts[parts.length - 1][0]}` : parts[0]?.slice(0, 2) || 'SF').toUpperCase();
@@ -1033,7 +1128,7 @@ function Sidebar({ route, setRoute, settings, profile, collapsed, onToggle, onPr
     ['Gestão', [['productivity', 'PD', 'Produtividade'], ['bonusCriteria', 'CB', 'Critérios de Bonificação'], ['employees', 'FE', 'Funcionários']]],
     ['Movimentações', [['reports', 'RP', 'Relatórios']]],
     ['Cadastros', [['clients', 'CL', 'Clientes'], ['services', 'SV', 'Serviços'], ['equipment', 'EQ', 'Equipamentos']]],
-    ['Banco de Talentos', [['talentDashboard', 'BT', 'Dashboard'], ['talents', 'BC', 'Candidatos'], ['talentReports', 'RT', 'Relatórios']]],
+    ['Banco de Talentos', [['talentDashboard', 'BT', 'Dashboard'], ['talents', 'BC', 'Candidatos'], ['talentJobs', 'VG', 'Vagas'], ['talentApplications', 'CA', 'Candidaturas'], ['talentReports', 'RT', 'Relatórios']]],
     ['Administração', [['users', 'AD', 'Usuários & Perfis'], ['settings', 'CF', 'Configurações']]]
   ];
   const user = currentUser();
@@ -1099,6 +1194,8 @@ function Screen({ route, notify, settings, setSettings }) {
   if (route === 'talentDashboard') return <TalentDashboard notify={notify} />;
   if (route === 'talents') return <TalentBank notify={notify} editable={editable} mode="list" />;
   if (route === 'talentNew') return <TalentBank notify={notify} editable={editable} mode="new" />;
+  if (route === 'talentJobs') return <TalentJobs notify={notify} editable={editable} />;
+  if (route === 'talentApplications') return <TalentApplications notify={notify} editable={editable} />;
   if (route === 'talentReports') return <TalentReports notify={notify} />;
   if (crudConfigs[route]) return <CrudScreen config={crudConfigs[route]} notify={notify} editable={editable} />;
   if (route === 'dashboard') return <OperationsDashboard />;
@@ -1485,6 +1582,106 @@ function TalentProfile({ id, onClose, onEdit, onStatus, editable }) {
       </div>
     </div>
   );
+}
+
+function TalentJobs({ notify, editable = true }) {
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState({ q: '', status: 'Todos' });
+  const [modal, setModal] = useState(null);
+  const load = () => {
+    const query = new URLSearchParams();
+    if (filters.q) query.set('q', filters.q);
+    if (filters.status !== 'Todos') query.set('status', filters.status);
+    setLoading(true);
+    api(`/api/talents/jobs?${query.toString()}`).then((payload) => setJobs(listData(payload))).catch((error) => notify(error.message)).finally(() => setLoading(false));
+  };
+  useEffect(() => { load(); }, [filters.q, filters.status]);
+  const save = async (form) => {
+    const payload = { ...form, status: form.status || 'Rascunho' };
+    await withBusy(() => api(form.id ? `/api/talents/jobs/${form.id}` : '/api/talents/jobs', { method: form.id ? 'PUT' : 'POST', body: JSON.stringify(payload) }));
+    setModal(null);
+    notify('Vaga salva');
+    load();
+  };
+  const rows = jobs.map((job) => [<><b>{job.title}</b><div className="soft">{[job.department, job.location].filter(Boolean).join(' · ')}</div></>, <Pill value={job.status} />, job.contractType || '-', job.workMode || '-', job._count?.applications || 0, date(job.publishedAt), editable ? <><button className="btn btn-sm" onClick={() => setModal(job)}>Editar</button> <button className="btn btn-sm" onClick={() => navigator.clipboard?.writeText(`${location.origin}${location.pathname}#/trabalhe-conosco`)}>Copiar link publico</button></> : '-']);
+  return (
+    <>
+      <PageHead title="Vagas" subtitle="Cadastro interno de vagas publicadas na pagina Trabalhe Conosco." action={editable ? 'Nova vaga' : null} onAction={() => setModal({ status: 'Rascunho', companyUnit: 'SF TORRES', workMode: 'Presencial', contractType: 'CLT' })} ghostAction="Abrir pagina publica" onGhostAction={() => { window.location.hash = '#/trabalhe-conosco'; }} />
+      <div className="toolbar"><div className="filter"><label>Buscar</label><input value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="Funcao, setor, local..." /></div><div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Rascunho</option><option>Publicada</option><option>Pausada</option><option>Encerrada</option></select></div><span className="spacer" /><span className="soft">{jobs.length} vagas</span></div>
+      <Panel title="Vagas cadastradas"><DataTable columns={['Vaga', 'Status', 'Contrato', 'Modelo', 'Candidaturas', 'Publicacao', 'Acoes']} rows={rows} loading={loading} /></Panel>
+      {modal && <TalentJobForm initial={modal} onCancel={() => setModal(null)} onSave={save} />}
+    </>
+  );
+}
+
+function TalentJobForm({ initial, onCancel, onSave }) {
+  const [form, setForm] = useState({
+    responsibilitiesText: Array.isArray(initial.responsibilities) ? initial.responsibilities.join('\n') : '',
+    requirementsText: Array.isArray(initial.requirements) ? initial.requirements.join('\n') : '',
+    benefitsText: Array.isArray(initial.benefits) ? initial.benefits.join('\n') : '',
+    ...initial
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const change = (key, value) => setForm((old) => ({ ...old, [key]: value }));
+  const submit = async (event) => {
+    event.preventDefault();
+    setSubmitting(true);
+    try {
+      await onSave(form);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  return <div className="modal-backdrop"><div className="modal talent-modal"><div className="modal-head"><h3>{form.id ? 'Editar vaga' : 'Nova vaga'}</h3><button className="btn btn-sm" onClick={onCancel}>Fechar</button></div><form className="modal-body talent-form" onSubmit={submit}>
+    <div className="form-grid">
+      <div className="form-field full"><label>Titulo da vaga *</label><input required value={form.title || ''} onChange={(e) => change('title', e.target.value)} /></div>
+      <div className="form-field"><label>Setor</label><input value={form.department || ''} onChange={(e) => change('department', e.target.value)} /></div>
+      <div className="form-field"><label>Local</label><input value={form.location || ''} onChange={(e) => change('location', e.target.value)} placeholder="Manaus / AM" /></div>
+      <div className="form-field"><label>Contrato</label><select value={form.contractType || ''} onChange={(e) => change('contractType', e.target.value)}><option>CLT</option><option>Temporario</option><option>Estagio</option><option>Prestador</option></select></div>
+      <div className="form-field"><label>Modelo</label><select value={form.workMode || ''} onChange={(e) => change('workMode', e.target.value)}><option>Presencial</option><option>Hibrido</option><option>Remoto</option></select></div>
+      <div className="form-field"><label>Faixa salarial</label><input value={form.salaryRange || ''} onChange={(e) => change('salaryRange', e.target.value)} placeholder="A combinar ou R$ 2.000 - R$ 2.500" /></div>
+      <div className="form-field"><label>Status</label><select value={form.status || 'Rascunho'} onChange={(e) => change('status', e.target.value)}><option>Rascunho</option><option>Publicada</option><option>Pausada</option><option>Encerrada</option></select></div>
+      <div className="form-field full"><label>Resumo da vaga</label><textarea value={form.summary || ''} onChange={(e) => change('summary', e.target.value)} /></div>
+      <div className="form-field full"><label>Responsabilidades</label><textarea value={form.responsibilitiesText || ''} onChange={(e) => change('responsibilitiesText', e.target.value)} placeholder="Uma responsabilidade por linha" /></div>
+      <div className="form-field full"><label>Requisitos</label><textarea value={form.requirementsText || ''} onChange={(e) => change('requirementsText', e.target.value)} placeholder="Um requisito por linha" /></div>
+      <div className="form-field full"><label>Beneficios</label><textarea value={form.benefitsText || ''} onChange={(e) => change('benefitsText', e.target.value)} placeholder="Um beneficio por linha" /></div>
+    </div>
+    <div className="modal-actions"><button type="button" className="btn" onClick={onCancel}>Cancelar</button><button className="btn btn-primary" disabled={submitting}>{submitting ? <LoadingSpinner small /> : 'Salvar vaga'}</button></div>
+  </form></div></div>;
+}
+
+function TalentApplications({ notify, editable = true }) {
+  const [items, setItems] = useState([]);
+  const [jobs, setJobs] = useState([]);
+  const [filters, setFilters] = useState({ q: '', status: 'Todos', jobId: 'Todos' });
+  const [loading, setLoading] = useState(true);
+  const load = () => {
+    const query = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => value && value !== 'Todos' && query.set(key, value));
+    setLoading(true);
+    Promise.all([api(`/api/talents/applications?${query.toString()}`), api('/api/talents/jobs')]).then(([apps, jobPayload]) => {
+      setItems(listData(apps));
+      setJobs(listData(jobPayload));
+    }).catch((error) => notify(error.message)).finally(() => setLoading(false));
+  };
+  useEffect(() => { load(); }, [filters.q, filters.status, filters.jobId]);
+  const setStatus = async (item, status) => {
+    await withBusy(() => api(`/api/talents/applications/${item.id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }));
+    notify('Candidatura atualizada');
+    load();
+  };
+  const convert = async (item) => {
+    await withBusy(() => api(`/api/talents/applications/${item.id}/convert`, { method: 'POST', body: JSON.stringify({}) }));
+    notify('Candidatura enviada para o Banco de Talentos');
+    load();
+  };
+  const rows = items.map((item) => [<><b>{item.fullName}</b><div className="soft">{item.email} · {formatPhone(item.phone)}</div></>, item.job?.title || '-', <Pill value={item.status} />, [item.city, item.state].filter(Boolean).join(' / ') || '-', item.experienceYears || '-', money(item.desiredSalary), date(item.createdAt), editable ? <><button className="btn btn-sm" onClick={() => setStatus(item, 'Em analise')}>Analisar</button> <button className="btn btn-sm btn-primary" onClick={() => convert(item)}>Aprovar para banco</button> <button className="btn btn-sm btn-danger" onClick={() => setStatus(item, 'Reprovada')}>Reprovar</button></> : '-']);
+  return <>
+    <PageHead title="Candidaturas externas" subtitle="Triagem das inscricoes recebidas pela pagina publica antes de entrar no Banco de Talentos." action="Atualizar" onAction={load} />
+    <div className="toolbar"><div className="filter"><label>Buscar</label><input value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="Nome, email, cidade..." /></div><div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Nova</option><option>Em analise</option><option>Convertida</option><option>Reprovada</option></select></div><div className="filter"><label>Vaga</label><select value={filters.jobId} onChange={(event) => setFilters((old) => ({ ...old, jobId: event.target.value }))}><option>Todos</option>{jobs.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}</select></div><span className="spacer" /><span className="soft">{items.length} candidaturas</span></div>
+    <Panel title="Candidaturas recebidas"><DataTable columns={['Candidato', 'Vaga', 'Status', 'Cidade', 'Experiencia', 'Pretensao', 'Recebida em', 'Acoes']} rows={rows} loading={loading} /></Panel>
+  </>;
 }
 
 function TalentReports({ notify }) {

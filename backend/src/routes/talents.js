@@ -21,7 +21,7 @@ const statuses = [
 
 const candidateSchema = z.object({
   fullName: z.string().min(3),
-  cpf: z.string().min(11),
+  cpf: z.string().optional().nullable(),
   rg: z.string().optional().nullable(),
   birthDate: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
@@ -55,6 +55,46 @@ const candidateSchema = z.object({
   source: z.string().optional().nullable()
 });
 
+const jobSchema = z.object({
+  title: z.string().min(3),
+  department: z.string().optional().nullable(),
+  location: z.string().optional().nullable(),
+  companyUnit: z.string().optional().default('SF TORRES'),
+  contractType: z.string().optional().nullable(),
+  workMode: z.string().optional().nullable(),
+  summary: z.string().optional().nullable(),
+  responsibilitiesText: z.string().optional().nullable(),
+  requirementsText: z.string().optional().nullable(),
+  benefitsText: z.string().optional().nullable(),
+  responsibilities: z.array(z.string()).optional().default([]),
+  requirements: z.array(z.string()).optional().default([]),
+  benefits: z.array(z.string()).optional().default([]),
+  salaryRange: z.string().optional().nullable(),
+  status: z.string().optional().default('Rascunho'),
+  expiresAt: z.string().optional().nullable()
+});
+
+const applicationSchema = z.object({
+  jobId: z.string().min(1),
+  fullName: z.string().min(3),
+  cpf: z.string().optional().nullable(),
+  email: z.string().email(),
+  phone: z.string().optional().nullable(),
+  city: z.string().optional().nullable(),
+  state: z.string().optional().nullable(),
+  education: z.string().optional().nullable(),
+  experienceYears: z.string().optional().nullable(),
+  lastRole: z.string().optional().nullable(),
+  desiredSalary: z.coerce.number().optional().nullable(),
+  availableStartDate: z.string().optional().nullable(),
+  linkedinUrl: z.string().optional().nullable(),
+  portfolioUrl: z.string().optional().nullable(),
+  resume: z.record(z.any()).optional().nullable(),
+  coverLetter: z.string().optional().nullable(),
+  source: z.string().optional().nullable(),
+  consentStorage: z.coerce.boolean().optional().default(false)
+});
+
 function cpfDigits(value) {
   return String(value || '').replace(/\D/g, '');
 }
@@ -63,7 +103,7 @@ function canTalent(req, level = 'view') {
   const role = normalize(req.user?.role);
   if (role.includes('administrador')) return true;
   const permissions = req.user?.permissions || {};
-  const values = ['talentDashboard', 'talents', 'talentNew', 'talentReports'].map((key) => permissions[key]).filter(Boolean);
+  const values = ['talentDashboard', 'talents', 'talentNew', 'talentJobs', 'talentApplications', 'talentReports'].map((key) => permissions[key]).filter(Boolean);
   if (level === 'view') return values.some((value) => ['view', 'edit'].includes(value));
   return values.some((value) => value === 'edit');
 }
@@ -90,6 +130,32 @@ function normalizeCandidate(data, req) {
     salaryExpectation: data.salaryExpectation === '' || data.salaryExpectation === undefined ? null : data.salaryExpectation,
     registeredBy: data.registeredBy || req.user?.name || req.user?.email || null
   };
+}
+
+function textLines(value) {
+  return String(value || '').split('\n').map((item) => item.trim()).filter(Boolean);
+}
+
+function normalizeJob(data, req) {
+  const payload = {};
+  if (data.title !== undefined) payload.title = data.title;
+  if (data.department !== undefined) payload.department = data.department || null;
+  if (data.location !== undefined) payload.location = data.location || null;
+  if (data.companyUnit !== undefined) payload.companyUnit = data.companyUnit || 'SF TORRES';
+  if (data.contractType !== undefined) payload.contractType = data.contractType || null;
+  if (data.workMode !== undefined) payload.workMode = data.workMode || null;
+  if (data.summary !== undefined) payload.summary = data.summary || null;
+  if (data.responsibilities !== undefined || data.responsibilitiesText !== undefined) payload.responsibilities = data.responsibilities?.length ? data.responsibilities : textLines(data.responsibilitiesText);
+  if (data.requirements !== undefined || data.requirementsText !== undefined) payload.requirements = data.requirements?.length ? data.requirements : textLines(data.requirementsText);
+  if (data.benefits !== undefined || data.benefitsText !== undefined) payload.benefits = data.benefits?.length ? data.benefits : textLines(data.benefitsText);
+  if (data.salaryRange !== undefined) payload.salaryRange = data.salaryRange || null;
+  if (data.status !== undefined) {
+    payload.status = data.status || 'Rascunho';
+    payload.publishedAt = payload.status === 'Publicada' ? new Date() : null;
+  }
+  if (data.expiresAt !== undefined) payload.expiresAt = data.expiresAt || null;
+  if (req.user && data.createdBy === undefined) payload.createdBy = req.user?.name || req.user?.email || null;
+  return payload;
 }
 
 function history(action, candidate, req, extra = {}) {
@@ -167,8 +233,166 @@ function monthlyCounts(rows) {
   return Array.from(map.entries()).map(([month, total]) => ({ month, total }));
 }
 
+router.get('/public/jobs', async (req, res, next) => {
+  try {
+    const jobs = await prisma.talentJob.findMany({
+      where: { status: 'Publicada' },
+      orderBy: { publishedAt: 'desc' },
+      select: {
+        id: true,
+        title: true,
+        department: true,
+        location: true,
+        companyUnit: true,
+        contractType: true,
+        workMode: true,
+        summary: true,
+        responsibilities: true,
+        requirements: true,
+        benefits: true,
+        salaryRange: true,
+        expiresAt: true,
+        publishedAt: true
+      }
+    });
+    res.json({ data: jobs, meta: { total: jobs.length, limit: jobs.length, offset: 0 } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/public/applications', async (req, res, next) => {
+  try {
+    const parsed = applicationSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: { message: 'Dados da candidatura invalidos', details: parsed.error.flatten() } });
+    const job = await prisma.talentJob.findFirst({ where: { id: parsed.data.jobId, status: 'Publicada' } });
+    if (!job) return res.status(404).json({ error: { message: 'Vaga nao encontrada ou nao publicada' } });
+    if (!parsed.data.consentStorage) return res.status(400).json({ error: { message: 'Consentimento LGPD obrigatorio para enviar candidatura' } });
+    const application = await prisma.talentApplication.create({
+      data: {
+        ...parsed.data,
+        cpf: parsed.data.cpf ? cpfDigits(parsed.data.cpf) : null,
+        status: 'Nova'
+      }
+    });
+    res.status(201).json({ data: { id: application.id, status: application.status } });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.use(requireAuth);
 router.use(requireTalent('view'));
+
+router.get('/jobs', async (req, res, next) => {
+  try {
+    const where = {};
+    if (req.query.status && req.query.status !== 'Todos') where.status = String(req.query.status);
+    if (req.query.q) {
+      where.OR = [
+        { title: { contains: String(req.query.q), mode: 'insensitive' } },
+        { department: { contains: String(req.query.q), mode: 'insensitive' } },
+        { location: { contains: String(req.query.q), mode: 'insensitive' } }
+      ];
+    }
+    const data = await prisma.talentJob.findMany({ where, orderBy: { createdAt: 'desc' }, include: { _count: { select: { applications: true } } } });
+    res.json({ data, meta: { total: data.length, limit: data.length, offset: 0 } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/jobs', requireTalent('edit'), async (req, res, next) => {
+  try {
+    const parsed = jobSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: { message: 'Dados da vaga invalidos', details: parsed.error.flatten() } });
+    const job = await prisma.talentJob.create({ data: normalizeJob(parsed.data, req) });
+    res.status(201).json({ data: job });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put('/jobs/:id', requireTalent('edit'), async (req, res, next) => {
+  try {
+    const parsed = jobSchema.partial().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: { message: 'Dados da vaga invalidos', details: parsed.error.flatten() } });
+    const job = await prisma.talentJob.update({ where: { id: req.params.id }, data: normalizeJob(parsed.data, req) });
+    res.json({ data: job });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/applications', async (req, res, next) => {
+  try {
+    const where = {};
+    if (req.query.status && req.query.status !== 'Todos') where.status = String(req.query.status);
+    if (req.query.jobId && req.query.jobId !== 'Todos') where.jobId = String(req.query.jobId);
+    if (req.query.q) {
+      where.OR = [
+        { fullName: { contains: String(req.query.q), mode: 'insensitive' } },
+        { email: { contains: String(req.query.q), mode: 'insensitive' } },
+        { phone: { contains: String(req.query.q), mode: 'insensitive' } },
+        { city: { contains: String(req.query.q), mode: 'insensitive' } }
+      ];
+    }
+    const data = await prisma.talentApplication.findMany({ where, orderBy: { createdAt: 'desc' }, include: { job: true } });
+    res.json({ data, meta: { total: data.length, limit: data.length, offset: 0 } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/applications/:id/status', requireTalent('edit'), async (req, res, next) => {
+  try {
+    const application = await prisma.talentApplication.update({
+      where: { id: req.params.id },
+      data: { status: String(req.body.status || 'Em analise'), internalNotes: req.body.internalNotes || undefined, reviewedBy: req.user?.name || req.user?.email || null, reviewedAt: new Date() },
+      include: { job: true }
+    });
+    res.json({ data: application });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/applications/:id/convert', requireTalent('edit'), async (req, res, next) => {
+  try {
+    const application = await prisma.talentApplication.findUnique({ where: { id: req.params.id }, include: { job: true } });
+    if (!application) return res.status(404).json({ error: { message: 'Candidatura nao encontrada' } });
+    const candidate = await prisma.talentCandidate.create({
+      data: {
+        fullName: application.fullName,
+        cpf: application.cpf ? cpfDigits(application.cpf) : null,
+        phone: application.phone,
+        email: application.email,
+        city: application.city,
+        state: application.state,
+        education: application.education,
+        lastRole: application.lastRole,
+        desiredRole: application.job?.title,
+        startAvailability: application.availableStartDate,
+        salaryExpectation: application.desiredSalary,
+        resume: application.resume,
+        internalNotes: application.coverLetter,
+        status: 'Novo cadastro',
+        relatedCompany: application.job?.companyUnit || 'Banco Geral',
+        consentStorage: application.consentStorage,
+        consentDate: new Date().toISOString().slice(0, 10),
+        consentOrigin: 'Candidatura externa',
+        source: `Vaga: ${application.job?.title || 'Trabalhe Conosco'}`,
+        registeredBy: req.user?.name || req.user?.email || null
+      }
+    });
+    await history('Candidatura convertida em candidato', candidate, req, { toStatus: candidate.status, note: application.job?.title || null });
+    const updated = await prisma.talentApplication.update({ where: { id: application.id }, data: { status: 'Convertida', convertedCandidateId: candidate.id, reviewedBy: req.user?.name || req.user?.email || null, reviewedAt: new Date() }, include: { job: true } });
+    res.json({ data: { application: updated, candidate } });
+  } catch (error) {
+    if (error.code === 'P2002') return res.status(409).json({ error: { message: 'Ja existe candidato cadastrado com este CPF' } });
+    next(error);
+  }
+});
 
 router.get('/summary', async (req, res, next) => {
   try {

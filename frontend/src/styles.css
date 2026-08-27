@@ -885,6 +885,9 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 }
 
 @media (max-width:720px){
+  .public-jobs-head{padding:0 12px}
+  .public-jobs-main{width:calc(100% - 20px);padding-top:16px}
+  .public-jobs-grid,.public-job-columns{grid-template-columns:1fr}
   .talent-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
   .talent-report-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
   .talent-start-panel{display:block}
@@ -983,6 +986,49 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 .login-form .aux a{color:var(--c-primary)}
 
 .login-foot{margin-top:14px;font-size:12px;color:var(--c-text-soft);text-align:center}
+
+/* ---------- Trabalhe Conosco publico -------------------- */
+.public-jobs-page{min-height:100vh;background:#EEF1F5;color:var(--c-text)}
+.public-jobs-head{
+  height:60px;display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:0 22px;background:#FFFFFF;border-bottom:1px solid var(--c-border);
+}
+.public-jobs-head .brand{height:60px;padding:0;border:0;background:transparent}
+.public-jobs-head .brand-text strong{color:var(--c-primary-900)}
+.public-jobs-head .brand-text span{color:var(--c-text-muted)}
+.public-jobs-main{width:min(1120px,calc(100% - 32px));margin:0 auto;padding:24px 0 42px}
+.public-jobs-intro{padding-bottom:18px;border-bottom:1px solid var(--c-border);margin-bottom:16px}
+.public-jobs-intro h1{margin:0 0 4px;font-size:28px;color:var(--c-text)}
+.public-jobs-intro p{max-width:760px;margin:0;color:var(--c-text-muted)}
+.public-jobs-grid{display:grid;grid-template-columns:340px 1fr;gap:12px;margin-bottom:12px}
+.public-job-list,.public-job-detail,.public-application-form{
+  background:#FFFFFF;border:1px solid var(--c-border);border-radius:var(--radius-md);box-shadow:var(--shadow-1);
+}
+.public-job-list{padding:14px}
+.public-job-list h2,.public-job-detail h2,.public-application-form h2{margin:0 0 12px;font-size:var(--fs-18)}
+.public-job-list button{
+  display:block;width:100%;text-align:left;padding:12px;border:1px solid var(--c-border);
+  border-radius:var(--radius-sm);background:#FAFCFF;margin-bottom:8px;
+}
+.public-job-list button.active,.public-job-list button:hover{border-color:var(--c-primary);background:#F1F6FC}
+.public-job-list b{display:block;color:var(--c-text)}
+.public-job-list span{display:block;color:var(--c-text-muted);font-size:12px;margin-top:2px}
+.public-job-detail{padding:18px}
+.public-job-summary p{color:var(--c-text-muted);line-height:1.55}
+.public-job-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.public-job-tags span{
+  border:1px solid var(--c-border);background:#F7F9FC;border-radius:var(--radius-sm);
+  padding:5px 8px;font-size:12px;color:var(--c-text-muted);
+}
+.public-job-columns{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+.public-job-columns h3{font-size:var(--fs-14);margin:0 0 8px}
+.public-job-columns ul{margin:0;padding-left:18px;color:var(--c-text-muted)}
+.public-application-form{padding:18px}
+.public-consent{
+  display:flex;align-items:flex-start;gap:8px;color:var(--c-text);
+  text-transform:none!important;letter-spacing:0!important;
+}
+.public-consent input{width:16px;height:16px;margin-top:2px}
 
 /* ---------- Sistema: modais e feedback ------------------ */
 .modal-backdrop{
