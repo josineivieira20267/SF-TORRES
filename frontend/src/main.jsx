@@ -979,6 +979,7 @@ function Login({ settings, onLogin }) {
 function PublicJobs({ settings }) {
   const [jobs, setJobs] = useState([]);
   const [selectedId, setSelectedId] = useState('');
+  const [applying, setApplying] = useState(false);
   const [form, setForm] = useState({ fullName: '', cpf: '', email: '', phone: '', city: 'Manaus', state: 'AM', education: '', experienceYears: '', lastRole: '', desiredSalary: '', availableStartDate: '', linkedinUrl: '', portfolioUrl: '', coverLetter: '', source: '', consentStorage: false, resume: null });
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -1001,6 +1002,7 @@ function PublicJobs({ settings }) {
     const data = await response.json();
     if (!response.ok) return setMessage(data.error?.message || 'Nao foi possivel enviar sua candidatura.');
     setForm({ fullName: '', cpf: '', email: '', phone: '', city: 'Manaus', state: 'AM', education: '', experienceYears: '', lastRole: '', desiredSalary: '', availableStartDate: '', linkedinUrl: '', portfolioUrl: '', coverLetter: '', source: '', consentStorage: false, resume: null });
+    setApplying(false);
     setMessage('Candidatura enviada. Nossa equipe ira analisar suas informacoes.');
   };
   const fileChange = (event) => {
@@ -1025,7 +1027,7 @@ function PublicJobs({ settings }) {
           </section>
           <section className="public-job-detail">
             {selected ? <>
-              <div className="public-job-summary"><h2>{selected.title}</h2><Pill value={selected.contractType || 'Vaga'} /><p>{selected.summary || 'Oportunidade publicada pela SF TORRES.'}</p><div className="public-job-tags"><span>{selected.location || 'Local a definir'}</span><span>{selected.workMode || 'Presencial'}</span>{selected.salaryRange && <span>{selected.salaryRange}</span>}</div></div>
+              <div className="public-job-summary"><h2>{selected.title}</h2><Pill value={selected.contractType || 'Vaga'} /><p>{selected.summary || 'Oportunidade publicada pela SF TORRES.'}</p><div className="public-job-tags"><span>{selected.location || 'Local a definir'}</span><span>{selected.workMode || 'Presencial'}</span>{selected.salaryRange && <span>{selected.salaryRange}</span>}</div><button className="btn btn-primary public-apply-btn" onClick={() => setApplying(true)}>Candidatar-se</button></div>
               <div className="public-job-columns">
                 <div><h3>Requisitos</h3><ul>{(selected.requirements || []).map((item) => <li key={item}>{item}</li>)}</ul></div>
                 <div><h3>Beneficios</h3><ul>{(selected.benefits || []).map((item) => <li key={item}>{item}</li>)}</ul></div>
@@ -1033,28 +1035,31 @@ function PublicJobs({ settings }) {
             </> : <div className="talent-empty"><b>Selecione uma vaga</b><span>Escolha uma oportunidade para visualizar os detalhes.</span></div>}
           </section>
         </div>
-        <form className="public-application-form" onSubmit={submit}>
-          <h2>Enviar candidatura</h2>
-          <div className="form-grid">
-            <div className="form-field full"><label>Vaga</label><select value={selectedId} required onChange={(e) => setSelectedId(e.target.value)}>{jobs.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}</select></div>
-            <div className="form-field full"><label>Nome completo *</label><input required value={form.fullName} onChange={(e) => change('fullName', formatPersonNameInput(e.target.value))} /></div>
-            <div className="form-field"><label>CPF</label><input value={form.cpf} maxLength={14} onChange={(e) => change('cpf', formatCpf(e.target.value))} /></div>
-            <div className="form-field"><label>E-mail *</label><input type="email" required value={form.email} onChange={(e) => change('email', e.target.value)} /></div>
-            <div className="form-field"><label>Telefone / WhatsApp</label><input value={form.phone} onChange={(e) => change('phone', formatPhone(e.target.value))} /></div>
-            <div className="form-field"><label>Cidade</label><input value={form.city} onChange={(e) => change('city', e.target.value)} /></div>
-            <div className="form-field"><label>UF</label><input value={form.state} maxLength={2} onChange={(e) => change('state', e.target.value.toUpperCase())} /></div>
-            <div className="form-field"><label>Escolaridade</label><select value={form.education} onChange={(e) => change('education', e.target.value)}>{talentEducationOptions.map((item) => <option key={item || '-'}>{item || '-'}</option>)}</select></div>
-            <div className="form-field"><label>Anos de experiencia</label><select value={form.experienceYears} onChange={(e) => change('experienceYears', e.target.value)}><option></option><option>Sem experiencia</option><option>1 a 2 anos</option><option>3 a 5 anos</option><option>Mais de 5 anos</option></select></div>
-            <div className="form-field"><label>Ultima funcao</label><input value={form.lastRole} onChange={(e) => change('lastRole', e.target.value)} /></div>
-            <div className="form-field"><label>Pretensao salarial</label><input value={form.desiredSalary} onChange={(e) => change('desiredSalary', e.target.value)} onBlur={(e) => change('desiredSalary', money(parseMoney(e.target.value)))} /></div>
-            <div className="form-field"><label>Disponibilidade de inicio</label><input type="date" value={form.availableStartDate} onChange={(e) => change('availableStartDate', e.target.value)} /></div>
-            <div className="form-field"><label>LinkedIn</label><input value={form.linkedinUrl} onChange={(e) => change('linkedinUrl', e.target.value)} /></div>
-            <div className="form-field"><label>Curriculo</label><input type="file" accept=".pdf,.doc,.docx" onChange={fileChange} /></div>
-            <div className="form-field full"><label>Apresentacao</label><textarea value={form.coverLetter} onChange={(e) => change('coverLetter', e.target.value)} placeholder="Conte rapidamente sua experiencia e disponibilidade." /></div>
-            <div className="form-field full"><label>Consentimento LGPD *</label><label className="public-consent"><input type="checkbox" checked={form.consentStorage} onChange={(e) => change('consentStorage', e.target.checked)} /> Autorizo o armazenamento dos meus dados para processos seletivos e futuras oportunidades profissionais.</label></div>
+        {message && !applying && <div className="public-message">{message}</div>}
+        {applying && <div className="modal-backdrop public-application-backdrop"><form className="public-application-form" onSubmit={submit}>
+          <div className="modal-head"><h2>Enviar candidatura</h2><button type="button" className="btn btn-sm" onClick={() => setApplying(false)}>Fechar</button></div>
+          <div className="public-application-body">
+            <div className="form-grid">
+              <div className="form-field full"><label>Vaga</label><select value={selectedId} required onChange={(e) => setSelectedId(e.target.value)}>{jobs.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}</select></div>
+              <div className="form-field full"><label>Nome completo *</label><input required value={form.fullName} onChange={(e) => change('fullName', formatPersonNameInput(e.target.value))} /></div>
+              <div className="form-field"><label>CPF</label><input value={form.cpf} maxLength={14} onChange={(e) => change('cpf', formatCpf(e.target.value))} /></div>
+              <div className="form-field"><label>E-mail *</label><input type="email" required value={form.email} onChange={(e) => change('email', e.target.value)} /></div>
+              <div className="form-field"><label>Telefone / WhatsApp</label><input value={form.phone} onChange={(e) => change('phone', formatPhone(e.target.value))} /></div>
+              <div className="form-field"><label>Cidade</label><input value={form.city} onChange={(e) => change('city', e.target.value)} /></div>
+              <div className="form-field"><label>UF</label><input value={form.state} maxLength={2} onChange={(e) => change('state', e.target.value.toUpperCase())} /></div>
+              <div className="form-field"><label>Escolaridade</label><select value={form.education} onChange={(e) => change('education', e.target.value)}>{talentEducationOptions.map((item) => <option key={item || '-'}>{item || '-'}</option>)}</select></div>
+              <div className="form-field"><label>Anos de experiencia</label><select value={form.experienceYears} onChange={(e) => change('experienceYears', e.target.value)}><option></option><option>Sem experiencia</option><option>1 a 2 anos</option><option>3 a 5 anos</option><option>Mais de 5 anos</option></select></div>
+              <div className="form-field"><label>Ultima funcao</label><input value={form.lastRole} onChange={(e) => change('lastRole', e.target.value)} /></div>
+              <div className="form-field"><label>Pretensao salarial</label><input value={form.desiredSalary} onChange={(e) => change('desiredSalary', e.target.value)} onBlur={(e) => change('desiredSalary', money(parseMoney(e.target.value)))} /></div>
+              <div className="form-field"><label>Disponibilidade de inicio</label><input type="date" value={form.availableStartDate} onChange={(e) => change('availableStartDate', e.target.value)} /></div>
+              <div className="form-field"><label>LinkedIn</label><input value={form.linkedinUrl} onChange={(e) => change('linkedinUrl', e.target.value)} /></div>
+              <div className="form-field"><label>Curriculo</label><input type="file" accept=".pdf,.doc,.docx" onChange={fileChange} /></div>
+              <div className="form-field full"><label>Apresentacao</label><textarea value={form.coverLetter} onChange={(e) => change('coverLetter', e.target.value)} placeholder="Conte rapidamente sua experiencia e disponibilidade." /></div>
+              <div className="form-field full"><label>Consentimento LGPD *</label><label className="public-consent"><input type="checkbox" checked={form.consentStorage} onChange={(e) => change('consentStorage', e.target.checked)} /> Autorizo o armazenamento dos meus dados para processos seletivos e futuras oportunidades profissionais.</label></div>
+            </div>
+            <div className="modal-actions"><span className="soft">{message}</span><button className="btn btn-primary">Enviar candidatura</button></div>
           </div>
-          <div className="modal-actions"><span className="soft">{message}</span><button className="btn btn-primary">Enviar candidatura</button></div>
-        </form>
+        </form></div>}
       </main>
     </div>
   );
