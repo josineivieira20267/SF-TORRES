@@ -11,7 +11,8 @@ const router = express.Router();
 
 const loginSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(1)
+  password: z.string().min(1),
+  environment: z.enum(['operational', 'talents']).optional().default('operational')
 });
 
 router.post('/login', async (req, res, next) => {
@@ -35,7 +36,8 @@ router.post('/login', async (req, res, next) => {
       email: user.email,
       role: user.role,
       permissions: user.permissions || null,
-      displayRole: user.displayRole || null
+      displayRole: user.displayRole || null,
+      environment: parsed.data.environment
     };
     const userPayload = {
       ...tokenPayload,

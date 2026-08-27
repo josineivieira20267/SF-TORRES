@@ -47,6 +47,7 @@ const routes = {
 };
 
 const routeKeys = Object.keys(routes);
+const talentRouteKeys = ['talentDashboard', 'talents', 'talentNew', 'talentReports'];
 const defaultAdminPermissions = Object.fromEntries(routeKeys.map((key) => [key, 'edit']));
 
 function currentUser() {
@@ -65,6 +66,18 @@ function permissionFor(route, user = currentUser()) {
 
 function canView(route, user = currentUser()) {
   return permissionFor(route, user) !== 'none';
+}
+
+function currentEnvironment() {
+  return localStorage.getItem('sfTorresEnvironment') === 'talents' ? 'talents' : 'operational';
+}
+
+function routeEnvironment(route) {
+  return talentRouteKeys.includes(route) ? 'talents' : 'operational';
+}
+
+function canUseRoute(route, user = currentUser(), environment = currentEnvironment()) {
+  return Boolean(routes[route]) && routeEnvironment(route) === environment && canView(route, user);
 }
 
 function isLeaderUser(user = currentUser()) {
@@ -622,11 +635,11 @@ function fileToDataUrl(file) {
 }
 
 function cleanRoute(hash) {
-  const route = String(hash || '').replace(/^#\/?/, '') || 'dailyOps';
+  const route = String(hash || '').replace(/^#\/?/, '') || defaultRouteForEnvironment();
   if (route === 'login') return 'login';
   if (!localStorage.getItem('sfTorresToken')) return 'login';
   if (!routes[route]) return firstAllowedRoute();
-  return canView(route) ? route : firstAllowedRoute();
+  return canUseRoute(route) ? route : firstAllowedRoute();
 }
 
 function firstAllowedRoute() {
@@ -634,8 +647,12 @@ function firstAllowedRoute() {
   return firstAllowedRouteFor(currentUser());
 }
 
-function firstAllowedRouteFor(user) {
-  return routeKeys.find((key) => canView(key, user)) || 'login';
+function defaultRouteForEnvironment(environment = currentEnvironment()) {
+  return environment === 'talents' ? 'talentDashboard' : 'dailyOps';
+}
+
+function firstAllowedRouteFor(user, environment = currentEnvironment()) {
+  return routeKeys.find((key) => canUseRoute(key, user, environment)) || 'login';
 }
 
 function requestedRouteFromHash() {
@@ -844,12 +861,13 @@ function App() {
     setAuthenticated(true);
     const requestedRoute = requestedRouteFromHash();
     const preferredRoute = localStorage.getItem('sfTorresPreferredRoute') || '';
+    const environment = currentEnvironment();
     localStorage.removeItem('sfTorresPreferredRoute');
-    const nextRoute = preferredRoute && canView(preferredRoute, user)
+    const nextRoute = preferredRoute && canUseRoute(preferredRoute, user, environment)
       ? preferredRoute
-      : requestedRoute && canView(requestedRoute, user)
+      : requestedRoute && canUseRoute(requestedRoute, user, environment)
         ? requestedRoute
-        : firstAllowedRouteFor(user);
+        : firstAllowedRouteFor(user, environment);
     window.history.replaceState(null, '', `#/${nextRoute}`);
     setRoute(nextRoute);
   };
@@ -894,7 +912,7 @@ function Login({ settings, onLogin }) {
       const payload = await withBusy(() => fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password, environment })
       }).then(async (r) => {
         const data = await r.json();
         if (!r.ok) throw new Error(data.error?.message || 'Falha no login');
@@ -1016,18 +1034,22 @@ function Sidebar({ route, setRoute, settings, profile, onProfile, onLogout }) {
     ['Administração', [['users', 'AD', 'Usuários & Perfis'], ['settings', 'CF', 'Configurações']]]
   ];
   const user = currentUser();
+  const environment = currentEnvironment();
+  const visibleGroups = environment === 'talents'
+    ? groups.filter(([title]) => title === 'Banco de Talentos')
+    : groups.filter(([title]) => title !== 'Banco de Talentos');
   const go = (key) => {
-    if (!canView(key, user)) return;
+    if (!canUseRoute(key, user, environment)) return;
     window.location.hash = `#/${key}`;
     setRoute(key);
   };
   return (
     <aside className="sidebar">
-      <div className="brand"><div className="brand-emblem"><img src={stLogoTransparent} alt="SF Torres" /></div><div className="brand-text"><strong>{settings.fantasyName}</strong><span>Centro Operacional</span></div></div>
+      <div className="brand"><div className="brand-emblem"><img src={stLogoTransparent} alt="SF Torres" /></div><div className="brand-text"><strong>{settings.fantasyName}</strong><span>{environment === 'talents' ? 'Banco de Talentos' : 'Centro Operacional'}</span></div></div>
       <div className="search"><span>⌕</span><input placeholder="Buscar módulo, tela ou ação..." /></div>
       <nav className="nav">
-        {groups.map(([title, items]) => {
-          const visibleItems = items.filter(([key]) => canView(key, user));
+        {visibleGroups.map(([title, items]) => {
+          const visibleItems = items.filter(([key]) => canUseRoute(key, user, environment));
           if (!visibleItems.length) return null;
           return (
             <div className="nav-group" key={title}>
@@ -2681,7 +2703,8 @@ function ActionPanel({ type, setRoute, onClose }) {
   const [notifications, setNotifications] = useState([]);
   const user = currentUser();
   const dismissedKey = `sfTorresDismissedNotifications:${user.email || user.name || 'anon'}`;
-  const routeEntries = Object.entries(routes).filter(([key, item]) => canView(key) && normalize(item.title + item.group).includes(normalize(q)));
+  const environment = currentEnvironment();
+  const routeEntries = Object.entries(routes).filter(([key, item]) => canUseRoute(key, user, environment) && normalize(item.title + item.group).includes(normalize(q)));
   const readDismissed = () => {
     try {
       return JSON.parse(localStorage.getItem(dismissedKey) || '[]');
@@ -2702,6 +2725,10 @@ function ActionPanel({ type, setRoute, onClose }) {
   };
   useEffect(() => {
     if (type !== 'notifications') return;
+    if (environment === 'talents') {
+      setNotifications([]);
+      return;
+    }
     Promise.all([
       api('/api/occurrences').catch(() => ({ data: [] })),
       api(workOrdersEndpoint()).catch(() => ({ data: [] })),

@@ -70,6 +70,9 @@ function canTalent(req, level = 'view') {
 
 function requireTalent(level = 'view') {
   return (req, res, next) => {
+    if (req.user?.environment !== 'talents') {
+      return res.status(403).json({ error: { message: 'Acesse o ambiente Banco de Talentos para usar este modulo' } });
+    }
     if (canTalent(req, level)) return next();
     return res.status(403).json({ error: { message: 'Sem permissao para acessar o Banco de Talentos' } });
   };
