@@ -571,6 +571,124 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   gap:12px;
   margin-bottom:12px;
 }
+.talent-dashboard-grid.compact{grid-template-columns:1fr 1fr}
+.talent-command-grid{
+  display:grid;
+  grid-template-columns:1.35fr 1fr;
+  gap:12px;
+  margin-bottom:12px;
+}
+.talent-start-panel{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:14px 16px;
+  margin-bottom:12px;
+  background:#F6F9FD;
+  border:1px solid var(--c-border);
+  border-left:4px solid var(--c-primary);
+  border-radius:var(--radius-md);
+}
+.talent-start-panel h3{
+  margin:2px 0 4px;
+  font-size:var(--fs-16);
+  color:var(--c-text);
+}
+.talent-start-panel p{
+  margin:0;
+  font-size:var(--fs-13);
+  color:var(--c-text-muted);
+}
+.talent-start-actions{display:flex;gap:8px;flex-wrap:wrap}
+.talent-pipeline{
+  display:grid;
+  grid-template-columns:repeat(6,minmax(0,1fr));
+  gap:8px;
+}
+.talent-pipeline button{
+  min-height:86px;
+  padding:10px;
+  text-align:left;
+  background:var(--c-surface);
+  border:1px solid var(--c-border);
+  border-radius:var(--radius-sm);
+  color:var(--c-text);
+}
+.talent-pipeline button:hover{border-color:var(--c-primary);background:#F4F7FC}
+.talent-pipeline b{
+  display:block;
+  font-size:24px;
+  line-height:1;
+  color:var(--c-primary);
+  font-variant-numeric:tabular-nums;
+}
+.talent-pipeline span{
+  display:block;
+  margin-top:7px;
+  font-size:12px;
+  font-weight:700;
+}
+.talent-pipeline small{
+  display:block;
+  margin-top:2px;
+  font-size:11px;
+  color:var(--c-text-soft);
+}
+.talent-search-chips{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-bottom:14px;
+}
+.talent-search-chips button{
+  height:28px;
+  padding:0 10px;
+  border:1px solid var(--c-border);
+  border-radius:var(--radius-sm);
+  background:#F8FAFD;
+  color:var(--c-text);
+  font-size:12px;
+}
+.talent-search-chips button:hover{border-color:var(--c-primary);color:var(--c-primary)}
+.talent-readiness{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+}
+.talent-readiness div{
+  padding:10px;
+  border:1px solid var(--c-border);
+  border-radius:var(--radius-sm);
+  background:var(--c-surface-2);
+}
+.talent-readiness b{
+  display:block;
+  font-size:22px;
+  color:var(--c-text);
+}
+.talent-readiness span{
+  font-size:12px;
+  color:var(--c-text-muted);
+}
+.talent-empty{
+  min-height:170px;
+  display:grid;
+  place-items:center;
+  align-content:center;
+  gap:8px;
+  padding:18px;
+  text-align:center;
+  color:var(--c-text-muted);
+}
+.talent-empty b{
+  color:var(--c-text);
+  font-size:var(--fs-14);
+}
+.talent-empty span{
+  max-width:360px;
+  font-size:var(--fs-13);
+}
 .talent-toolbar .filter input,
 .talent-toolbar .filter select{min-width:110px}
 .empty-state{
@@ -639,11 +757,18 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 @media (max-width:1100px){
   .talent-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
   .talent-dashboard-grid,
-  .talent-profile-grid{grid-template-columns:1fr}
+  .talent-profile-grid,
+  .talent-command-grid,
+  .talent-dashboard-grid.compact{grid-template-columns:1fr}
+  .talent-pipeline{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
 
 @media (max-width:720px){
   .talent-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .talent-start-panel{display:block}
+  .talent-start-actions{margin-top:10px}
+  .talent-pipeline{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .talent-readiness{grid-template-columns:1fr}
   .talent-toolbar{display:grid;grid-template-columns:1fr}
   .talent-toolbar .filter{width:100%}
   .talent-toolbar .filter input,

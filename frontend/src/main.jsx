@@ -1202,27 +1202,75 @@ function TalentDashboard({ notify }) {
     api('/api/talents/summary').then((payload) => setSummary(payload.data)).catch((error) => notify(error.message)).finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, []);
+  const total = summary?.total || 0;
   const roles = (summary?.roles || []).map((item) => [item.desiredRole || 'Nao informado', item._count?.desiredRole || 0]);
   const movements = (summary?.movements || []).map((item) => [dateTime(item.createdAt), item.candidate?.fullName || '-', item.action, item.toStatus ? <Pill value={item.toStatus} /> : '-']);
   const latest = (summary?.latest || []).map((item) => [item.fullName, formatPhone(item.phone), item.desiredRole || '-', <Pill value={item.status} />, date(item.createdAt)]);
+  const statusCounts = Object.fromEntries((summary?.statusBreakdown || []).map((item) => [item.status, item._count?.status || 0]));
+  const pipeline = [
+    ['Novo cadastro', statusCounts['Novo cadastro'] || 0, 'Entrada'],
+    ['Disponivel', statusCounts.Disponivel || 0, 'Pronto para contato'],
+    ['Em analise', statusCounts['Em analise'] || 0, 'Triagem'],
+    ['Entrevista', statusCounts.Entrevista || 0, 'Agenda'],
+    ['Aprovado', statusCounts.Aprovado || 0, 'Selecionado'],
+    ['Contratado', statusCounts.Contratado || 0, 'Fechado']
+  ];
+  const cityRows = (summary?.cityBreakdown || []).map((item) => [item.city || 'Nao informado', item._count?.city || 0]);
+  const educationRows = (summary?.educationBreakdown || []).map((item) => [item.education || 'Nao informado', item._count?.education || 0]);
+  const quickSearches = ['Motorista CNH D', 'Auxiliar operacional', 'Disponibilidade imediata', 'Manaus AM'];
+  const goSearch = (term) => {
+    window.location.hash = `#/talents`;
+    window.setTimeout(() => window.dispatchEvent(new CustomEvent('sf:talent-search', { detail: term })), 0);
+  };
   return (
     <>
       <PageHead title="Banco de Talentos" subtitle="Painel de acompanhamento de candidatos, disponibilidade, status e cadastros recentes." action="Novo candidato" onAction={() => { window.location.hash = '#/talentNew'; }} ghostAction="Atualizar" onGhostAction={load} />
       <div className="kpi-grid talent-kpis">
-        <Kpi icon="users" label="Total de candidatos" value={summary?.total || 0} delta="base cadastrada" />
+        <Kpi icon="users" label="Total de candidatos" value={total} delta="base cadastrada" />
         <Kpi icon="check" label="Disponiveis" value={summary?.available || 0} delta="aptos para contato" success />
         <Kpi icon="clock" label="Em analise" value={summary?.analysis || 0} delta="avaliacao em andamento" warning />
         <Kpi icon="star" label="Selecionados" value={summary?.selected || 0} delta="aprovados ou reserva" />
         <Kpi icon="home" label="Contratados" value={summary?.hired || 0} delta="efetivados" success />
         <Kpi icon="file" label="Recentes" value={summary?.recent || 0} delta="ultimos 30 dias" />
       </div>
-      <div className="talent-dashboard-grid">
-        <Panel title="Cadastros recentes"><DataTable columns={['Nome', 'Telefone', 'Funcao de interesse', 'Status', 'Cadastro']} rows={latest} loading={loading} /></Panel>
-        <Panel title="Funcoes mais procuradas" padded><BarChart data={roles.map(([label, value]) => ({ label, value }))} /></Panel>
+      {total === 0 && !loading && <div className="talent-start-panel">
+        <div>
+          <span className="eyebrow">Base em implantacao</span>
+          <h3>Comece pelos perfis mais recorrentes da operacao</h3>
+          <p>Cadastre candidatos para funcoes criticas, registre CNH e disponibilidade, e use status para manter a triagem organizada.</p>
+        </div>
+        <div className="talent-start-actions">
+          <button className="btn btn-primary" onClick={() => { window.location.hash = '#/talentNew'; }}>Cadastrar primeiro candidato</button>
+          <button className="btn" onClick={() => { window.location.hash = '#/talents'; }}>Abrir pesquisa</button>
+        </div>
+      </div>}
+      <div className="talent-command-grid">
+        <Panel title="Funil de triagem" padded>
+          <div className="talent-pipeline">{pipeline.map(([label, value, sub]) => <button type="button" key={label} onClick={() => goSearch(label)}><b>{value}</b><span>{label}</span><small>{sub}</small></button>)}</div>
+        </Panel>
+        <Panel title="Busca rapida" padded>
+          <div className="talent-search-chips">{quickSearches.map((term) => <button type="button" key={term} onClick={() => goSearch(term)}>{term}</button>)}</div>
+          <div className="talent-readiness">
+            <div><b>{summary?.cnhCount || 0}</b><span>com CNH registrada</span></div>
+            <div><b>{summary?.available || 0}</b><span>disponiveis para contato</span></div>
+          </div>
+        </Panel>
       </div>
-      <Panel title="Ultimas movimentacoes"><DataTable columns={['Data', 'Candidato', 'Movimento', 'Status']} rows={movements} loading={loading} /></Panel>
+      <div className="talent-dashboard-grid">
+        <Panel title="Cadastros recentes">{latest.length || loading ? <DataTable columns={['Nome', 'Telefone', 'Funcao de interesse', 'Status', 'Cadastro']} rows={latest} loading={loading} /> : <TalentEmptyState title="Nenhum cadastro recente" text="Os candidatos cadastrados nos ultimos dias aparecem aqui para triagem rapida." action="Novo candidato" onAction={() => { window.location.hash = '#/talentNew'; }} />}</Panel>
+        <Panel title="Funcoes mais procuradas" padded>{roles.length ? <BarChart data={roles.map(([label, value]) => ({ label, value }))} /> : <TalentEmptyState title="Sem funcoes mapeadas" text="Ao preencher a funcao de interesse, o sistema mostra onde existe maior disponibilidade." />}</Panel>
+      </div>
+      <div className="talent-dashboard-grid compact">
+        <Panel title="Candidatos por cidade"><DataTable columns={['Cidade', 'Total']} rows={cityRows} loading={loading} /></Panel>
+        <Panel title="Escolaridade"><DataTable columns={['Escolaridade', 'Total']} rows={educationRows} loading={loading} /></Panel>
+      </div>
+      <Panel title="Ultimas movimentacoes">{movements.length || loading ? <DataTable columns={['Data', 'Candidato', 'Movimento', 'Status']} rows={movements} loading={loading} /> : <TalentEmptyState title="Sem movimentacoes ainda" text="Alteracoes de status, edicoes e arquivamentos ficarao registrados neste historico." />}</Panel>
     </>
   );
+}
+
+function TalentEmptyState({ title, text, action, onAction }) {
+  return <div className="talent-empty"><b>{title}</b><span>{text}</span>{action && <button className="btn btn-sm" onClick={onAction}>{action}</button>}</div>;
 }
 
 function TalentBank({ notify, editable = true, mode = 'list' }) {
@@ -1247,6 +1295,11 @@ function TalentBank({ notify, editable = true, mode = 'list' }) {
   };
   useEffect(() => { load(filters, 0); }, [filters.q, filters.status, filters.desiredRole, filters.city, filters.state, filters.hasCnh, filters.sort, filters.direction]);
   useEffect(() => { if (mode === 'new') setFormOpen(true); }, [mode]);
+  useEffect(() => {
+    const onSearch = (event) => setFilters((old) => ({ ...old, q: event.detail || '' }));
+    window.addEventListener('sf:talent-search', onSearch);
+    return () => window.removeEventListener('sf:talent-search', onSearch);
+  }, []);
   const save = async (form) => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     if (!isValidCpf(form.cpf)) return notify('Informe um CPF valido');

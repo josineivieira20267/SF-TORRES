@@ -153,7 +153,7 @@ router.get('/summary', async (req, res, next) => {
   try {
     const since = new Date();
     since.setDate(since.getDate() - 30);
-    const [total, available, analysis, selected, hired, recent, latest, roles, movements] = await Promise.all([
+    const [total, available, analysis, selected, hired, recent, latest, roles, movements, statusBreakdown, cityBreakdown, educationBreakdown, cnhCount] = await Promise.all([
       prisma.talentCandidate.count(),
       prisma.talentCandidate.count({ where: { status: 'Disponivel' } }),
       prisma.talentCandidate.count({ where: { status: 'Em analise' } }),
@@ -162,9 +162,13 @@ router.get('/summary', async (req, res, next) => {
       prisma.talentCandidate.count({ where: { createdAt: { gte: since } } }),
       prisma.talentCandidate.findMany({ orderBy: { createdAt: 'desc' }, take: 6 }),
       prisma.talentCandidate.groupBy({ by: ['desiredRole'], _count: { desiredRole: true }, where: { desiredRole: { not: null } }, orderBy: { _count: { desiredRole: 'desc' } }, take: 6 }),
-      prisma.talentCandidateHistory.findMany({ orderBy: { createdAt: 'desc' }, take: 8, include: { candidate: { select: { fullName: true } } } })
+      prisma.talentCandidateHistory.findMany({ orderBy: { createdAt: 'desc' }, take: 8, include: { candidate: { select: { fullName: true } } } }),
+      prisma.talentCandidate.groupBy({ by: ['status'], _count: { status: true }, orderBy: { _count: { status: 'desc' } } }),
+      prisma.talentCandidate.groupBy({ by: ['city'], _count: { city: true }, where: { city: { not: null } }, orderBy: { _count: { city: 'desc' } }, take: 6 }),
+      prisma.talentCandidate.groupBy({ by: ['education'], _count: { education: true }, where: { education: { not: null } }, orderBy: { _count: { education: 'desc' } }, take: 6 }),
+      prisma.talentCandidate.count({ where: { hasCnh: true } })
     ]);
-    res.json({ data: { total, available, analysis, selected, hired, recent, latest, roles, movements } });
+    res.json({ data: { total, available, analysis, selected, hired, recent, latest, roles, movements, statusBreakdown, cityBreakdown, educationBreakdown, cnhCount } });
   } catch (error) {
     next(error);
   }
