@@ -898,7 +898,6 @@ function App() {
 function Login({ settings, onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [environment, setEnvironment] = useState('operational');
   const [company, setCompany] = useState('SF TORRES - Matriz Manaus/AM');
   const [message, setMessage] = useState('Acesso restrito a colaboradores autorizados. As ações são auditadas conforme LGPD.');
   const [loading, setLoading] = useState(false);
@@ -909,6 +908,7 @@ function Login({ settings, onLogin }) {
     setLoading(true);
     setMessage('Validando credenciais...');
     try {
+      const environment = company === 'SF TORRES - Banco de talentos' ? 'talents' : 'operational';
       const payload = await withBusy(() => fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -950,8 +950,7 @@ function Login({ settings, onLogin }) {
           <form className="login-form" onSubmit={submit} autoComplete="off">
             <div className="form-field"><label>Usuário ou e-mail</label><input value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" /></div>
             <div className="form-field"><label>Senha</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" /></div>
-            <div className="form-field"><label>Ambiente / Sistema</label><select value={environment} onChange={(e) => setEnvironment(e.target.value)}><option value="operational">Sistema Operacional</option><option value="talents">Banco de Talentos</option></select></div>
-            {environment === 'operational' && <div className="form-field"><label>Empresa / Filial</label><select value={company} onChange={(e) => setCompany(e.target.value)}><option>SF TORRES - Matriz Manaus/AM</option><option>ST Serviços de Logística - Filial</option></select></div>}
+            <div className="form-field"><label>Empresa / Filial</label><select value={company} onChange={(e) => setCompany(e.target.value)}><option>SF TORRES - Matriz Manaus/AM</option><option>SF TORRES - Banco de talentos</option></select></div>
             <div className="aux"><label className="row"><input type="checkbox" /> Manter conectado</label><a href="#/login">Esqueci minha senha</a></div>
             <button className="btn btn-primary" disabled={loading}>{loading ? <LoadingSpinner small /> : 'Entrar no sistema'}</button>
           </form>
