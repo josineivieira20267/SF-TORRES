@@ -687,9 +687,22 @@ function whatsappUrl(phone, message) {
 
 function ActionMenu({ actions = [] }) {
   const [open, setOpen] = useState(false);
+  const menuRef = useRef(null);
   const available = actions.filter(Boolean);
+  useEffect(() => {
+    if (!open) return undefined;
+    const closeOnOutside = (event) => {
+      if (!menuRef.current?.contains(event.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', closeOnOutside);
+    document.addEventListener('touchstart', closeOnOutside);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutside);
+      document.removeEventListener('touchstart', closeOnOutside);
+    };
+  }, [open]);
   if (!available.length) return null;
-  return <div className="action-menu">
+  return <div className="action-menu" ref={menuRef}>
     <button type="button" className="btn btn-sm btn-icon-only action-menu-trigger" onClick={() => setOpen((value) => !value)} aria-label="Mais opcoes">...</button>
     {open && <div className="action-menu-popover">
       {available.map((action) => <button key={action.label} type="button" className={action.danger ? 'danger' : ''} disabled={action.disabled} onClick={() => { setOpen(false); action.onClick?.(); }}>{action.label}</button>)}

@@ -397,13 +397,14 @@ a:hover{text-decoration:underline}
 .action-menu-trigger{font-weight:800;line-height:1}
 .action-menu-popover{
   position:absolute;
-  top:calc(100% + 6px);
+  bottom:calc(100% + 6px);
   right:0;
   z-index:35;
   min-width:170px;
   padding:5px;
   border:1px solid var(--c-border-strong);
   background:#FFFFFF;
+  border-radius:var(--radius-sm);
   box-shadow:0 12px 28px rgba(15,36,71,.16);
 }
 .action-menu-popover button{
