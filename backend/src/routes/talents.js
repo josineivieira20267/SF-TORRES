@@ -367,6 +367,18 @@ router.put('/jobs/:id', requireTalent('edit'), async (req, res, next) => {
   }
 });
 
+router.delete('/jobs/:id', requireTalent('edit'), async (req, res, next) => {
+  try {
+    const job = await prisma.talentJob.findUnique({ where: { id: req.params.id }, include: { _count: { select: { applications: true } } } });
+    if (!job) return res.status(404).json({ error: { message: 'Vaga nao encontrada' } });
+    if (job._count.applications > 0) return res.status(409).json({ error: { message: 'Esta vaga possui candidaturas vinculadas. Exclua ou trate as candidaturas antes de apagar a vaga.' } });
+    await prisma.talentJob.delete({ where: { id: req.params.id } });
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/applications', async (req, res, next) => {
   try {
     const where = {};
@@ -409,6 +421,17 @@ router.get('/applications/:id/resume', async (req, res, next) => {
     res.setHeader('Content-Type', resume.type || match[1] || 'application/octet-stream');
     res.setHeader('Content-Disposition', `inline; filename="${String(resume.name || 'curriculo').replace(/"/g, '')}"`);
     res.send(buffer);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/applications/:id', requireTalent('edit'), async (req, res, next) => {
+  try {
+    const application = await prisma.talentApplication.findUnique({ where: { id: req.params.id } });
+    if (!application) return res.status(404).json({ error: { message: 'Candidatura nao encontrada' } });
+    await prisma.talentApplication.delete({ where: { id: req.params.id } });
+    res.status(204).send();
   } catch (error) {
     next(error);
   }

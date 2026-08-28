@@ -685,6 +685,30 @@ function whatsappUrl(phone, message) {
   return `https://wa.me/${number}?text=${encodeURIComponent(message || '')}`;
 }
 
+function ActionMenu({ actions = [] }) {
+  const [open, setOpen] = useState(false);
+  const available = actions.filter(Boolean);
+  if (!available.length) return null;
+  return <div className="action-menu">
+    <button type="button" className="btn btn-sm btn-icon-only action-menu-trigger" onClick={() => setOpen((value) => !value)} aria-label="Mais opcoes">...</button>
+    {open && <div className="action-menu-popover">
+      {available.map((action) => <button key={action.label} type="button" className={action.danger ? 'danger' : ''} disabled={action.disabled} onClick={() => { setOpen(false); action.onClick?.(); }}>{action.label}</button>)}
+    </div>}
+  </div>;
+}
+
+function ConfirmModal({ title, text, confirmLabel = 'Confirmar', danger = false, onCancel, onConfirm }) {
+  return <div className="modal-backdrop">
+    <div className="modal confirm-modal">
+      <div className="modal-head"><h3>{title}</h3><button className="btn btn-sm" onClick={onCancel}>Fechar</button></div>
+      <div className="modal-body">
+        <p className="soft multiline">{text}</p>
+        <div className="modal-actions"><button className="btn" onClick={onCancel}>Cancelar</button><button className={danger ? 'btn btn-danger' : 'btn btn-primary'} onClick={onConfirm}>{confirmLabel}</button></div>
+      </div>
+    </div>
+  </div>;
+}
+
 function cleanRoute(hash) {
   const route = String(hash || '').replace(/^#\/?/, '') || defaultRouteForEnvironment();
   if (route === 'login') return 'login';
@@ -1532,8 +1556,7 @@ function TalentBank({ notify, editable = true, mode = 'list' }) {
           <div className="talent-row-actions">
             <button className="btn btn-sm" onClick={() => setProfileId(item.id)}>Visualizar</button>
             {editable && <button className="btn btn-sm" onClick={() => { setEditing(item); setFormOpen(true); }}>Editar</button>}
-            {editable && <button className="btn btn-sm" onClick={() => changeStatus(item)}>Status</button>}
-            {editable && item.status !== 'Arquivado' && <button className="btn btn-sm btn-danger" onClick={() => archive(item)}>Arquivar</button>}
+            {editable && <ActionMenu actions={[{ label: 'Alterar status', onClick: () => changeStatus(item) }, item.status !== 'Arquivado' && { label: 'Arquivar', danger: true, onClick: () => archive(item) }]} />}
           </div>
         </div>)}</div> : <div className="empty-state"><b>Nenhum candidato encontrado</b><span>Nao encontramos candidatos utilizando os filtros selecionados.</span><button className="btn btn-sm" onClick={() => setFilters(baseFilters)}>Limpar filtros</button></div>}</div>
       </div>
@@ -1658,6 +1681,7 @@ function TalentJobs({ notify, editable = true }) {
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ q: '', status: 'Todos' });
   const [modal, setModal] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
   const load = () => {
     const query = new URLSearchParams();
     if (filters.q) query.set('q', filters.q);
@@ -1673,13 +1697,20 @@ function TalentJobs({ notify, editable = true }) {
     notify('Vaga salva');
     load();
   };
+  const deleteJob = async (job) => {
+    await withBusy(() => api(`/api/talents/jobs/${job.id}`, { method: 'DELETE' }));
+    setConfirmDelete(null);
+    notify('Vaga apagada');
+    load();
+  };
   const rows = jobs.map((job) => [<><b>{job.title}</b><div className="soft">{[job.department, job.location].filter(Boolean).join(' · ')}</div></>, <Pill value={job.status} />, job.contractType || '-', job.workMode || '-', job._count?.applications || 0, date(job.publishedAt), editable ? <><button className="btn btn-sm" onClick={() => setModal(job)}>Editar</button> <button className="btn btn-sm" onClick={() => navigator.clipboard?.writeText(`${location.origin}${location.pathname}#/trabalhe-conosco`)}>Copiar link publico</button></> : '-']);
   return (
     <>
       <PageHead title="Vagas" subtitle="Cadastro interno de vagas publicadas na pagina Trabalhe Conosco." action={editable ? 'Nova vaga' : null} onAction={() => setModal({ status: 'Rascunho', companyUnit: 'SF TORRES', workMode: 'Presencial', contractType: 'CLT' })} ghostAction="Abrir pagina publica" onGhostAction={() => { window.location.hash = '#/trabalhe-conosco'; }} />
       <div className="toolbar"><div className="filter"><label>Buscar</label><input value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="Funcao, setor, local..." /></div><div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Rascunho</option><option>Publicada</option><option>Pausada</option><option>Encerrada</option></select></div><span className="spacer" /><span className="soft">{jobs.length} vagas</span></div>
-      <Panel title="Vagas cadastradas"><DataTable columns={['Vaga', 'Status', 'Contrato', 'Modelo', 'Candidaturas', 'Publicacao', 'Acoes']} rows={rows} loading={loading} /></Panel>
+      <Panel title="Vagas cadastradas"><DataTable columns={['Vaga', 'Status', 'Contrato', 'Modelo', 'Candidaturas', 'Publicacao', 'Acoes']} rows={jobs.map((job) => [<><b>{job.title}</b><div className="soft">{[job.department, job.location].filter(Boolean).join(' - ')}</div></>, <Pill value={job.status} />, job.contractType || '-', job.workMode || '-', job._count?.applications || 0, date(job.publishedAt), editable ? <div className="table-action-row"><button className="btn btn-sm" onClick={() => setModal(job)}>Editar</button><ActionMenu actions={[{ label: 'Copiar link publico', onClick: () => navigator.clipboard?.writeText(`${location.origin}${location.pathname}#/trabalhe-conosco`) }, { label: 'Apagar vaga', danger: true, disabled: (job._count?.applications || 0) > 0, onClick: () => setConfirmDelete(job) }]} /></div> : '-'])} loading={loading} /></Panel>
       {modal && <TalentJobForm initial={modal} onCancel={() => setModal(null)} onSave={save} />}
+      {confirmDelete && <ConfirmModal title="Apagar vaga" text={`Deseja apagar a vaga "${confirmDelete.title}"? Essa acao nao pode ser desfeita.`} confirmLabel="Apagar vaga" danger onCancel={() => setConfirmDelete(null)} onConfirm={() => deleteJob(confirmDelete)} />}
     </>
   );
 }
@@ -1765,6 +1796,7 @@ function TalentApplications({ notify, editable = true }) {
   const [loading, setLoading] = useState(true);
   const [review, setReview] = useState(null);
   const [busyId, setBusyId] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const load = () => {
     const query = new URLSearchParams();
@@ -1822,6 +1854,18 @@ function TalentApplications({ notify, editable = true }) {
       setBusyId('');
     }
   };
+  const deleteApplication = async (item) => {
+    try {
+      setBusyId(item.id);
+      await withBusy(() => api(`/api/talents/applications/${item.id}`, { method: 'DELETE' }));
+      setConfirmDelete(null);
+      setReview(null);
+      notify('Candidatura apagada');
+      load();
+    } finally {
+      setBusyId('');
+    }
+  };
 
   return <>
     <PageHead title="Candidaturas externas" subtitle="Triagem das inscricoes recebidas pela pagina publica antes de entrar no Banco de Talentos." action="Atualizar" onAction={load} />
@@ -1836,11 +1880,12 @@ function TalentApplications({ notify, editable = true }) {
         <div className="application-actions">
           <button className="btn btn-sm" disabled={!editable || busyId === item.id} onClick={() => openReview(item)}>{busyId === item.id ? 'Abrindo...' : 'Analisar'}</button>
           <button className="btn btn-sm btn-primary" disabled={!editable || busyId === item.id || item.status === 'Convertida'} onClick={() => convert(item)}>Aprovar para banco</button>
-          <button className="btn btn-sm btn-danger" disabled={!editable || busyId === item.id || item.status === 'Reprovada'} onClick={() => setStatus(item, 'Reprovada')}>Reprovar</button>
+          <ActionMenu actions={[{ label: 'Reprovar', danger: true, disabled: !editable || busyId === item.id || item.status === 'Reprovada', onClick: () => setStatus(item, 'Reprovada') }, { label: 'Apagar candidatura', danger: true, disabled: !editable || busyId === item.id, onClick: () => setConfirmDelete(item) }]} />
         </div>
       </div>)}</div> : <TalentEmptyState title="Nenhuma candidatura recebida" text="As inscricoes vindas da pagina publica aparecerao aqui para triagem." />}
     </Panel>
     {review && <TalentApplicationReview item={review} onClose={() => setReview(null)} onSaveStatus={setStatus} onConvert={convert} notify={notify} />}
+    {confirmDelete && <ConfirmModal title="Apagar candidatura" text={`Deseja apagar a candidatura de ${confirmDelete.fullName}? Essa acao remove a inscricao externa e nao pode ser desfeita.`} confirmLabel="Apagar candidatura" danger onCancel={() => setConfirmDelete(null)} onConfirm={() => deleteApplication(confirmDelete)} />}
   </>;
 }
 

@@ -392,6 +392,35 @@ a:hover{text-decoration:underline}
 .btn-icon-only{width:30px;height:30px;padding:0;justify-content:center}
 .btn-link{padding:0;height:auto;border:none;background:none;color:var(--c-primary)}
 .btn:disabled{opacity:.65;cursor:not-allowed}
+.table-action-row{display:flex;align-items:center;justify-content:flex-end;gap:6px}
+.action-menu{position:relative;display:inline-flex}
+.action-menu-trigger{font-weight:800;line-height:1}
+.action-menu-popover{
+  position:absolute;
+  top:calc(100% + 6px);
+  right:0;
+  z-index:35;
+  min-width:170px;
+  padding:5px;
+  border:1px solid var(--c-border-strong);
+  background:#FFFFFF;
+  box-shadow:0 12px 28px rgba(15,36,71,.16);
+}
+.action-menu-popover button{
+  width:100%;
+  min-height:30px;
+  display:flex;
+  align-items:center;
+  padding:6px 8px;
+  border:0;
+  background:transparent;
+  color:var(--c-text);
+  font-size:var(--fs-13);
+  text-align:left;
+}
+.action-menu-popover button:hover{background:var(--c-surface-2)}
+.action-menu-popover button.danger{color:var(--c-danger)}
+.action-menu-popover button:disabled{opacity:.45;cursor:not-allowed}
 
 /* ---------- Cartão institucional padrão ----------------- */
 .panel{
@@ -954,6 +983,7 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   .application-card{grid-template-columns:1fr}
   .application-main{grid-template-columns:1fr;gap:10px}
   .application-actions{justify-content:flex-start}
+  .table-action-row{justify-content:flex-start}
   .resume-box{align-items:flex-start;flex-direction:column}
   .talent-toolbar{display:grid;grid-template-columns:1fr}
   .talent-toolbar .filter{width:100%}
