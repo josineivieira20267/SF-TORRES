@@ -109,7 +109,7 @@ function canTalent(req, level = 'view') {
   const role = normalize(req.user?.role);
   if (role.includes('administrador')) return true;
   const permissions = req.user?.permissions || {};
-  const values = ['talentDashboard', 'talents', 'talentNew', 'talentJobs', 'talentApplications', 'talentReports'].map((key) => permissions[key]).filter(Boolean);
+  const values = ['talentDashboard', 'talents', 'talentNew', 'talentJobs', 'talentApplications'].map((key) => permissions[key]).filter(Boolean);
   if (level === 'view') return values.some((value) => ['view', 'edit'].includes(value));
   return values.some((value) => value === 'edit');
 }

@@ -44,12 +44,11 @@ const routes = {
   talents: { title: 'Banco de Talentos', group: 'Banco de Talentos' },
   talentNew: { title: 'Novo Candidato', group: 'Banco de Talentos' },
   talentJobs: { title: 'Vagas', group: 'Banco de Talentos' },
-  talentApplications: { title: 'Candidaturas', group: 'Banco de Talentos' },
-  talentReports: { title: 'Relatórios', group: 'Banco de Talentos' }
+  talentApplications: { title: 'Candidaturas', group: 'Banco de Talentos' }
 };
 
 const routeKeys = Object.keys(routes);
-const talentRouteKeys = ['talentDashboard', 'talents', 'talentNew', 'talentJobs', 'talentApplications', 'talentReports'];
+const talentRouteKeys = ['talentDashboard', 'talents', 'talentNew', 'talentJobs', 'talentApplications'];
 const defaultAdminPermissions = Object.fromEntries(routeKeys.map((key) => [key, 'edit']));
 
 function currentUser() {
@@ -97,8 +96,8 @@ function canEdit(route, user = currentUser()) {
 
 function defaultUserPermissions(role = 'Operacional') {
   if (role === 'Administrador') return { ...defaultAdminPermissions };
-  if (normalize(role).includes('rh') || normalize(role).includes('recrut')) return { talentDashboard: 'edit', talents: 'edit', talentNew: 'edit', talentJobs: 'edit', talentApplications: 'edit', talentReports: 'view' };
-  if (normalize(role).includes('consulta')) return { talentDashboard: 'view', talents: 'view', talentJobs: 'view', talentApplications: 'view', talentReports: 'view' };
+  if (normalize(role).includes('rh') || normalize(role).includes('recrut')) return { talentDashboard: 'edit', talents: 'edit', talentNew: 'edit', talentJobs: 'edit', talentApplications: 'edit' };
+  if (normalize(role).includes('consulta')) return { talentDashboard: 'view', talents: 'view', talentJobs: 'view', talentApplications: 'view' };
   if (normalize(role).includes('lider')) return { schedules: 'edit', leaderAttendance: 'edit' };
   if (normalize(role).includes('operacional')) return { dashboard: 'view', dailyOps: 'view', leaderAttendance: 'edit' };
   return { dashboard: 'view', dailyOps: 'view' };
@@ -1252,8 +1251,8 @@ function Sidebar({ route, setRoute, settings, profile, collapsed, onToggle, onPr
     ['Gestão', [['productivity', 'PD', 'Produtividade'], ['bonusCriteria', 'CB', 'Critérios de Bonificação'], ['employees', 'FE', 'Funcionários']]],
     ['Movimentações', [['reports', 'RP', 'Relatórios']]],
     ['Cadastros', [['clients', 'CL', 'Clientes'], ['services', 'SV', 'Serviços'], ['equipment', 'EQ', 'Equipamentos']]],
-    ['Banco de Talentos', [['talentDashboard', 'BT', 'Dashboard'], ['talents', 'BC', 'Candidatos'], ['talentJobs', 'VG', 'Vagas'], ['talentApplications', 'CA', 'Candidaturas'], ['talentReports', 'RT', 'Relatórios']]],
-    ['Administração', [['users', 'AD', 'Usuários & Perfis'], ['settings', 'CF', 'Configurações']]]
+    ['Administração', [['users', 'AD', 'Usuários & Perfis'], ['settings', 'CF', 'Configurações']]],
+    ['Banco de Talentos', [['talentDashboard', 'BT', 'Dashboard'], ['talents', 'BC', 'Candidatos'], ['talentJobs', 'VG', 'Vagas'], ['talentApplications', 'CA', 'Candidaturas']]]
   ];
   const user = currentUser();
   const environment = currentEnvironment();
@@ -1320,7 +1319,6 @@ function Screen({ route, notify, settings, setSettings }) {
   if (route === 'talentNew') return <TalentBank notify={notify} editable={editable} mode="new" />;
   if (route === 'talentJobs') return <TalentJobs notify={notify} editable={editable} />;
   if (route === 'talentApplications') return <TalentApplications notify={notify} editable={editable} />;
-  if (route === 'talentReports') return <TalentReports notify={notify} />;
   if (crudConfigs[route]) return <CrudScreen config={crudConfigs[route]} notify={notify} editable={editable} />;
   if (route === 'dashboard') return <OperationsDashboard />;
   if (route === 'tower') return <Tower />;
@@ -1986,82 +1984,6 @@ function TalentApplicationReview({ item, onClose, onSaveStatus, onConvert, notif
       </div>
     </div>
   </div>;
-}
-
-function TalentReports({ notify }) {
-  const baseFilters = { from: '', to: '', status: 'Todos', desiredRole: '', city: '', state: '', hasCnh: 'Todos' };
-  const [filters, setFilters] = useState(baseFilters);
-  const [report, setReport] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const load = () => {
-    const query = new URLSearchParams();
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value && !['Todos', 'Todas'].includes(value)) query.set(key, value);
-    });
-    setLoading(true);
-    api(`/api/talents/reports?${query.toString()}`).then((payload) => setReport(payload.data)).catch((error) => notify(error.message)).finally(() => setLoading(false));
-  };
-  useEffect(() => { load(); }, [filters.from, filters.to, filters.status, filters.desiredRole, filters.city, filters.state, filters.hasCnh]);
-  const indicators = report?.indicators || {};
-  const statusRows = (report?.statuses || []).map((item) => [<Pill value={item.status} />, item._count?.status || 0]);
-  const roleRows = (report?.roles || []).map((item) => [item.desiredRole || 'Nao informado', item._count?.desiredRole || 0]);
-  const cityRows = (report?.cities || []).map((item) => [item.city || 'Nao informado', item._count?.city || 0]);
-  const educationRows = (report?.education || []).map((item) => [item.education || 'Nao informado', item._count?.education || 0]);
-  const cnhRows = (report?.cnhCategories || []).map((item) => [item.cnhCategory || 'Sem categoria', item._count?.cnhCategory || 0]);
-  const salaryRows = (report?.salaryByRole || []).map((item) => [item.desiredRole || 'Nao informado', item._count?.desiredRole || 0, money(item._avg?.salaryExpectation || 0)]);
-  const monthlyRows = (report?.monthly || []).map((item) => [item.month, item.total]);
-  const exportReport = () => downloadCsv('relatorio-banco-talentos.csv', [
-    ['Indicador', 'Total'],
-    ['Total filtrado', indicators.total || 0],
-    ['Recentes 30 dias', indicators.recent || 0],
-    ['Disponiveis', indicators.available || 0],
-    ['Em analise', indicators.analysis || 0],
-    ['Contratados', indicators.hired || 0],
-    ['Arquivados', indicators.archived || 0],
-    ['Com CNH', indicators.cnhCount || 0],
-    [],
-    ['Funcao', 'Total'],
-    ...roleRows.map(([role, total]) => [displayText(role), total]),
-    [],
-    ['Cidade', 'Total'],
-    ...cityRows
-  ]);
-  return (
-    <>
-      <PageHead title="Relatorios do Banco de Talentos" subtitle="Indicadores, filtros e leitura gerencial do cadastro reserva." ghostAction="Limpar filtros" onGhostAction={() => setFilters(baseFilters)} action="Exportar resumo" onAction={exportReport} />
-      <div className="toolbar talent-toolbar">
-        <div className="filter"><label>De</label><input type="date" value={filters.from} onChange={(event) => setFilters((old) => ({ ...old, from: event.target.value }))} /></div>
-        <div className="filter"><label>Ate</label><input type="date" value={filters.to} onChange={(event) => setFilters((old) => ({ ...old, to: event.target.value }))} /></div>
-        <div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option>{talentStatuses.map((item) => <option key={item}>{item}</option>)}</select></div>
-        <div className="filter"><label>Funcao</label><input value={filters.desiredRole} onChange={(event) => setFilters((old) => ({ ...old, desiredRole: event.target.value }))} placeholder="Motorista, auxiliar..." /></div>
-        <div className="filter"><label>Cidade</label><input value={filters.city} onChange={(event) => setFilters((old) => ({ ...old, city: event.target.value }))} /></div>
-        <div className="filter"><label>UF</label><input value={filters.state} onChange={(event) => setFilters((old) => ({ ...old, state: event.target.value.toUpperCase().slice(0, 2) }))} /></div>
-        <div className="filter"><label>CNH</label><select value={filters.hasCnh} onChange={(event) => setFilters((old) => ({ ...old, hasCnh: event.target.value }))}><option>Todos</option><option>Sim</option><option>Nao</option></select></div>
-        <span className="spacer" /><span className="soft">{loading ? 'Atualizando...' : `${indicators.total || 0} candidatos filtrados`}</span>
-      </div>
-      <div className="kpi-grid talent-report-kpis">
-        <Kpi icon="users" label="Total filtrado" value={indicators.total || 0} delta="conforme filtros" />
-        <Kpi icon="file" label="Recentes" value={indicators.recent || 0} delta="ultimos 30 dias" />
-        <Kpi icon="check" label="Disponiveis" value={indicators.available || 0} delta="prontos para contato" success />
-        <Kpi icon="clock" label="Em analise" value={indicators.analysis || 0} delta="triagem aberta" warning />
-        <Kpi icon="home" label="Contratados" value={indicators.hired || 0} delta="efetivados" success />
-        <Kpi icon="shield" label="Com CNH" value={indicators.cnhCount || 0} delta="habilitacao registrada" />
-      </div>
-      <div className="talent-report-grid wide">
-        <Panel title="Funil por status"><DataTable columns={['Status', 'Total']} rows={statusRows} loading={loading} /></Panel>
-        <Panel title="Cadastros por mes"><DataTable columns={['Mes', 'Total']} rows={monthlyRows} loading={loading} /></Panel>
-      </div>
-      <div className="talent-dashboard-grid">
-        <Panel title="Candidatos por funcao"><DataTable columns={['Funcao', 'Total']} rows={roleRows} loading={loading} /></Panel>
-        <Panel title="Pretensao media por funcao"><DataTable columns={['Funcao', 'Candidatos', 'Media']} rows={salaryRows} loading={loading} /></Panel>
-      </div>
-      <div className="talent-report-grid">
-        <Panel title="Candidatos por cidade"><DataTable columns={['Cidade', 'Total']} rows={cityRows} loading={loading} /></Panel>
-        <Panel title="Escolaridade"><DataTable columns={['Escolaridade', 'Total']} rows={educationRows} loading={loading} /></Panel>
-        <Panel title="CNH por categoria"><DataTable columns={['Categoria', 'Total']} rows={cnhRows} loading={loading} /></Panel>
-      </div>
-    </>
-  );
 }
 
 function LeaderMobileNav({ active, title, onRefresh }) {
