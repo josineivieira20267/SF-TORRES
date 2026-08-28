@@ -73,6 +73,238 @@ a{color:var(--c-primary);text-decoration:none}
 a:hover{text-decoration:underline}
 
 /* =========================================================
+   Site publico SF TORRES
+   ========================================================= */
+.public-site{
+  min-height:100vh;
+  background:#F2F5F8;
+  color:#102033;
+}
+.site-header{
+  position:fixed;
+  top:0;
+  left:0;
+  right:0;
+  z-index:40;
+  height:68px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:20px;
+  padding:0 clamp(18px,5vw,72px);
+  background:rgba(255,255,255,.94);
+  border-bottom:1px solid rgba(15,36,71,.12);
+  backdrop-filter:saturate(140%) blur(14px);
+}
+.site-brand{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  color:#0F2447;
+  font-weight:850;
+  letter-spacing:0;
+}
+.site-brand:hover{text-decoration:none}
+.site-brand span{
+  width:38px;
+  height:38px;
+  display:grid;
+  place-items:center;
+  border:1px solid #D5DCE6;
+  border-radius:50%;
+  background:#FFFFFF;
+}
+.site-brand img{width:32px;height:32px;object-fit:contain}
+.site-header nav{display:flex;align-items:center;gap:24px}
+.site-header nav a{
+  color:#22324A;
+  font-size:14px;
+  font-weight:650;
+}
+.site-login-link{
+  height:34px;
+  display:inline-flex;
+  align-items:center;
+  padding:0 13px;
+  border:1px solid #B8C0CC;
+  background:#FFFFFF;
+}
+.site-hero{
+  position:relative;
+  min-height:calc(100vh - 18px);
+  display:flex;
+  align-items:center;
+  padding:110px clamp(18px,5vw,72px) 92px;
+  background-size:cover;
+  background-position:center;
+  overflow:hidden;
+}
+.site-hero::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:rgba(7,22,47,.68);
+}
+.site-hero-copy{
+  position:relative;
+  z-index:1;
+  max-width:760px;
+  color:#FFFFFF;
+}
+.site-kicker{
+  display:block;
+  margin-bottom:12px;
+  color:#BFD2ED;
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:0;
+  text-transform:uppercase;
+}
+.site-hero h1{
+  max-width:720px;
+  margin:0;
+  font-size:64px;
+  line-height:.98;
+  letter-spacing:0;
+}
+.site-hero p{
+  max-width:610px;
+  margin:22px 0 0;
+  color:#DFE8F4;
+  font-size:18px;
+  line-height:1.55;
+}
+.site-hero-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:30px}
+.site-hero-actions .btn{height:42px;padding:0 18px;font-weight:800}
+.site-outline{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.5);color:#FFFFFF}
+.site-outline:hover{background:rgba(255,255,255,.16)}
+.site-hero-strip{
+  position:absolute;
+  z-index:1;
+  left:clamp(18px,5vw,72px);
+  right:clamp(18px,5vw,72px);
+  bottom:24px;
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  border:1px solid rgba(255,255,255,.26);
+  background:rgba(255,255,255,.12);
+  backdrop-filter:blur(12px);
+}
+.site-hero-strip div{padding:15px 18px;border-right:1px solid rgba(255,255,255,.22)}
+.site-hero-strip div:last-child{border-right:0}
+.site-hero-strip b{display:block;color:#FFFFFF;font-size:18px}
+.site-hero-strip span{display:block;color:#C9D4E6;font-size:12px;text-transform:uppercase;font-weight:700}
+.site-section{
+  padding:72px clamp(18px,5vw,72px);
+}
+.site-section-head{
+  max-width:760px;
+  margin-bottom:28px;
+}
+.site-section h2,
+.site-band h2{
+  margin:0;
+  color:#102033;
+  font-size:36px;
+  line-height:1.12;
+}
+.site-service-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:14px;
+}
+.site-service-grid article{
+  min-height:230px;
+  padding:24px;
+  border:1px solid #D5DCE6;
+  background:#FFFFFF;
+}
+.site-service-grid article span{color:#C8102E;font-weight:850}
+.site-service-grid h3{margin:34px 0 10px;font-size:22px;color:#102033}
+.site-service-grid p{margin:0;color:#526176;line-height:1.6}
+.site-band{
+  display:grid;
+  grid-template-columns:minmax(240px,.85fr) minmax(0,1.4fr);
+  gap:36px;
+  align-items:start;
+  padding:72px clamp(18px,5vw,72px);
+  background:#FFFFFF;
+  border-top:1px solid #D5DCE6;
+  border-bottom:1px solid #D5DCE6;
+}
+.site-process{display:grid;gap:12px}
+.site-process div{
+  display:grid;
+  grid-template-columns:120px 1fr;
+  gap:18px;
+  padding:18px 0;
+  border-bottom:1px solid #D5DCE6;
+}
+.site-process b{color:#0F2447;font-size:18px}
+.site-process span{color:#526176;line-height:1.55}
+.site-contact{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 360px;
+  gap:32px;
+  align-items:start;
+}
+.site-contact p{max-width:720px;color:#526176;font-size:16px;line-height:1.6}
+.site-contact-card{
+  display:grid;
+  gap:10px;
+  padding:22px;
+  background:#0F2447;
+  color:#FFFFFF;
+}
+.site-contact-card span{color:#DCE6F3}
+.site-contact-card .btn{margin-top:10px;justify-content:center;height:40px}
+.site-footer{
+  min-height:64px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:0 clamp(18px,5vw,72px);
+  background:#0B1E3D;
+  color:#DCE6F3;
+}
+.site-footer a{color:#FFFFFF}
+
+@media (max-width:860px){
+  .site-header{height:auto;min-height:62px;padding:8px 14px;align-items:flex-start}
+  .site-header nav{gap:10px;justify-content:flex-end;flex-wrap:wrap}
+  .site-header nav a{font-size:12px}
+  .site-login-link{height:30px;padding:0 9px}
+  .site-hero{
+    min-height:760px;
+    align-items:flex-start;
+    padding:92px 16px 180px;
+    background-position:58% center;
+  }
+  .site-hero::before{background:rgba(7,22,47,.72)}
+  .site-hero h1{font-size:42px;line-height:1.02}
+  .site-hero p{font-size:16px}
+  .site-hero-actions .btn{width:100%;justify-content:center}
+  .site-hero-strip{
+    left:16px;
+    right:16px;
+    bottom:18px;
+    grid-template-columns:1fr;
+  }
+  .site-hero-strip div{border-right:0;border-bottom:1px solid rgba(255,255,255,.22);padding:12px}
+  .site-hero-strip div:last-child{border-bottom:0}
+  .site-section{padding:48px 16px}
+  .site-section h2,.site-band h2{font-size:28px}
+  .site-service-grid,
+  .site-band,
+  .site-contact{grid-template-columns:1fr}
+  .site-service-grid article{min-height:auto}
+  .site-process div{grid-template-columns:1fr;gap:6px}
+  .site-contact-card{padding:18px}
+  .site-footer{padding:14px 16px;display:grid}
+}
+
+/* =========================================================
    Layout principal — sidebar + topbar + conteúdo
    ========================================================= */
 .app{

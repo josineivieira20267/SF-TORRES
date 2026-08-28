@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './styles.css';
 import './system.css';
 import stLogoTransparent from './assets/sf-torres-logo-transparent.png';
+import publicHero from './assets/sf-torres-public-hero.png';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3333';
 
@@ -987,6 +988,10 @@ function App() {
     return <PublicJobs settings={settings} />;
   }
 
+  if (!publicRoute || publicRoute === 'inicio' || publicRoute === 'site') {
+    return <PublicSite settings={settings} />;
+  }
+
   if (route === 'login' || !authenticated) {
     return <Login settings={settings} onLogin={goAfterLogin} />;
   }
@@ -1009,6 +1014,62 @@ function App() {
       {panel && panel !== 'profile' && <ActionPanel type={panel} setRoute={setRoute} onClose={() => setPanel(null)} />}
       {busyCount > 0 && <BusyOverlay />}
       <div className={`sf-toast ${toast ? 'show' : ''}`}>{toast}</div>
+    </div>
+  );
+}
+
+function PublicSite({ settings }) {
+  const services = [
+    ['Carga e descarga', 'Equipe preparada para recebimento, movimentacao e apoio em operacoes com mercadorias e conteineres.'],
+    ['Conferencia operacional', 'Controle de volumes, apoio em inventario, enderecamento e organizacao de estoque.'],
+    ['Apoio logistico dedicado', 'Rotina presencial junto ao cliente, com acompanhamento de produtividade, seguranca e prazos.']
+  ];
+  const metrics = [['Manaus / AM', 'base operacional'], ['2013', 'inicio cadastral'], ['CNAE 52.12-5-00', 'carga e descarga']];
+  return (
+    <div className="public-site">
+      <header className="site-header">
+        <a className="site-brand" href="#/"><span><img src={stLogoTransparent} alt="SF Torres" /></span><strong>SF TORRES</strong></a>
+        <nav>
+          <a href="#servicos">Servicos</a>
+          <a href="#operacao">Operacao</a>
+          <a href="#contato">Contato</a>
+          <a className="site-login-link" href="#/login">Acesso interno</a>
+        </nav>
+      </header>
+      <main>
+        <section className="site-hero" style={{ backgroundImage: `url(${publicHero})` }}>
+          <div className="site-hero-copy">
+            <span className="site-kicker">Logistica operacional em Manaus</span>
+            <h1>Precisao em carga, descarga e apoio logistico.</h1>
+            <p>Atuacao focada em movimentacao de mercadorias, conferencia, organizacao de estoque e suporte operacional para empresas que precisam de rotina confiavel no chao da operacao.</p>
+            <div className="site-hero-actions"><a className="btn btn-primary" href="#/trabalhe-conosco">Trabalhe conosco</a><a className="btn site-outline" href="#contato">Falar com a equipe</a></div>
+          </div>
+          <div className="site-hero-strip">{metrics.map(([value, label]) => <div key={value}><b>{value}</b><span>{label}</span></div>)}</div>
+        </section>
+
+        <section className="site-section site-services" id="servicos">
+          <div className="site-section-head"><span className="site-kicker">Servicos</span><h2>Operacao enxuta, controle claro e execucao constante.</h2></div>
+          <div className="site-service-grid">{services.map(([title, text], index) => <article key={title}><span>{String(index + 1).padStart(2, '0')}</span><h3>{title}</h3><p>{text}</p></article>)}</div>
+        </section>
+
+        <section className="site-band" id="operacao">
+          <div>
+            <span className="site-kicker">Metodo</span>
+            <h2>Presenca no detalhe da rotina.</h2>
+          </div>
+          <div className="site-process">
+            <div><b>Planejar</b><span>Alinhamento de equipe, local, demanda e janela operacional.</span></div>
+            <div><b>Executar</b><span>Movimentacao, descarga, conferencia e organizacao com foco em seguranca.</span></div>
+            <div><b>Controlar</b><span>Registros, acompanhamento e ajustes para manter a operacao previsivel.</span></div>
+          </div>
+        </section>
+
+        <section className="site-section site-contact" id="contato">
+          <div><span className="site-kicker">SF TORRES</span><h2>Base em Manaus, compromisso no atendimento.</h2><p>Empresa cadastrada em Manaus/AM com atividade principal vinculada a carga e descarga. Para oportunidades profissionais, use o canal Trabalhe Conosco.</p></div>
+          <div className="site-contact-card"><b>Contato</b><span>{settings.email || 'sosthenes.torres@gmail.com'}</span><span>{settings.phone || '(92) 99267-8067'}</span><a className="btn btn-primary" href="#/trabalhe-conosco">Ver vagas abertas</a></div>
+        </section>
+      </main>
+      <footer className="site-footer"><span>SF TORRES - Manaus/AM</span><a href="#/login">Acesso interno</a></footer>
     </div>
   );
 }
