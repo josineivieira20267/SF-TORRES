@@ -396,10 +396,8 @@ a:hover{text-decoration:underline}
 .action-menu{position:relative;display:inline-flex}
 .action-menu-trigger{font-weight:800;line-height:1}
 .action-menu-popover{
-  position:absolute;
-  bottom:calc(100% + 6px);
-  right:0;
-  z-index:35;
+  position:fixed;
+  z-index:90;
   min-width:170px;
   padding:5px;
   border:1px solid var(--c-border-strong);

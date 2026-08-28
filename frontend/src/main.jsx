@@ -687,24 +687,42 @@ function whatsappUrl(phone, message) {
 
 function ActionMenu({ actions = [] }) {
   const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState(null);
   const menuRef = useRef(null);
   const available = actions.filter(Boolean);
+  const updatePosition = () => {
+    const rect = menuRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const width = 180;
+    const height = Math.max(42, available.length * 34 + 10);
+    const gap = 6;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const top = spaceBelow >= height + gap ? rect.bottom + gap : Math.max(gap, rect.top - height - gap);
+    const left = Math.min(Math.max(gap, rect.right - width), window.innerWidth - width - gap);
+    setPosition({ top, left, width });
+  };
   useEffect(() => {
     if (!open) return undefined;
+    updatePosition();
     const closeOnOutside = (event) => {
       if (!menuRef.current?.contains(event.target)) setOpen(false);
     };
+    const reposition = () => updatePosition();
     document.addEventListener('mousedown', closeOnOutside);
     document.addEventListener('touchstart', closeOnOutside);
+    window.addEventListener('resize', reposition);
+    window.addEventListener('scroll', reposition, true);
     return () => {
       document.removeEventListener('mousedown', closeOnOutside);
       document.removeEventListener('touchstart', closeOnOutside);
+      window.removeEventListener('resize', reposition);
+      window.removeEventListener('scroll', reposition, true);
     };
   }, [open]);
   if (!available.length) return null;
   return <div className="action-menu" ref={menuRef}>
     <button type="button" className="btn btn-sm btn-icon-only action-menu-trigger" onClick={() => setOpen((value) => !value)} aria-label="Mais opcoes">...</button>
-    {open && <div className="action-menu-popover">
+    {open && <div className="action-menu-popover" style={position || undefined}>
       {available.map((action) => <button key={action.label} type="button" className={action.danger ? 'danger' : ''} disabled={action.disabled} onClick={() => { setOpen(false); action.onClick?.(); }}>{action.label}</button>)}
     </div>}
   </div>;
