@@ -847,7 +847,7 @@ function BusyOverlay() {
 }
 
 function App() {
-  const publicRoute = publicRouteFromHash();
+  const [publicRoute, setPublicRoute] = useState(publicRouteFromHash);
   const [authenticated, setAuthenticated] = useState(() => Boolean(localStorage.getItem('sfTorresToken')));
   const [route, setRoute] = useState(() => localStorage.getItem('sfTorresToken') ? cleanRoute(window.location.hash) : 'login');
   const [toast, setToast] = useState('');
@@ -860,6 +860,7 @@ function App() {
   useEffect(() => {
     const onHash = () => {
       const hasToken = Boolean(localStorage.getItem('sfTorresToken'));
+      setPublicRoute(publicRouteFromHash());
       setAuthenticated(hasToken);
       setRoute(hasToken ? cleanRoute(window.location.hash) : 'login');
     };
