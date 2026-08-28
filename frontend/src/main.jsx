@@ -1507,6 +1507,7 @@ function TalentBank({ notify, editable = true, mode = 'list' }) {
   const [formOpen, setFormOpen] = useState(mode === 'new');
   const [profileId, setProfileId] = useState('');
   const [editing, setEditing] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
   const load = (next = filters, offset = meta.offset || 0) => {
     const query = new URLSearchParams({ limit: String(meta.limit || 25), offset: String(offset), sort: next.sort, direction: next.direction });
     Object.entries(next).forEach(([key, value]) => {
@@ -1546,6 +1547,14 @@ function TalentBank({ notify, editable = true, mode = 'list' }) {
   const archive = (item) => {
     if (!confirm('Deseja realmente arquivar este candidato? O cadastro permanecera disponivel no historico.')) return;
     changeStatus(item, 'Arquivado');
+  };
+  const deleteCandidate = async (item) => {
+    if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
+    await withBusy(() => api(`/api/talents/${item.id}`, { method: 'DELETE' }));
+    setConfirmDelete(null);
+    setProfileId('');
+    notify('Candidato apagado');
+    load(filters, 0);
   };
   const exportRows = () => downloadCsv('banco-de-talentos.csv', [['Nome', 'Telefone', 'Cidade', 'Funcao de interesse', 'Ultima funcao', 'Escolaridade', 'Disponibilidade', 'Pretensao salarial', 'Status', 'Cadastro'], ...items.map((item) => [item.fullName, item.phone, item.city, item.desiredRole, item.lastRole, item.education, item.startAvailability, money(item.salaryExpectation), item.status, date(item.createdAt)])]);
   const page = Math.floor((meta.offset || 0) / (meta.limit || 25)) + 1;
@@ -1587,12 +1596,13 @@ function TalentBank({ notify, editable = true, mode = 'list' }) {
           <div className="talent-row-actions">
             <button className="btn btn-sm" onClick={() => setProfileId(item.id)}>Visualizar</button>
             {editable && <button className="btn btn-sm" onClick={() => { setEditing(item); setFormOpen(true); }}>Editar</button>}
-            {editable && <ActionMenu actions={[{ label: 'Alterar status', onClick: () => changeStatus(item) }, item.status !== 'Arquivado' && { label: 'Arquivar', danger: true, onClick: () => archive(item) }]} />}
+            {editable && <ActionMenu actions={[{ label: 'Alterar status', onClick: () => changeStatus(item) }, item.status !== 'Arquivado' && { label: 'Arquivar', danger: true, onClick: () => archive(item) }, { label: 'Apagar candidato', danger: true, onClick: () => setConfirmDelete(item) }]} />}
           </div>
         </div>)}</div> : <div className="empty-state"><b>Nenhum candidato encontrado</b><span>Nao encontramos candidatos utilizando os filtros selecionados.</span><button className="btn btn-sm" onClick={() => setFilters(baseFilters)}>Limpar filtros</button></div>}</div>
       </div>
       {formOpen && <TalentForm initial={editing ? talentToForm(editing) : talentInitialForm()} onCancel={() => { setFormOpen(false); setEditing(null); if (mode === 'new') window.location.hash = '#/talents'; }} onSave={save} />}
       {profileId && <TalentProfile id={profileId} onClose={() => setProfileId('')} onEdit={(candidate) => { setProfileId(''); setEditing(candidate); setFormOpen(true); }} onStatus={changeStatus} editable={editable} />}
+      {confirmDelete && <ConfirmModal title="Apagar candidato" text={`Deseja apagar o cadastro de ${confirmDelete.fullName}? Essa acao remove o candidato e o historico dele do Banco de Talentos.`} confirmLabel="Apagar candidato" danger onCancel={() => setConfirmDelete(null)} onConfirm={() => deleteCandidate(confirmDelete)} />}
     </>
   );
 }

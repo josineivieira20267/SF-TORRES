@@ -636,4 +636,15 @@ router.patch('/:id/status', requireTalent('edit'), async (req, res, next) => {
   }
 });
 
+router.delete('/:id', requireTalent('edit'), async (req, res, next) => {
+  try {
+    const candidate = await prisma.talentCandidate.findUnique({ where: { id: req.params.id } });
+    if (!candidate) return res.status(404).json({ error: { message: 'Candidato nao encontrado' } });
+    await prisma.talentCandidate.delete({ where: { id: req.params.id } });
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = router;
