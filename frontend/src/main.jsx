@@ -262,7 +262,7 @@ const crudConfigs = {
     panelTitle: 'Funcionários',
     toolbar: [
       ['Buscar', 'Nome, função, local...', 'input'],
-      ['Função', ['Todas', 'Auxiliar', 'Líder'], 'select'],
+      ['Função', ['Todas', 'AUXILIAR DE APOIO LOGISTICO', 'Líder'], 'select'],
       ['Local', ['Todos', 'SEMP TCL', 'ADF Logistica', 'Porto CSF', 'Patio 2', 'Patio 3'], 'select'],
       ['Turno', ['Todos', 'Manhã', 'Tarde', 'Noite', 'Administrativo'], 'select'],
       ['Status', ['Todos', 'Ativo', 'Férias', 'Afastado'], 'select']
@@ -276,7 +276,7 @@ const crudConfigs = {
     fields: [
       ['code', 'Código', 'text', null, null, true],
       ['name', 'Nome', 'personName', null, null, true],
-      ['role', 'Função', 'select', ['', 'Auxiliar', 'Líder'], null, true],
+      ['role', 'Função', 'select', ['', 'AUXILIAR DE APOIO LOGISTICO', 'Líder'], null, true],
       ['shift', 'Turno', 'uppercaseText'],
       ['location', 'Local', 'uppercaseText'],
       ['regime', 'Regime', 'select', ['', 'CLT', 'PJ', 'Temporário', 'Aprendiz', 'Estágio']],
