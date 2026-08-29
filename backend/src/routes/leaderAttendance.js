@@ -178,6 +178,24 @@ function summarizeRows(rows = []) {
   return Object.values(byName);
 }
 
+function includeAllEmployees(summary = [], employees = []) {
+  const byName = Object.fromEntries(summary.map((item) => [normalize(item.name), item]));
+  employees
+    .filter((employee) => employee.status === 'Ativo')
+    .forEach((employee) => {
+      const key = normalize(employee.name);
+      byName[key] = {
+        name: employee.name,
+        role: employee.role || '',
+        team: employee.team || '',
+        present: byName[key]?.present || 0,
+        absences: byName[key]?.absences || 0,
+        days: byName[key]?.days || []
+      };
+    });
+  return Object.values(byName).sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+}
+
 function mergeLegacySummary(summary, settings = [], from = '', to = '') {
   const byNameDate = {};
   summary.forEach((employee) => {
@@ -227,17 +245,19 @@ router.get('/summary', async (req, res, next) => {
 
     if (hasDatabaseUrl) {
       const where = from && to ? { date: { gte: from, lte: to } } : { date: { startsWith: `${month}-` } };
-      const [rows, settings] = await Promise.all([
+      const [rows, settings, employees] = await Promise.all([
         prisma.employeeAttendance.findMany({ where, orderBy: [{ date: 'asc' }, { employeeName: 'asc' }] }),
-        prisma.setting.findMany({ where: { key: { startsWith: prefix } } })
+        prisma.setting.findMany({ where: { key: { startsWith: prefix } } }),
+        prisma.employee.findMany({ where: { status: 'Ativo' }, orderBy: { name: 'asc' } })
       ]);
-      const employees = mergeLegacySummary(summarizeRows(rows), settings, from, to);
-      return res.json({ data: { month, from: from || null, to: to || null, employees } });
+      const monthlyEmployees = includeAllEmployees(mergeLegacySummary(summarizeRows(rows), settings, from, to), employees);
+      return res.json({ data: { month, from: from || null, to: to || null, employees: monthlyEmployees } });
     }
 
-    const settings = ((await readDb()).settings || []).filter((item) => String(item.key || '').startsWith(prefix));
-    const employees = mergeLegacySummary([], settings, from, to);
-    return res.json({ data: { month, from: from || null, to: to || null, employees } });
+    const db = await readDb();
+    const settings = (db.settings || []).filter((item) => String(item.key || '').startsWith(prefix));
+    const monthlyEmployees = includeAllEmployees(mergeLegacySummary([], settings, from, to), db.employees || []);
+    return res.json({ data: { month, from: from || null, to: to || null, employees: monthlyEmployees } });
   } catch (error) {
     return next(error);
   }

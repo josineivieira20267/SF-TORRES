@@ -2572,6 +2572,7 @@ function LeaderAttendance({ notify, editable = true }) {
   const [payload, setPayload] = useState(null);
   const [monthlySummary, setMonthlySummary] = useState({ employees: [] });
   const [selectedEmployee, setSelectedEmployee] = useState('');
+  const [monthlyQuery, setMonthlyQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
   const load = (date = dateValue, q = query) => {
@@ -2608,13 +2609,26 @@ function LeaderAttendance({ notify, editable = true }) {
   });
   const monthlyEmployees = [...(monthlySummary.employees || [])].sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
   const monthlySelected = selectedEmployee ? monthlyEmployees.find((item) => item.name === selectedEmployee) || null : null;
-  const selectedDays = [...(monthlySelected?.days || [])].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+  const daysInSelectedMonth = (() => {
+    const [year, month] = String(monthValue || currentMonthValue()).split('-').map(Number);
+    const total = new Date(year, month, 0).getDate();
+    return Array.from({ length: total }, (_, index) => `${year}-${String(month).padStart(2, '0')}-${String(index + 1).padStart(2, '0')}`);
+  })();
+  const selectedDayMap = Object.fromEntries([...(monthlySelected?.days || [])].map((item) => [item.date, item]));
+  const selectedDays = monthlySelected ? daysInSelectedMonth.map((day) => selectedDayMap[day] || { date: day, status: 'Sem marcação', note: '' }) : [];
   const selectedAbsences = selectedDays.filter((item) => normalize(item.status) === 'falta');
   const monthlyRows = selectedDays.map((item) => [
     date(item.date),
-    <Pill value={item.status} />,
+    normalize(item.status) === 'sem marcacao' ? <span className="soft">Sem marcação</span> : <Pill value={item.status} />,
     item.note || '-'
   ]);
+  const monthlyMatches = monthlyQuery.trim()
+    ? monthlyEmployees.filter((item) => normalize(`${item.name} ${item.role} ${item.team}`).includes(normalize(monthlyQuery))).slice(0, 8)
+    : monthlyEmployees.slice(0, 8);
+  const selectMonthlyEmployee = (item) => {
+    setSelectedEmployee(item.name);
+    setMonthlyQuery(item.name);
+  };
   const updateEmployee = (name, patch) => setPayload((old) => ({
     ...old,
     employees: (old?.employees || []).map((item) => item.name === name ? { ...item, ...patch } : item)
@@ -2705,20 +2719,34 @@ function LeaderAttendance({ notify, editable = true }) {
       {!leaderProfile && (
         <Panel title="Folha de ponto mensal" actions={<Pill value={monthValue} />} padded>
           <div className="monthly-point-toolbar">
-            <div className="filter"><label>Mês</label><input type="month" value={monthValue} onChange={(event) => { setMonthValue(event.target.value || currentMonthValue()); setSelectedEmployee(''); }} /></div>
-            <div className="filter grow"><label>Colaborador</label><select value={selectedEmployee} onChange={(event) => setSelectedEmployee(event.target.value)} disabled={monthlyLoading || !monthlyEmployees.length}><option value="">Selecione um colaborador</option>{monthlyEmployees.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}</select></div>
+            <div className="filter"><label>Mês</label><input type="month" value={monthValue} onChange={(event) => { setMonthValue(event.target.value || currentMonthValue()); setSelectedEmployee(''); setMonthlyQuery(''); }} /></div>
+            <div className="filter grow monthly-search"><label>Pesquisar colaborador</label><input value={monthlyQuery} onChange={(event) => { setMonthlyQuery(event.target.value); setSelectedEmployee(''); }} placeholder="Digite o nome, função ou equipe..." disabled={monthlyLoading || !monthlyEmployees.length} /></div>
             <div className="monthly-point-summary"><span>Presentes</span><b>{monthlySelected?.present || 0}</b></div>
             <div className="monthly-point-summary danger"><span>Faltas</span><b>{monthlySelected?.absences || 0}</b></div>
           </div>
+          {!monthlyLoading && !monthlySelected && monthlyEmployees.length > 0 && (
+            <div className="monthly-search-results">
+              {monthlyMatches.map((item) => (
+                <button type="button" key={item.name} onClick={() => selectMonthlyEmployee(item)}>
+                  <b>{item.name}</b>
+                  <span>{[item.role, item.team].filter(Boolean).join(' · ') || 'Colaborador ativo'} · {item.present || 0} pres. · {item.absences || 0} faltas</span>
+                </button>
+              ))}
+            </div>
+          )}
           {monthlyLoading ? <LoadingBlock /> : monthlySelected ? (
             <>
+              <div className="monthly-point-identity">
+                <div><b>{monthlySelected.name}</b><span>{[monthlySelected.role, monthlySelected.team].filter(Boolean).join(' · ') || 'Colaborador ativo'}</span></div>
+                <span>{selectedDays.length} dias no mês</span>
+              </div>
               <div className="monthly-absence-list">
                 <b>Datas com falta</b>
                 <span>{selectedAbsences.length ? selectedAbsences.map((item) => date(item.date)).join(', ') : 'Nenhuma falta no mês selecionado.'}</span>
               </div>
               <DataTable columns={['Data', 'Status', 'Observação']} rows={monthlyRows} />
             </>
-          ) : <div className="empty-chart">{monthlyEmployees.length ? 'Selecione um colaborador para ver a folha mensal.' : 'Nenhuma marcação encontrada para este mês.'}</div>}
+          ) : <div className="empty-chart">{monthlyEmployees.length ? 'Pesquise um colaborador para abrir a folha mensal.' : 'Nenhum colaborador ativo encontrado.'}</div>}
         </Panel>
       )}
       <div className="leader-filter-tabs">
