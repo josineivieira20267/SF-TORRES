@@ -255,40 +255,38 @@ const crudConfigs = {
   },
   employees: {
     title: 'Funcionários',
-    subtitle: 'Cadastro de colaboradores, funções, documentos e vínculo com equipes.',
+    subtitle: 'Cadastro de colaboradores, funções, turnos, locais e regime de contratação.',
     endpoint: '/api/employees',
     newLabel: 'Novo funcionário',
-    ghostLabel: 'Importar CSV',
+    ghostLabel: 'Importar Excel',
     panelTitle: 'Funcionários',
     toolbar: [
-      ['Buscar', 'Nome, CPF, função...', 'input'],
+      ['Buscar', 'Nome, função, local...', 'input'],
       ['Função', ['Todas', 'Auxiliar', 'Líder'], 'select'],
-      ['Equipe', ['Todas', 'Equipe PA', 'Conferente', 'Apoio', 'Batedor'], 'select'],
       ['Local', ['Todos', 'SEMP TCL', 'ADF Logistica', 'Porto CSF', 'Patio 2', 'Patio 3'], 'select'],
       ['Turno', ['Todos', 'Manhã', 'Tarde', 'Noite', 'Administrativo'], 'select'],
       ['Status', ['Todos', 'Ativo', 'Férias', 'Afastado'], 'select']
     ],
     columns: [
-      { label: '#', key: 'code', mono: true }, { label: 'Nome', key: 'name' }, { label: 'CPF', key: 'cpf', mono: true },
-      { label: 'Função', key: 'role' }, { label: 'Equipe', key: 'team' },
-      { label: 'Local', key: 'location' }, { label: 'Turno', key: 'shift' },
+      { label: '#', key: 'code', mono: true }, { label: 'Nome', key: 'name' },
+      { label: 'Função', key: 'role' }, { label: 'Turno', key: 'shift' },
+      { label: 'Local', key: 'location' }, { label: 'Regime', key: 'regime' },
       { label: 'Admissão', render: (i) => date(i.admissionDate) }, { label: 'Status', render: (i) => <Pill value={i.status} /> }
     ],
     fields: [
       ['code', 'Código', 'text', null, null, true],
       ['name', 'Nome', 'personName', null, null, true],
-      ['cpf', 'CPF', 'cpf', null, null, true],
       ['role', 'Função', 'select', ['', 'Auxiliar', 'Líder'], null, true],
-      ['team', 'Equipe', 'select', ['', 'Equipe PA', 'Conferente', 'Apoio', 'Batedor'], null, true],
-      ['location', 'Local', 'uppercaseText'],
       ['shift', 'Turno', 'uppercaseText'],
+      ['location', 'Local', 'uppercaseText'],
+      ['regime', 'Regime', 'select', ['', 'CLT', 'PJ', 'Temporário', 'Aprendiz', 'Estágio']],
       ['admissionDate', 'Admissão', 'date', null, null, true],
       ['status', 'Status', 'select', ['', 'Ativo', 'Férias', 'Afastado', 'Cadastro'], null, true]
     ],
+    importRows: employeeRowsFromSpreadsheet,
     beforeSave: (data) => ({
       ...data,
       name: formatPersonName(data.name),
-      cpf: formatCpf(data.cpf),
       role: normalize(data.role).includes('lider') ? 'Líder' : data.role
     })
   },
@@ -588,6 +586,186 @@ function downloadWorkbook(filename, sheets) {
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function splitCsvLine(line, delimiter) {
+  const cells = [];
+  let value = '';
+  let quoted = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const next = line[index + 1];
+    if (char === '"' && quoted && next === '"') {
+      value += '"';
+      index += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === delimiter && !quoted) {
+      cells.push(value.trim());
+      value = '';
+    } else {
+      value += char;
+    }
+  }
+  cells.push(value.trim());
+  return cells;
+}
+
+function parseDelimitedRows(text) {
+  const lines = String(text || '').replace(/^\ufeff/, '').split(/\r?\n/).filter((line) => line.trim());
+  const first = lines[0] || '';
+  const delimiter = [';', '\t', ','].sort((a, b) => first.split(b).length - first.split(a).length)[0];
+  return lines.map((line) => splitCsvLine(line, delimiter));
+}
+
+function parseXmlSpreadsheetRows(text) {
+  const doc = new DOMParser().parseFromString(text, 'application/xml');
+  const rows = Array.from(doc.getElementsByTagNameNS('*', 'Row'));
+  return rows.map((row) => Array.from(row.getElementsByTagNameNS('*', 'Cell')).map((cell) => {
+    const data = cell.getElementsByTagNameNS('*', 'Data')[0];
+    return data?.textContent?.trim() || '';
+  })).filter((row) => row.some(Boolean));
+}
+
+function uint32(view, offset) {
+  return view.getUint32(offset, true);
+}
+
+function uint16(view, offset) {
+  return view.getUint16(offset, true);
+}
+
+async function inflateRaw(data) {
+  if (!('DecompressionStream' in window)) throw new Error('Este navegador nao conseguiu abrir XLSX. Salve como CSV ou XLS.');
+  const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function unzipXlsx(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const view = new DataView(buffer);
+  let eocd = -1;
+  for (let offset = bytes.length - 22; offset >= 0; offset -= 1) {
+    if (uint32(view, offset) === 0x06054b50) {
+      eocd = offset;
+      break;
+    }
+  }
+  if (eocd < 0) throw new Error('Arquivo XLSX invalido.');
+  const centralOffset = uint32(view, eocd + 16);
+  const totalEntries = uint16(view, eocd + 10);
+  const files = {};
+  let pointer = centralOffset;
+  for (let entry = 0; entry < totalEntries; entry += 1) {
+    if (uint32(view, pointer) !== 0x02014b50) break;
+    const method = uint16(view, pointer + 10);
+    const compressedSize = uint32(view, pointer + 20);
+    const nameLength = uint16(view, pointer + 28);
+    const extraLength = uint16(view, pointer + 30);
+    const commentLength = uint16(view, pointer + 32);
+    const localOffset = uint32(view, pointer + 42);
+    const name = new TextDecoder().decode(bytes.slice(pointer + 46, pointer + 46 + nameLength));
+    const localNameLength = uint16(view, localOffset + 26);
+    const localExtraLength = uint16(view, localOffset + 28);
+    const dataStart = localOffset + 30 + localNameLength + localExtraLength;
+    const compressed = bytes.slice(dataStart, dataStart + compressedSize);
+    files[name] = method === 8 ? await inflateRaw(compressed) : compressed;
+    pointer += 46 + nameLength + extraLength + commentLength;
+  }
+  return files;
+}
+
+function parseSharedStrings(xml) {
+  if (!xml) return [];
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  return Array.from(doc.getElementsByTagNameNS('*', 'si')).map((item) =>
+    Array.from(item.getElementsByTagNameNS('*', 't')).map((node) => node.textContent || '').join('').trim()
+  );
+}
+
+function cellColumnIndex(ref) {
+  const letters = String(ref || '').match(/[A-Z]+/i)?.[0] || 'A';
+  return letters.toUpperCase().split('').reduce((sum, letter) => sum * 26 + letter.charCodeAt(0) - 64, 0) - 1;
+}
+
+function parseSheetRows(xml, sharedStrings = []) {
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  return Array.from(doc.getElementsByTagNameNS('*', 'row')).map((row) => {
+    const values = [];
+    Array.from(row.getElementsByTagNameNS('*', 'c')).forEach((cell) => {
+      const type = cell.getAttribute('t');
+      const index = cellColumnIndex(cell.getAttribute('r'));
+      const inline = cell.getElementsByTagNameNS('*', 't')[0]?.textContent;
+      const raw = cell.getElementsByTagNameNS('*', 'v')[0]?.textContent || inline || '';
+      values[index] = type === 's' ? sharedStrings[Number(raw)] || '' : raw;
+    });
+    return values.map((value) => String(value || '').trim());
+  }).filter((row) => row.some(Boolean));
+}
+
+async function readSpreadsheetRows(file) {
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.xlsx')) {
+    const files = await unzipXlsx(await file.arrayBuffer());
+    const decoder = new TextDecoder();
+    const sharedStrings = parseSharedStrings(files['xl/sharedStrings.xml'] ? decoder.decode(files['xl/sharedStrings.xml']) : '');
+    const sheetName = Object.keys(files).find((key) => /^xl\/worksheets\/sheet\d+\.xml$/i.test(key));
+    if (!sheetName) throw new Error('Nenhuma aba encontrada no XLSX.');
+    return parseSheetRows(decoder.decode(files[sheetName]), sharedStrings);
+  }
+  const text = await file.text();
+  if (name.endsWith('.xls') || text.trim().startsWith('<?xml')) return parseXmlSpreadsheetRows(text);
+  return parseDelimitedRows(text);
+}
+
+function spreadsheetDate(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  const br = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (br) return `${br[3]}-${br[2].padStart(2, '0')}-${br[1].padStart(2, '0')}`;
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
+  if (/^\d+(\.\d+)?$/.test(text)) {
+    const dateValue = new Date(Math.round((Number(text) - 25569) * 86400 * 1000));
+    if (!Number.isNaN(dateValue.getTime())) return dateValue.toISOString().slice(0, 10);
+  }
+  return text;
+}
+
+function employeeRowsFromSpreadsheet(rows) {
+  const headerIndex = rows.findIndex((row) => row.some((cell) => ['nome', 'funcao', 'função'].includes(normalize(cell))));
+  if (headerIndex < 0) return [];
+  const headers = rows[headerIndex].map((cell) => normalize(cell).replace(/[^a-z0-9#]/g, ''));
+  const keyFor = (header) => ({
+    '#': 'code',
+    codigo: 'code',
+    cod: 'code',
+    nome: 'name',
+    funcao: 'role',
+    turno: 'shift',
+    local: 'location',
+    regime: 'regime',
+    admissao: 'admissionDate',
+    dataadmissao: 'admissionDate',
+    status: 'status'
+  })[header];
+  return rows.slice(headerIndex + 1).map((row) => {
+    const item = {};
+    headers.forEach((header, index) => {
+      const key = keyFor(header);
+      if (!key) return;
+      item[key] = String(row[index] || '').trim();
+    });
+    return {
+      code: item.code,
+      name: formatPersonName(item.name),
+      role: item.role,
+      shift: item.shift,
+      location: item.location,
+      regime: item.regime,
+      admissionDate: spreadsheetDate(item.admissionDate),
+      status: item.status || 'Ativo'
+    };
+  }).filter((item) => item.name);
 }
 
 function readStoredSettings() {
@@ -3078,6 +3256,7 @@ function CrudScreen({ config, notify, beforeTable, editable = true }) {
   const [q, setQ] = useState('');
   const [toolbarFilters, setToolbarFilters] = useState({});
   const [modal, setModal] = useState(null);
+  const importInputRef = useRef(null);
   const load = () => {
     const separator = config.endpoint.includes('?') ? '&' : '?';
     setLoading(true);
@@ -3099,15 +3278,45 @@ function CrudScreen({ config, notify, beforeTable, editable = true }) {
     await withBusy(() => api(modal?.id ? `${config.endpoint}/${modal.id}` : config.endpoint, { method: modal?.id ? 'PUT' : 'POST', body: JSON.stringify(payload) }));
     setModal(null); notify('Registro salvo'); load();
   };
+  const importFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !config.importRows) return;
+    if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
+    try {
+      const rows = await readSpreadsheetRows(file);
+      const records = config.importRows(rows);
+      if (!records.length) return notify('Nenhum colaborador encontrado na planilha');
+      const byCode = Object.fromEntries(items.filter((item) => item.code).map((item) => [normalize(item.code), item]));
+      const byName = Object.fromEntries(items.filter((item) => item.name).map((item) => [normalize(item.name), item]));
+      let created = 0;
+      let updated = 0;
+      await withBusy(async () => {
+        for (const record of records) {
+          const payload = config.beforeSave ? config.beforeSave(record) : record;
+          const existing = byCode[normalize(payload.code)] || byName[normalize(payload.name)];
+          await api(existing ? `${config.endpoint}/${existing.id}` : config.endpoint, { method: existing ? 'PUT' : 'POST', body: JSON.stringify(payload) });
+          if (existing) updated += 1;
+          else created += 1;
+        }
+      });
+      notify(`Importacao concluida: ${created} novos, ${updated} atualizados`);
+      load();
+    } catch (error) {
+      notify(error.message || 'Falha ao importar planilha');
+    }
+  };
   const remove = async (item) => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     if (!confirm('Apagar este registro?')) return;
     await withBusy(() => api(`${config.endpoint}/${item.id}`, { method: 'DELETE' }));
     notify('Registro apagado'); load();
   };
+  const ghostAction = config.importRows ? () => importInputRef.current?.click() : undefined;
   return (
     <>
-      <PageHead title={config.title} subtitle={config.subtitle} ghostAction={config.ghostLabel} action={editable ? config.newLabel : null} onAction={() => setModal({})} />
+      <PageHead title={config.title} subtitle={config.subtitle} ghostAction={config.ghostLabel} onGhostAction={ghostAction} action={editable ? config.newLabel : null} onAction={() => setModal({})} />
+      {config.importRows && <input ref={importInputRef} type="file" accept=".xlsx,.xls,.csv,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden onChange={importFile} />}
       {config.toolbar && <Toolbar fields={config.toolbar} count={displayItems.length} values={toolbarFilters} onChange={setToolbarFilters} />}
       {!config.noToolbar && !config.toolbar && <div className="toolbar"><div className="filter"><label>Buscar</label><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar..." /></div><span className="spacer" /><span className="soft">{displayItems.length} registros</span></div>}
       {beforeTable}

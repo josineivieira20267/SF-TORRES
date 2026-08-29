@@ -131,7 +131,7 @@ async function prepareServiceCreate(data) {
 
 const resources = {
   clients: createController('clients', ['name', 'legalName', 'cnpj', 'contact', 'city', 'status'], 'client'),
-  employees: createController('employees', ['name', 'cpf', 'role', 'team', 'location', 'shift', 'status'], 'employee'),
+  employees: createController('employees', ['name', 'role', 'location', 'shift', 'regime', 'status'], 'employee'),
   services: createController('services', ['code', 'description', 'category'], 'service', { prepareCreate: prepareServiceCreate }),
   equipment: createController('equipment', ['code', 'type', 'model', 'status'], 'equipment'),
   locations: createController('locations', ['code', 'description', 'client', 'address', 'status'], 'location'),

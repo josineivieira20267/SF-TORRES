@@ -46,6 +46,7 @@ model Employee {
   team          String?
   location      String?
   shift         String?
+  regime        String?
   admissionDate String?
   status        String @default("Ativo")
   createdAt     DateTime @default(now())
