@@ -8,11 +8,11 @@ datasource db {
 }
 
 model User {
-  id           String @id @default(cuid())
+  id           String   @id @default(cuid())
   name         String
-  email        String @unique
+  email        String   @unique
   role         String
-  status       String @default("Ativo")
+  status       String   @default("Ativo")
   permissions  Json?
   displayRole  String?
   profilePhoto String?
@@ -22,7 +22,7 @@ model User {
 }
 
 model Client {
-  id           String @id @default(cuid())
+  id           String   @id @default(cuid())
   name         String
   legalName    String?
   cnpj         String?
@@ -31,14 +31,14 @@ model Client {
   city         String?
   state        String?
   contract     String?
-  monthRevenue Float  @default(0)
-  status       String @default("Ativo")
+  monthRevenue Float    @default(0)
+  status       String   @default("Ativo")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
 
 model Employee {
-  id            String @id @default(cuid())
+  id            String   @id @default(cuid())
   code          String?
   name          String
   cpf           String?
@@ -48,101 +48,151 @@ model Employee {
   shift         String?
   regime        String?
   admissionDate String?
-  status        String @default("Ativo")
+  status        String   @default("Ativo")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  attendances EmployeeAttendance[]
+  corrections AttendanceCorrection[]
+}
+
+model EmployeeAttendance {
+  id           String   @id @default(cuid())
+  employeeId   String?
+  employeeName String
+  date         String
+  status       String
+  note         String?
+  markedById   String?
+  markedByName String?
+  markedByRole String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  employee Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+
+  @@unique([date, employeeName])
+  @@index([date])
+  @@index([employeeId])
+  @@index([employeeName])
+  @@index([status])
+}
+
+model AttendanceCorrection {
+  id              String    @id @default(cuid())
+  employeeId      String?
+  employeeName    String
+  date            String
+  status          String    @default("Pendente")
+  currentStatus   String?
+  requestedById   String?
+  requestedByName String?
+  requestedAt     DateTime  @default(now())
+  approvedById    String?
+  approvedByName  String?
+  approvedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  employee Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+
+  @@unique([date, employeeName])
+  @@index([date])
+  @@index([employeeId])
+  @@index([employeeName])
+  @@index([status])
 }
 
 model Service {
-  id          String @id @default(cuid())
+  id          String   @id @default(cuid())
   code        String?
   description String
   unit        String?
-  price       Float  @default(0)
+  price       Float    @default(0)
   category    String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
 
 model Equipment {
-  id              String @id @default(cuid())
+  id              String   @id @default(cuid())
   code            String
   type            String?
   model           String?
   capacity        String?
   lastMaintenance String?
-  status          String @default("Disponivel")
+  status          String   @default("Disponivel")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
 
 model Location {
-  id          String @id @default(cuid())
+  id          String   @id @default(cuid())
   code        String?
   description String
   client      String?
   address     String?
-  areaM2      Float  @default(0)
-  status      String @default("Operacional")
+  areaM2      Float    @default(0)
+  status      String   @default("Operacional")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
 
 model WorkOrder {
-  id          String @id @default(cuid())
-  number      String
-  client      String
-  equipment   String?
-  containerNumber String?
-  trailerPlate String?
-  status      String @default("Rascunho")
-  date        String?
-  carrier     String?
-  service     String?
-  location    String?
-  responsible String?
-  product     String?
-  teamMembers Json?
-  teamRoles   Json?
-  attendance  Json?
-  teamNote    String?
-  operationStart String?
-  operationEnd   String?
-  correctionRequested Boolean @default(false)
-  correctionApproved  Boolean @default(false)
-  progress    Float  @default(0)
-  priority    String @default("Normal")
-  createdBy   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  number              String
+  client              String
+  equipment           String?
+  containerNumber     String?
+  trailerPlate        String?
+  status              String   @default("Rascunho")
+  date                String?
+  carrier             String?
+  service             String?
+  location            String?
+  responsible         String?
+  product             String?
+  teamMembers         Json?
+  teamRoles           Json?
+  attendance          Json?
+  teamNote            String?
+  operationStart      String?
+  operationEnd        String?
+  correctionRequested Boolean  @default(false)
+  correctionApproved  Boolean  @default(false)
+  progress            Float    @default(0)
+  priority            String   @default("Normal")
+  createdBy           String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }
 
 model Measurement {
-  id        String @id @default(cuid())
+  id        String   @id @default(cuid())
   number    String
   client    String
   workOrder String?
   period    String?
-  quantity  Float  @default(0)
-  unitPrice Float  @default(0)
-  total     Float  @default(0)
-  status    String @default("Pendente")
+  quantity  Float    @default(0)
+  unitPrice Float    @default(0)
+  total     Float    @default(0)
+  status    String   @default("Pendente")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Occurrence {
-  id          String @id @default(cuid())
+  id          String   @id @default(cuid())
   workOrder   String?
   type        String?
   description String
-  status      String @default("Em analise")
+  status      String   @default("Em analise")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
 
 model Schedule {
-  id        String @id @default(cuid())
+  id        String   @id @default(cuid())
   employee  String
   role      String?
   weekStart String
@@ -154,21 +204,21 @@ model Schedule {
   friday    String?
   saturday  String?
   sunday    String?
-  status    String @default("Programada")
+  status    String   @default("Programada")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Setting {
-  id        String @id @default(cuid())
-  key       String @unique
+  id        String   @id @default(cuid())
+  key       String   @unique
   value     Json
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model AuditLog {
-  id        String @id @default(cuid())
+  id        String   @id @default(cuid())
   userId    String?
   action    String
   entity    String
@@ -178,44 +228,44 @@ model AuditLog {
 }
 
 model TalentCandidate {
-  id                    String   @id @default(cuid())
-  fullName              String
-  cpf                   String?  @unique
-  rg                    String?
-  birthDate             String?
-  phone                 String?
-  email                 String?
-  zipCode               String?
-  street                String?
-  number                String?
-  complement            String?
-  district              String?
-  city                  String?
-  state                 String?
-  education             String?
-  courses               Json?
-  experiences           Json?
-  lastRole              String?
-  desiredRole           String?
-  startAvailability     String?
-  scheduleAvailability  Json?
-  salaryExpectation     Float?
-  hasCnh                Boolean  @default(false)
-  cnhCategory           String?
-  cnhNumber             String?
-  cnhExpiration         String?
-  resume                Json?
-  internalNotes         String?
-  status                String   @default("Novo cadastro")
-  relatedCompany        String   @default("Banco Geral")
-  consentStorage        Boolean  @default(false)
-  consentDate           String?
-  consentOrigin         String?
-  source                String?
-  registeredBy          String?
-  archivedAt            DateTime?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                   String    @id @default(cuid())
+  fullName             String
+  cpf                  String?   @unique
+  rg                   String?
+  birthDate            String?
+  phone                String?
+  email                String?
+  zipCode              String?
+  street               String?
+  number               String?
+  complement           String?
+  district             String?
+  city                 String?
+  state                String?
+  education            String?
+  courses              Json?
+  experiences          Json?
+  lastRole             String?
+  desiredRole          String?
+  startAvailability    String?
+  scheduleAvailability Json?
+  salaryExpectation    Float?
+  hasCnh               Boolean   @default(false)
+  cnhCategory          String?
+  cnhNumber            String?
+  cnhExpiration        String?
+  resume               Json?
+  internalNotes        String?
+  status               String    @default("Novo cadastro")
+  relatedCompany       String    @default("Banco Geral")
+  consentStorage       Boolean   @default(false)
+  consentDate          String?
+  consentOrigin        String?
+  source               String?
+  registeredBy         String?
+  archivedAt           DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   history TalentCandidateHistory[]
 
@@ -245,24 +295,24 @@ model TalentCandidateHistory {
 }
 
 model TalentJob {
-  id              String   @id @default(cuid())
-  title           String
-  department      String?
-  location        String?
-  companyUnit     String   @default("SF TORRES")
-  contractType    String?
-  workMode        String?
-  summary         String?
+  id               String    @id @default(cuid())
+  title            String
+  department       String?
+  location         String?
+  companyUnit      String    @default("SF TORRES")
+  contractType     String?
+  workMode         String?
+  summary          String?
   responsibilities Json?
-  requirements    Json?
-  benefits        Json?
-  salaryRange     String?
-  status          String   @default("Rascunho")
-  publishedAt     DateTime?
-  expiresAt       String?
-  createdBy       String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  requirements     Json?
+  benefits         Json?
+  salaryRange      String?
+  status           String    @default("Rascunho")
+  publishedAt      DateTime?
+  expiresAt        String?
+  createdBy        String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   applications TalentApplication[]
 
@@ -272,32 +322,32 @@ model TalentJob {
 }
 
 model TalentApplication {
-  id                  String   @id @default(cuid())
-  jobId               String
-  fullName            String
-  cpf                 String?
-  email               String
-  phone               String?
-  city                String?
-  state               String?
-  education           String?
-  experienceYears     String?
-  lastRole            String?
-  desiredSalary       Float?
-  availableStartDate  String?
-  linkedinUrl         String?
-  portfolioUrl        String?
-  resume              Json?
-  coverLetter         String?
-  source              String?
-  consentStorage      Boolean  @default(false)
-  status              String   @default("Nova")
-  internalNotes       String?
+  id                   String    @id @default(cuid())
+  jobId                String
+  fullName             String
+  cpf                  String?
+  email                String
+  phone                String?
+  city                 String?
+  state                String?
+  education            String?
+  experienceYears      String?
+  lastRole             String?
+  desiredSalary        Float?
+  availableStartDate   String?
+  linkedinUrl          String?
+  portfolioUrl         String?
+  resume               Json?
+  coverLetter          String?
+  source               String?
+  consentStorage       Boolean   @default(false)
+  status               String    @default("Nova")
+  internalNotes        String?
   convertedCandidateId String?
-  reviewedBy          String?
-  reviewedAt          DateTime?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  reviewedBy           String?
+  reviewedAt           DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   job TalentJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
 

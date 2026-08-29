@@ -84,6 +84,43 @@ async function readSavedAttendance(key) {
   return (db.settings || []).find((item) => item.key === key)?.value || null;
 }
 
+function attendanceObject(rows = []) {
+  return rows.reduce((acc, row) => {
+    acc[row.employeeName] = { status: row.status || '', note: row.note || '' };
+    return acc;
+  }, {});
+}
+
+function correctionObject(rows = []) {
+  return rows.reduce((acc, row) => {
+    if (row.status === 'Cancelada') return acc;
+    acc[row.employeeName] = {
+      status: row.status,
+      currentStatus: row.currentStatus || '',
+      requestedBy: { id: row.requestedById || '', name: row.requestedByName || '' },
+      requestedAt: row.requestedAt,
+      approvedBy: { id: row.approvedById || '', name: row.approvedByName || '' },
+      approvedAt: row.approvedAt
+    };
+    return acc;
+  }, {});
+}
+
+async function readAttendanceDay(user, date) {
+  const legacy = await readSavedAttendance(attendanceKey(date)) || await readSavedAttendance(legacyAttendanceKey(user, date)) || {};
+  if (!hasDatabaseUrl) return legacy;
+  const [attendanceRows, correctionRows] = await Promise.all([
+    prisma.employeeAttendance.findMany({ where: { date } }),
+    prisma.attendanceCorrection.findMany({ where: { date, status: { not: 'Cancelada' } } })
+  ]);
+  return {
+    date,
+    updatedBy: legacy.updatedBy || null,
+    attendance: { ...(legacy.attendance || {}), ...attendanceObject(attendanceRows) },
+    correctionRequests: { ...(legacy.correctionRequests || {}), ...correctionObject(correctionRows) }
+  };
+}
+
 async function readActiveEmployees(query = '', savedAttendance = {}, showAll = false) {
   const needle = normalize(query).trim();
   const savedNames = new Set(Object.keys(savedAttendance));
@@ -113,15 +150,12 @@ async function readActiveEmployees(query = '', savedAttendance = {}, showAll = f
     .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
 }
 
-async function saveAttendanceValue(key, value) {
-  if (hasDatabaseUrl) {
-    await prisma.setting.upsert({
-      where: { key },
-      update: { value },
-      create: { key, value }
-    });
-    return;
-  }
+async function findEmployeeByName(name) {
+  if (!hasDatabaseUrl) return null;
+  return prisma.employee.findFirst({ where: { name: { equals: name, mode: 'insensitive' } } });
+}
+
+async function saveLegacyAttendanceValue(key, value) {
   await updateDb((db) => {
     db.settings = db.settings || [];
     const index = db.settings.findIndex((item) => item.key === key);
@@ -131,12 +165,53 @@ async function saveAttendanceValue(key, value) {
   });
 }
 
+function summarizeRows(rows = []) {
+  const byName = {};
+  rows.forEach((row) => {
+    const status = normalize(row.status);
+    if (status !== 'presente' && status !== 'falta') return;
+    byName[row.employeeName] = byName[row.employeeName] || { name: row.employeeName, present: 0, absences: 0, days: [] };
+    if (status === 'presente') byName[row.employeeName].present += 1;
+    if (status === 'falta') byName[row.employeeName].absences += 1;
+    byName[row.employeeName].days.push({ date: row.date, status: row.status, note: row.note || '' });
+  });
+  return Object.values(byName);
+}
+
+function mergeLegacySummary(summary, settings = [], from = '', to = '') {
+  const byNameDate = {};
+  summary.forEach((employee) => {
+    employee.days.forEach((day) => {
+      byNameDate[`${normalize(employee.name)}:${day.date}`] = { name: employee.name, ...day };
+    });
+  });
+  settings.filter((setting) => {
+    if (!from || !to) return true;
+    const date = String(setting.key || '').replace('leaderAttendance:', '').slice(0, 10);
+    return date >= from && date <= to;
+  }).forEach((setting) => {
+    const date = String(setting.key || '').replace('leaderAttendance:', '').slice(0, 10);
+    Object.entries(setting.value?.attendance || {}).forEach(([name, item]) => {
+      const status = item?.status || item;
+      const normalized = normalize(status);
+      if (normalized !== 'presente' && normalized !== 'falta') return;
+      const key = `${normalize(name)}:${date}`;
+      if (!byNameDate[key]) byNameDate[key] = { name, date, status, note: item?.note || '' };
+    });
+  });
+  return summarizeRows(Object.values(byNameDate).map((item) => ({
+    employeeName: item.name,
+    date: item.date,
+    status: item.status,
+    note: item.note
+  })));
+}
+
 router.get('/', async (req, res, next) => {
   try {
     const date = sanitizeDate(req.query.date);
-    const saved = await readSavedAttendance(attendanceKey(date)) || await readSavedAttendance(legacyAttendanceKey(req.user, date));
+    const saved = await readAttendanceDay(req.user, date);
     const employees = await readActiveEmployees(req.query.q || '', saved?.attendance || {}, !isLeader(req.user));
-
     return res.json({ data: shapePayload({ user: req.user, date, employees, saved }) });
   } catch (error) {
     return next(error);
@@ -149,37 +224,20 @@ router.get('/summary', async (req, res, next) => {
     const from = String(req.query.from || '').slice(0, 10);
     const to = String(req.query.to || '').slice(0, 10);
     const prefix = from && to ? 'leaderAttendance:' : `leaderAttendance:${month}-`;
-    const settings = hasDatabaseUrl
-      ? await prisma.setting.findMany({ where: { key: { startsWith: prefix } } })
-      : ((await readDb()).settings || []).filter((item) => String(item.key || '').startsWith(prefix));
-    const byName = {};
-    const byNameDate = {};
-    settings.filter((setting) => {
-      if (!from || !to) return true;
-      const date = String(setting.key || '').replace('leaderAttendance:', '').slice(0, 10);
-      return date >= from && date <= to;
-    }).forEach((setting) => {
-      const date = String(setting.key || '').replace('leaderAttendance:', '').slice(0, 10);
-      const canonical = String(setting.key || '') === attendanceKey(date);
-      const updatedAt = String(setting.value?.updatedAt || setting.updatedAt || '');
-      Object.entries(setting.value?.attendance || {}).forEach(([name, item]) => {
-        const status = normalize(item?.status || item);
-        if (status !== 'presente' && status !== 'falta') return;
-        const key = `${normalize(name)}:${date}`;
-        const current = byNameDate[key];
-        const next = { name, date, status: item?.status || item, note: item?.note || '', canonical, updatedAt };
-        const shouldReplace = !current || (canonical && !current.canonical) || (canonical === current.canonical && updatedAt > current.updatedAt);
-        if (shouldReplace) byNameDate[key] = next;
-      });
-    });
-    Object.values(byNameDate).forEach((item) => {
-      byName[item.name] = byName[item.name] || { name: item.name, present: 0, absences: 0, days: [] };
-      const status = normalize(item.status);
-      if (status === 'presente') byName[item.name].present += 1;
-      if (status === 'falta') byName[item.name].absences += 1;
-      byName[item.name].days.push({ date: item.date, status: item.status, note: item.note });
-    });
-    return res.json({ data: { month, from: from || null, to: to || null, employees: Object.values(byName) } });
+
+    if (hasDatabaseUrl) {
+      const where = from && to ? { date: { gte: from, lte: to } } : { date: { startsWith: `${month}-` } };
+      const [rows, settings] = await Promise.all([
+        prisma.employeeAttendance.findMany({ where, orderBy: [{ date: 'asc' }, { employeeName: 'asc' }] }),
+        prisma.setting.findMany({ where: { key: { startsWith: prefix } } })
+      ]);
+      const employees = mergeLegacySummary(summarizeRows(rows), settings, from, to);
+      return res.json({ data: { month, from: from || null, to: to || null, employees } });
+    }
+
+    const settings = ((await readDb()).settings || []).filter((item) => String(item.key || '').startsWith(prefix));
+    const employees = mergeLegacySummary([], settings, from, to);
+    return res.json({ data: { month, from: from || null, to: to || null, employees } });
   } catch (error) {
     return next(error);
   }
@@ -188,36 +246,57 @@ router.get('/summary', async (req, res, next) => {
 router.put('/', async (req, res, next) => {
   try {
     const date = sanitizeDate(req.body?.date);
-    const key = attendanceKey(date);
-    const saved = await readSavedAttendance(key);
+    const saved = await readAttendanceDay(req.user, date);
     const incoming = req.body?.attendance && typeof req.body.attendance === 'object' ? req.body.attendance : {};
     const correctionRequests = { ...(saved?.correctionRequests || {}) };
+
     if (isLeader(req.user)) {
       const blockedName = Object.keys(incoming).find((name) => {
         const alreadyMarked = Boolean(saved?.attendance?.[name]?.status);
         return alreadyMarked && correctionRequests[name]?.status !== 'Aprovada';
       });
-      if (blockedName) return res.status(403).json({ error: { message: `Solicite correção para alterar ${blockedName}` } });
+      if (blockedName) return res.status(403).json({ error: { message: `Solicite correcao para alterar ${blockedName}` } });
     }
-    Object.keys(incoming).forEach((name) => {
-      if (correctionRequests[name]?.status === 'Aprovada') delete correctionRequests[name];
-    });
-    const attendance = {
-      ...(saved?.attendance || {}),
-      ...incoming
-    };
-    const value = {
-      date,
-      updatedBy: { id: req.user.id, name: req.user.name, email: req.user.email, role: req.user.role },
-      attendance,
-      correctionRequests,
-      updatedAt: new Date().toISOString()
-    };
 
-    await saveAttendanceValue(key, value);
+    if (hasDatabaseUrl) {
+      await Promise.all(Object.entries(incoming).map(async ([name, item]) => {
+        const employee = await findEmployeeByName(name);
+        const payload = {
+          employeeId: employee?.id || null,
+          employeeName: name,
+          date,
+          status: item?.status || item || '',
+          note: item?.note || '',
+          markedById: req.user.id || '',
+          markedByName: req.user.name || req.user.email || '',
+          markedByRole: req.user.role || ''
+        };
+        await prisma.employeeAttendance.upsert({
+          where: { date_employeeName: { date, employeeName: name } },
+          update: payload,
+          create: payload
+        });
+        if (correctionRequests[name]?.status === 'Aprovada') {
+          await prisma.attendanceCorrection.deleteMany({ where: { date, employeeName: name, status: 'Aprovada' } });
+        }
+      }));
+    } else {
+      Object.keys(incoming).forEach((name) => {
+        if (correctionRequests[name]?.status === 'Aprovada') delete correctionRequests[name];
+      });
+      const attendance = { ...(saved?.attendance || {}), ...incoming };
+      await saveLegacyAttendanceValue(attendanceKey(date), {
+        date,
+        updatedBy: { id: req.user.id, name: req.user.name, email: req.user.email, role: req.user.role },
+        attendance,
+        correctionRequests,
+        updatedAt: new Date().toISOString()
+      });
+    }
 
-    const employees = await readActiveEmployees(req.body?.q || '', attendance, !isLeader(req.user));
-    return res.json({ data: shapePayload({ user: req.user, date, employees, saved: value }) });
+    const nextSaved = await readAttendanceDay(req.user, date);
+    const employees = await readActiveEmployees(req.body?.q || '', nextSaved.attendance || {}, !isLeader(req.user));
+    return res.json({ data: shapePayload({ user: req.user, date, employees, saved: nextSaved }) });
   } catch (error) {
     return next(error);
   }
@@ -226,7 +305,7 @@ router.put('/', async (req, res, next) => {
 router.get('/corrections', async (req, res, next) => {
   try {
     const date = sanitizeDate(req.query.date);
-    const saved = await readSavedAttendance(attendanceKey(date));
+    const saved = await readAttendanceDay(req.user, date);
     const items = Object.entries(saved?.correctionRequests || {})
       .filter(([, item]) => item?.status === 'Pendente')
       .map(([name, item]) => ({ name, date, ...item }));
@@ -238,29 +317,54 @@ router.get('/corrections', async (req, res, next) => {
 
 router.put('/corrections', async (req, res, next) => {
   try {
-    if (!isLeader(req.user)) return res.status(403).json({ error: { message: 'Somente líder pode solicitar correção' } });
+    if (!isLeader(req.user)) return res.status(403).json({ error: { message: 'Somente lider pode solicitar correcao' } });
     const date = sanitizeDate(req.body?.date);
     const name = String(req.body?.name || '').trim();
-    if (!name) return res.status(400).json({ error: { message: 'Colaborador obrigatório' } });
-    const key = attendanceKey(date);
-    const saved = await readSavedAttendance(key) || { date, attendance: {}, correctionRequests: {} };
-    const value = {
-      ...saved,
-      date,
-      correctionRequests: {
-        ...(saved.correctionRequests || {}),
-        [name]: {
+    if (!name) return res.status(400).json({ error: { message: 'Colaborador obrigatorio' } });
+    const saved = await readAttendanceDay(req.user, date);
+
+    if (hasDatabaseUrl) {
+      const employee = await findEmployeeByName(name);
+      await prisma.attendanceCorrection.upsert({
+        where: { date_employeeName: { date, employeeName: name } },
+        update: {
+          employeeId: employee?.id || null,
           status: 'Pendente',
           currentStatus: saved.attendance?.[name]?.status || '',
-          requestedBy: { id: req.user.id, name: req.user.name, email: req.user.email },
-          requestedAt: new Date().toISOString()
+          requestedById: req.user.id || '',
+          requestedByName: req.user.name || req.user.email || '',
+          requestedAt: new Date()
+        },
+        create: {
+          employeeId: employee?.id || null,
+          employeeName: name,
+          date,
+          status: 'Pendente',
+          currentStatus: saved.attendance?.[name]?.status || '',
+          requestedById: req.user.id || '',
+          requestedByName: req.user.name || req.user.email || ''
         }
-      },
-      updatedAt: new Date().toISOString()
-    };
-    await saveAttendanceValue(key, value);
-    const employees = await readActiveEmployees(req.body?.q || '', value.attendance || {}, false);
-    return res.json({ data: shapePayload({ user: req.user, date, employees, saved: value }) });
+      });
+    } else {
+      await saveLegacyAttendanceValue(attendanceKey(date), {
+        ...saved,
+        date,
+        correctionRequests: {
+          ...(saved.correctionRequests || {}),
+          [name]: {
+            status: 'Pendente',
+            currentStatus: saved.attendance?.[name]?.status || '',
+            requestedBy: { id: req.user.id, name: req.user.name, email: req.user.email },
+            requestedAt: new Date().toISOString()
+          }
+        },
+        updatedAt: new Date().toISOString()
+      });
+    }
+
+    const nextSaved = await readAttendanceDay(req.user, date);
+    const employees = await readActiveEmployees(req.body?.q || '', nextSaved.attendance || {}, false);
+    return res.json({ data: shapePayload({ user: req.user, date, employees, saved: nextSaved }) });
   } catch (error) {
     return next(error);
   }
@@ -268,30 +372,55 @@ router.put('/corrections', async (req, res, next) => {
 
 router.put('/corrections/approve', async (req, res, next) => {
   try {
-    if (!canApproveCorrections(req.user)) return res.status(403).json({ error: { message: 'Seu perfil não aprova correção de chamada' } });
+    if (!canApproveCorrections(req.user)) return res.status(403).json({ error: { message: 'Seu perfil nao aprova correcao de chamada' } });
     const date = sanitizeDate(req.body?.date);
     const name = String(req.body?.name || '').trim();
-    if (!name) return res.status(400).json({ error: { message: 'Colaborador obrigatório' } });
-    const key = attendanceKey(date);
-    const saved = await readSavedAttendance(key) || { date, attendance: {}, correctionRequests: {} };
-    const current = saved.correctionRequests?.[name];
-    const value = {
-      ...saved,
-      date,
-      correctionRequests: {
-        ...(saved.correctionRequests || {}),
-        [name]: {
-          ...(current || {}),
+    if (!name) return res.status(400).json({ error: { message: 'Colaborador obrigatorio' } });
+    const saved = await readAttendanceDay(req.user, date);
+
+    if (hasDatabaseUrl) {
+      const employee = await findEmployeeByName(name);
+      await prisma.attendanceCorrection.upsert({
+        where: { date_employeeName: { date, employeeName: name } },
+        update: {
+          employeeId: employee?.id || null,
           status: 'Aprovada',
-          approvedBy: { id: req.user.id, name: req.user.name, email: req.user.email },
-          approvedAt: new Date().toISOString()
+          approvedById: req.user.id || '',
+          approvedByName: req.user.name || req.user.email || '',
+          approvedAt: new Date()
+        },
+        create: {
+          employeeId: employee?.id || null,
+          employeeName: name,
+          date,
+          status: 'Aprovada',
+          currentStatus: saved.attendance?.[name]?.status || '',
+          approvedById: req.user.id || '',
+          approvedByName: req.user.name || req.user.email || '',
+          approvedAt: new Date()
         }
-      },
-      updatedAt: new Date().toISOString()
-    };
-    await saveAttendanceValue(key, value);
-    const employees = await readActiveEmployees(req.body?.q || '', value.attendance || {}, true);
-    return res.json({ data: shapePayload({ user: req.user, date, employees, saved: value }) });
+      });
+    } else {
+      const current = saved.correctionRequests?.[name];
+      await saveLegacyAttendanceValue(attendanceKey(date), {
+        ...saved,
+        date,
+        correctionRequests: {
+          ...(saved.correctionRequests || {}),
+          [name]: {
+            ...(current || {}),
+            status: 'Aprovada',
+            approvedBy: { id: req.user.id, name: req.user.name, email: req.user.email },
+            approvedAt: new Date().toISOString()
+          }
+        },
+        updatedAt: new Date().toISOString()
+      });
+    }
+
+    const nextSaved = await readAttendanceDay(req.user, date);
+    const employees = await readActiveEmployees(req.body?.q || '', nextSaved.attendance || {}, true);
+    return res.json({ data: shapePayload({ user: req.user, date, employees, saved: nextSaved }) });
   } catch (error) {
     return next(error);
   }

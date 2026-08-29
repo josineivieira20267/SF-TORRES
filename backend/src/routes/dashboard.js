@@ -167,26 +167,39 @@ function countBy(items, readLabel) {
   }, {})).sort((a, b) => b.value - a.value);
 }
 
-function attendanceByName(settings = []) {
-  return settings.reduce((acc, setting) => {
+function attendanceByName(attendanceRows = [], settings = []) {
+  const byNameDate = {};
+  attendanceRows.forEach((row) => {
+    const status = normalize(row.status);
+    if (status !== 'presente' && status !== 'falta') return;
+    byNameDate[`${normalize(row.employeeName)}:${row.date}`] = { name: row.employeeName, status: row.status };
+  });
+  settings.forEach((setting) => {
+    const date = String(setting.key || '').replace('leaderAttendance:', '').slice(0, 10);
     Object.entries(setting.value?.attendance || {}).forEach(([name, item]) => {
-      const key = normalize(name);
-      acc[key] = acc[key] || { present: 0, absences: 0 };
       const status = normalize(item?.status || item);
-      if (status === 'presente') acc[key].present += 1;
-      if (status === 'falta') acc[key].absences += 1;
+      if (status !== 'presente' && status !== 'falta') return;
+      const key = `${normalize(name)}:${date}`;
+      if (!byNameDate[key]) byNameDate[key] = { name, status: item?.status || item };
     });
-    return acc;
+  });
+  return Object.values(byNameDate).reduce((result, item) => {
+    const key = normalize(item.name);
+    result[key] = result[key] || { present: 0, absences: 0 };
+    const status = normalize(item.status);
+    if (status === 'presente') result[key].present += 1;
+    if (status === 'falta') result[key].absences += 1;
+    return result;
   }, {});
 }
 
-function buildSummary({ workOrders, employees, occurrences, measurements, activeClients, activeEmployees, range, productivityRules = defaultProductivityRules, attendanceSettings = [] }) {
+function buildSummary({ workOrders, employees, occurrences, measurements, activeClients, activeEmployees, range, productivityRules = defaultProductivityRules, attendanceRows = [], attendanceSettings = [] }) {
   const byStatus = workOrders.reduce((acc, order) => {
     acc[order.status] = (acc[order.status] || 0) + 1;
     return acc;
   }, {});
   const employeeByName = Object.fromEntries(employees.map((item) => [normalize(item.name), item]));
-  const callsByName = attendanceByName(attendanceSettings);
+  const callsByName = attendanceByName(attendanceRows, attendanceSettings);
   const memberEntries = workOrders.flatMap((order) => {
     const members = Array.isArray(order.teamMembers) ? order.teamMembers : [];
     return members.flatMap((name) => {
@@ -283,13 +296,14 @@ router.get('/summary', async (req, res, next) => {
     const range = monthRange(req.query.month);
 
     if (hasDatabaseUrl) {
-      const [workOrders, clients, employees, occurrences, measurements, productivitySetting, attendanceSettings] = await Promise.all([
+      const [workOrders, clients, employees, occurrences, measurements, productivitySetting, attendanceRows, attendanceSettings] = await Promise.all([
         prisma.workOrder.findMany({ where: { date: { gte: range.from, lte: range.to } } }),
         prisma.client.count({ where: { status: 'Ativo' } }),
         prisma.employee.findMany(),
         prisma.occurrence.findMany(),
         prisma.measurement.findMany({ where: { status: 'Fechada' } }),
         prisma.setting.findUnique({ where: { key: 'productivityRules' } }),
+        prisma.employeeAttendance.findMany({ where: { date: { startsWith: `${range.month}-` } } }),
         prisma.setting.findMany({ where: { key: { startsWith: `leaderAttendance:${range.month}-` } } })
       ]);
       return res.json({ data: buildSummary({
@@ -301,6 +315,7 @@ router.get('/summary', async (req, res, next) => {
         activeEmployees: employees.filter((item) => item.status === 'Ativo').length,
         range,
         productivityRules: mergeProductivityRules(productivitySetting?.value),
+        attendanceRows,
         attendanceSettings
       }) });
     }
