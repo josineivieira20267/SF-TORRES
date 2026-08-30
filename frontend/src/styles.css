@@ -1709,6 +1709,33 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   html.keyboard-open .app-route-leaderAttendance .kpi-grid,
   html.keyboard-open .app-route-leaderAttendance .leader-filter-tabs{display:none}
   .app-route-leaderAttendance .kpi-grid{display:none}
+  .app-route-leaderAttendance .toolbar{grid-template-columns:minmax(142px,.44fr) minmax(0,1fr);gap:10px;margin:14px 0 14px}
+  .app-route-leaderAttendance .toolbar .filter{min-width:0;height:58px;padding:0 12px}
+  .app-route-leaderAttendance .toolbar .filter input{min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .app-route-leaderAttendance .toolbar .filter:first-child input{font-size:13px}
+  .app-route-leaderAttendance .leader-filter-tabs{margin-bottom:16px}
+  .app-route-leaderAttendance .leader-filter-tabs button{height:46px;font-size:11.5px;line-height:1.1}
+  .app-route-leaderAttendance .leader-filter-tabs span{display:flex;margin:3px auto 0}
+  .app-route-leaderAttendance .attendance-mobile-list{gap:12px}
+  .app-route-leaderAttendance .attendance-card{
+    grid-template-columns:50px minmax(0,1fr);column-gap:12px;padding:16px;border-radius:12px;
+    align-items:start;
+  }
+  .app-route-leaderAttendance .attendance-avatar{width:48px;height:48px;align-self:start;margin-top:2px}
+  .app-route-leaderAttendance .attendance-card-main{
+    display:grid;grid-template-columns:1fr;gap:8px;width:100%;min-width:0;
+  }
+  .app-route-leaderAttendance .attendance-card-main h3{
+    max-width:100%;font-size:18px;line-height:1.18;overflow-wrap:normal;word-break:normal;color:#071D44;
+  }
+  .app-route-leaderAttendance .attendance-card-main p{margin-top:4px;font-size:13.5px;line-height:1.35}
+  .app-route-leaderAttendance .attendance-card-main small{margin-top:6px;font-size:12.5px}
+  .app-route-leaderAttendance .attendance-card-main>.pill,
+  .app-route-leaderAttendance .attendance-card-main>.attendance-pending{
+    justify-self:start;max-width:100%;height:auto;min-height:28px;white-space:normal;line-height:1.2;text-align:left;
+  }
+  .app-route-leaderAttendance .attendance-actions{padding-top:14px}
+  .app-route-leaderAttendance .attendance-actions .btn:only-child{grid-column:1 / -1}
   html.keyboard-open .app-route-leaderAttendance .attendance-mobile-list{
     padding-bottom:calc(28px + var(--keyboard-inset, 0px));
   }
