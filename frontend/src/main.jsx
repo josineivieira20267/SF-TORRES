@@ -3283,15 +3283,43 @@ function CrudScreen({ config, notify, beforeTable, editable = true }) {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const [toolbarFilters, setToolbarFilters] = useState({});
+  const [meta, setMeta] = useState({ total: 0, limit: 100, offset: 0 });
+  const [pageOffset, setPageOffset] = useState(0);
   const [modal, setModal] = useState(null);
   const importInputRef = useRef(null);
-  const load = () => {
+  const fieldMap = { Função: 'role', Equipe: 'team', Local: 'location', Turno: 'shift', Status: 'status', Tipo: 'type' };
+  const pageSize = meta.limit || 100;
+  const load = (offset = pageOffset) => {
+    const query = new URLSearchParams({ limit: String(pageSize), offset: String(offset) });
+    const toolbarSearch = (config.toolbar || [])
+      .filter(([label, , type]) => type === 'input' && toolbarFilters[label])
+      .map(([label]) => toolbarFilters[label])
+      .join(' ');
+    const searchText = [q, toolbarSearch].filter(Boolean).join(' ').trim();
+    if (searchText) query.set('q', searchText);
+    (config.toolbar || []).forEach(([label, , type]) => {
+      const value = toolbarFilters[label];
+      const key = fieldMap[label];
+      if (!key || type !== 'select' || !value || value === 'Todos' || value === 'Todas') return;
+      query.set(key, value);
+    });
     const separator = config.endpoint.includes('?') ? '&' : '?';
     setLoading(true);
-    api(`${config.endpoint}${q ? `${separator}q=${encodeURIComponent(q)}` : ''}`).then((p) => setItems(listData(p))).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false));
+    api(`${config.endpoint}${separator}${query.toString()}`)
+      .then((p) => {
+        const list = listData(p);
+        setItems(list);
+        setMeta(p.meta || { total: list.length, limit: pageSize, offset });
+        setPageOffset(offset);
+      })
+      .catch((error) => {
+        setItems([]);
+        setMeta({ total: 0, limit: pageSize, offset: 0 });
+        notify(error.message);
+      })
+      .finally(() => setLoading(false));
   };
-  useEffect(() => { load(); }, [q, config.endpoint]);
-  const fieldMap = { Função: 'role', Equipe: 'team', Local: 'location', Turno: 'shift', Status: 'status', Tipo: 'type' };
+  useEffect(() => { load(pageOffset); }, [q, toolbarFilters, config.endpoint, pageOffset]);
   const displayItems = (config.toolbar || []).reduce((list, [label]) => {
     const value = toolbarFilters[label];
     const key = fieldMap[label];
@@ -3341,14 +3369,31 @@ function CrudScreen({ config, notify, beforeTable, editable = true }) {
     notify('Registro apagado'); load();
   };
   const ghostAction = config.importRows ? () => importInputRef.current?.click() : undefined;
+  const changeToolbarFilters = (updater) => {
+    setPageOffset(0);
+    setToolbarFilters(updater);
+  };
+  const changeSearch = (value) => {
+    setPageOffset(0);
+    setQ(value);
+  };
+  const total = meta.total || displayItems.length;
+  const currentOffset = meta.offset || 0;
+  const currentLimit = meta.limit || pageSize;
+  const currentPage = Math.floor(currentOffset / currentLimit) + 1;
+  const totalPages = Math.max(1, Math.ceil(total / currentLimit));
+  const rangeStart = total ? currentOffset + 1 : 0;
+  const rangeEnd = Math.min(currentOffset + displayItems.length, total);
+  const canPrev = currentOffset > 0;
+  const canNext = currentOffset + currentLimit < total;
   return (
     <>
       <PageHead title={config.title} subtitle={config.subtitle} ghostAction={config.ghostLabel} onGhostAction={ghostAction} action={editable ? config.newLabel : null} onAction={() => setModal({})} />
       {config.importRows && <input ref={importInputRef} type="file" accept=".xlsx,.xls,.csv,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden onChange={importFile} />}
-      {config.toolbar && <Toolbar fields={config.toolbar} count={displayItems.length} values={toolbarFilters} onChange={setToolbarFilters} />}
-      {!config.noToolbar && !config.toolbar && <div className="toolbar"><div className="filter"><label>Buscar</label><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar..." /></div><span className="spacer" /><span className="soft">{displayItems.length} registros</span></div>}
+      {config.toolbar && <Toolbar fields={config.toolbar} count={total} values={toolbarFilters} onChange={changeToolbarFilters} />}
+      {!config.noToolbar && !config.toolbar && <div className="toolbar"><div className="filter"><label>Buscar</label><input value={q} onChange={(e) => changeSearch(e.target.value)} placeholder="Buscar..." /></div><span className="spacer" /><span className="soft">{total} registros</span></div>}
       {beforeTable}
-      <div className="panel" style={{ overflow: 'hidden' }}><div className="panel-head"><h3>{panelTitle(config, displayItems.length)}</h3>{config.panelActions && <div className="actions">{typeof config.panelActions === 'function' ? config.panelActions({ items: displayItems, load }) : config.panelActions}</div>}</div><div className="panel-body" style={{ padding: 0 }}><table className="dtbl"><thead><tr>{config.columns.map((c) => <th key={c.label} className={c.right ? 'right' : ''}>{c.label}</th>)}<th /></tr></thead><tbody>{loading ? <LoadingCell colSpan={config.columns.length + 1} /> : displayItems.map((item) => <tr key={item.id}>{config.columns.map((c) => <td key={c.label} className={`${c.mono ? 'mono' : ''} ${c.right ? 'right' : ''}`}>{c.render ? c.render(item) : item[c.key]}</td>)}<td className="right">{editable ? <><button className="btn btn-sm" onClick={() => setModal(item)}>Editar</button> <button className="btn btn-sm btn-danger" onClick={() => remove(item)}>Apagar</button></> : <span className="soft">Somente leitura</span>}</td></tr>)}</tbody></table></div></div>
+      <div className="panel" style={{ overflow: 'hidden' }}><div className="panel-head"><h3>{panelTitle(config, total)}</h3>{config.panelActions && <div className="actions">{typeof config.panelActions === 'function' ? config.panelActions({ items: displayItems, load }) : config.panelActions}</div>}</div><div className="panel-body" style={{ padding: 0 }}><table className="dtbl"><thead><tr>{config.columns.map((c) => <th key={c.label} className={c.right ? 'right' : ''}>{c.label}</th>)}<th /></tr></thead><tbody>{loading ? <LoadingCell colSpan={config.columns.length + 1} /> : displayItems.map((item) => <tr key={item.id}>{config.columns.map((c) => <td key={c.label} className={`${c.mono ? 'mono' : ''} ${c.right ? 'right' : ''}`}>{c.render ? c.render(item) : item[c.key]}</td>)}<td className="right">{editable ? <><button className="btn btn-sm" onClick={() => setModal(item)}>Editar</button> <button className="btn btn-sm btn-danger" onClick={() => remove(item)}>Apagar</button></> : <span className="soft">Somente leitura</span>}</td></tr>)}</tbody></table><div className="pagination-bar"><span>{rangeStart}-{rangeEnd} de {total} registros</span><div><button className="btn btn-sm" disabled={!canPrev || loading} onClick={() => setPageOffset(Math.max(currentOffset - currentLimit, 0))}>Anterior</button><span className="soft">Pagina {currentPage} de {totalPages}</span><button className="btn btn-sm" disabled={!canNext || loading} onClick={() => setPageOffset(currentOffset + currentLimit)}>Proxima</button></div></div></div></div>
       {modal && <Editor title={modal.id ? `Editar ${config.title}` : config.newLabel} fields={config.fields} initial={modal} onCancel={() => setModal(null)} onSave={save} />}
     </>
   );
