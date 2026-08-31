@@ -667,6 +667,7 @@ a:hover{text-decoration:underline}
 .occurrence-detail-card p{margin:0;color:var(--c-text);line-height:1.4}
 .occurrence-detail-card span{color:var(--c-text-soft);font-size:12px}
 .occurrence-detail-card .btn{justify-self:start}
+.occurrence-detail-actions{display:flex;gap:8px;flex-wrap:wrap}
 .correction-review-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;padding:12px;border:1px solid var(--c-border);border-radius:var(--radius-sm);background:var(--c-surface-2)}
 .correction-review-head b{display:block;color:var(--c-text)}
 .correction-review-head span{display:block;margin-top:3px;color:var(--c-text-soft);font-size:12px}

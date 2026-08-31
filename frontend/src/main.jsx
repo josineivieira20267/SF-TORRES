@@ -2633,6 +2633,16 @@ function LeaderAttendance({ notify, editable = true }) {
     setOccurrenceDetailModal(null);
     load(dateValue, query);
   };
+  const deleteOccurrence = async (occurrence) => {
+    if (!occurrence?.id) return;
+    if (!window.confirm('Apagar esta ocorrência do ponto?')) return;
+    await withBusy(() => api(`/api/occurrences/${occurrence.id}`, { method: 'DELETE' }));
+    notify('Ocorrência apagada');
+    const nextOccurrences = pointOccurrences.filter((item) => item.id !== occurrence.id);
+    setPointOccurrences(nextOccurrences);
+    setOccurrenceDetailModal((current) => current ? { ...current, occurrences: current.occurrences.filter((item) => item.id !== occurrence.id) } : current);
+    load(dateValue, query);
+  };
   const attendanceCounts = {
     marked: employees.filter((item) => Boolean(item.status)).length,
     present: employees.filter((item) => normalize(item.status) === 'presente').length,
@@ -2734,6 +2744,7 @@ function LeaderAttendance({ notify, editable = true }) {
     !leaderProfile && { label: 'Ver solicitação de correção', onClick: () => setCorrectionReviewModal(item), disabled: item.correctionRequest?.status !== 'Pendente' },
     !leaderProfile && { label: 'Ver ocorrência', onClick: () => setOccurrenceDetailModal({ item, occurrences: occurrencesForEmployee(item) }), disabled: !occurrencesForEmployee(item).length },
     !leaderProfile && { label: 'Aprovar ocorrência', onClick: () => approveOccurrence(pendingOccurrence(item)), disabled: !pendingOccurrence(item) },
+    !leaderProfile && { label: 'Apagar ocorrência', onClick: () => deleteOccurrence(occurrencesForEmployee(item)[0]), disabled: !occurrencesForEmployee(item).length, danger: true },
     !leaderProfile && { label: 'Limpar marcação', onClick: () => mark(item, '', '', true), disabled: !item.status && !item.note, danger: true },
     leaderProfile && { label: 'Lançar ocorrência', onClick: () => setAttendanceOccurrenceModal(item) }
   ];
@@ -2856,7 +2867,10 @@ function LeaderAttendance({ notify, editable = true }) {
                     <div><Pill value={occurrence.type || 'Ocorrência'} /><Pill value={occurrence.status || 'Aberta'} /></div>
                     <p>{occurrence.description || '-'}</p>
                     <span>{occurrence.approvedByName ? `Aprovada por ${occurrence.approvedByName}` : 'Aguardando aprovação'}</span>
-                    {!['aprovada', 'resolvida'].includes(normalize(occurrence.status)) && <button className="btn btn-primary" onClick={() => approveOccurrence(occurrence)}>Aprovar ocorrência</button>}
+                    <div className="occurrence-detail-actions">
+                      {!['aprovada', 'resolvida'].includes(normalize(occurrence.status)) && <button className="btn btn-primary" onClick={() => approveOccurrence(occurrence)}>Aprovar ocorrência</button>}
+                      <button className="btn btn-danger" onClick={() => deleteOccurrence(occurrence)}>Apagar ocorrência</button>
+                    </div>
                   </div>
                 ))}
               </div>
