@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './styles.css';
 import './system.css';
 import stLogoTransparent from './assets/sf-torres-logo-transparent.png';
+import publicHero from './assets/sf-torres-public-hero.png';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3333';
 
@@ -1174,6 +1175,10 @@ function App() {
     setRoute(nextRoute);
   };
 
+  if (!publicRoute || publicRoute === 'inicio' || publicRoute === 'site') {
+    return <PublicSite settings={settings} />;
+  }
+
   if (route === 'login' || !authenticated) {
     return <Login settings={settings} onLogin={goAfterLogin} />;
   }
@@ -1224,7 +1229,7 @@ function PublicSite({ settings }) {
             <span className="site-kicker">Logistica operacional em Manaus</span>
             <h1>Precisao em carga, descarga e apoio logistico.</h1>
             <p>Atuacao focada em movimentacao de mercadorias, conferencia, organizacao de estoque e suporte operacional para empresas que precisam de rotina confiavel no chao da operacao.</p>
-            <div className="site-hero-actions"><a className="btn btn-primary" href="#/trabalhe-conosco">Trabalhe conosco</a><a className="btn site-outline" href="#contato">Falar com a equipe</a></div>
+            <div className="site-hero-actions"><a className="btn btn-primary" href="#/login">Acesso interno</a><a className="btn site-outline" href="#contato">Falar com a equipe</a></div>
           </div>
           <div className="site-hero-strip">{metrics.map(([value, label]) => <div key={value}><b>{value}</b><span>{label}</span></div>)}</div>
         </section>
@@ -1248,7 +1253,7 @@ function PublicSite({ settings }) {
 
         <section className="site-section site-contact" id="contato">
           <div><span className="site-kicker">SF TORRES</span><h2>Base em Manaus, compromisso no atendimento.</h2><p>Empresa cadastrada em Manaus/AM com atividade principal vinculada a carga e descarga. Para oportunidades profissionais, use o canal Trabalhe Conosco.</p></div>
-          <div className="site-contact-card"><b>Contato</b><span>{settings.email || 'sosthenes.torres@gmail.com'}</span><span>{settings.phone || '(92) 99267-8067'}</span><a className="btn btn-primary" href="#/trabalhe-conosco">Ver vagas abertas</a></div>
+          <div className="site-contact-card"><b>Contato</b><span>{settings.email || 'sosthenes.torres@gmail.com'}</span><span>{settings.phone || '(92) 99267-8067'}</span><a className="btn btn-primary" href="#/login">Acesso interno</a></div>
         </section>
       </main>
       <footer className="site-footer"><span>SF TORRES - Manaus/AM</span><a href="#/login">Acesso interno</a></footer>
