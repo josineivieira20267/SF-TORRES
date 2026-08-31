@@ -108,17 +108,16 @@ function correctionObject(rows = []) {
 }
 
 async function readAttendanceDay(user, date) {
-  const legacy = await readSavedAttendance(attendanceKey(date)) || await readSavedAttendance(legacyAttendanceKey(user, date)) || {};
-  if (!hasDatabaseUrl) return legacy;
+  if (!hasDatabaseUrl) return await readSavedAttendance(attendanceKey(date)) || await readSavedAttendance(legacyAttendanceKey(user, date)) || {};
   const [attendanceRows, correctionRows] = await Promise.all([
     prisma.employeeAttendance.findMany({ where: { date } }),
     prisma.attendanceCorrection.findMany({ where: { date, status: { not: 'Cancelada' } } })
   ]);
   return {
     date,
-    updatedBy: legacy.updatedBy || null,
-    attendance: { ...(legacy.attendance || {}), ...attendanceObject(attendanceRows) },
-    correctionRequests: { ...(legacy.correctionRequests || {}), ...correctionObject(correctionRows) }
+    updatedBy: null,
+    attendance: attendanceObject(attendanceRows),
+    correctionRequests: correctionObject(correctionRows)
   };
 }
 
@@ -246,12 +245,11 @@ router.get('/summary', async (req, res, next) => {
 
     if (hasDatabaseUrl) {
       const where = from && to ? { date: { gte: from, lte: to } } : { date: { startsWith: `${month}-` } };
-      const [rows, settings, employees] = await Promise.all([
+      const [rows, employees] = await Promise.all([
         prisma.employeeAttendance.findMany({ where, orderBy: [{ date: 'asc' }, { employeeName: 'asc' }] }),
-        prisma.setting.findMany({ where: { key: { startsWith: prefix } } }),
         prisma.employee.findMany({ where: { status: 'Ativo' }, orderBy: { name: 'asc' } })
       ]);
-      const monthlyEmployees = includeAllEmployees(mergeLegacySummary(summarizeRows(rows), settings, from, to), employees);
+      const monthlyEmployees = includeAllEmployees(summarizeRows(rows), employees);
       return res.json({ data: { month, from: from || null, to: to || null, employees: monthlyEmployees } });
     }
 
