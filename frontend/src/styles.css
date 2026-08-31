@@ -1858,6 +1858,12 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 .metric-progress i{display:block;height:100%;background:var(--metric-color);border-radius:999px}
 .dashboard-showcase{display:grid;grid-template-columns:1.35fr 1fr 1.35fr;gap:12px;margin-bottom:14px}
 .dashboard-rank-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.dashboard-showcase,.dashboard-rank-grid{align-items:stretch}
+.dashboard-chart-panel{display:grid;grid-template-rows:auto 1fr;min-height:304px}
+.dashboard-chart-panel .panel-head{min-height:44px}
+.dashboard-chart-panel .panel-body{min-height:258px;display:grid;align-items:center}
+.dashboard-rank-grid .dashboard-chart-panel{min-height:248px}
+.dashboard-rank-grid .dashboard-chart-panel .panel-body{min-height:202px}
 .panel-select{
   height:28px;border:1px solid var(--c-border);border-radius:var(--radius-sm);
   background:#FFFFFF;color:var(--c-text-muted);font-size:12px;padding:0 8px;

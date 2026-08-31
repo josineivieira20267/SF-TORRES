@@ -237,7 +237,7 @@ function buildSummary({ workOrders, employees, occurrences, measurements, active
   const pendingCalls = productivity.reduce((sum, item) => sum + item.pending, 0);
   const totalAttendances = productivity.reduce((sum, item) => sum + item.present + item.absences + item.pending, 0);
   const productivityRate = totalAttendances ? Math.round((productivity.reduce((sum, item) => sum + item.present, 0) / totalAttendances) * 1000) / 10 : 0;
-  const openOccurrences = occurrences.filter((item) => !normalize(item.status).includes('resolvida'));
+  const openOccurrences = occurrences.filter((item) => !item.attendanceDate && !normalize(item.status).includes('resolvida') && !normalize(item.status).includes('aprovada'));
   const durations = workOrders.map(durationHours).filter((value) => value > 0);
   const avgDuration = durations.length ? durations.reduce((sum, value) => sum + value, 0) / durations.length : 0;
   const days = Array.from({ length: range.days }, (_, index) => `${range.month}-${pad2(index + 1)}`);

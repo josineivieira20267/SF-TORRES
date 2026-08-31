@@ -2312,13 +2312,13 @@ function OperationsDashboard() {
         <MetricCard icon="clock" label="Tempo medio" value={formatDuration(avgDuration)} sub="Por OS finalizada" color="#2598B8" progress={Math.min((avgDuration / 8) * 100, 100)} />
       </div>
       <div className="dashboard-showcase">
-        <Panel title="Evolucao das OS" actions={<select className="panel-select"><option>Diario</option><option>Semanal</option></select>} padded><TrendChart data={trendChart} /></Panel>
-        <Panel title="Status das Operacoes" padded><DonutChart data={statusChart} center={totalOrders} sub="Total de OS" /></Panel>
-        <Panel title="OS por dia" padded><ColumnChart data={dailyOrders} /></Panel>
+        <Panel title="Evolucao das OS" actions={<select className="panel-select"><option>Diario</option><option>Semanal</option></select>} padded className="dashboard-chart-panel"><TrendChart data={trendChart} /></Panel>
+        <Panel title="Status das Operacoes" padded className="dashboard-chart-panel"><DonutChart data={statusChart} center={totalOrders} sub="Total de OS" /></Panel>
+        <Panel title="OS por dia" padded className="dashboard-chart-panel"><ColumnChart data={dailyOrders} /></Panel>
       </div>
       <div className="dashboard-rank-grid">
-        <Panel title="Ranking de colaboradores por finalizacoes" actions={<select className="panel-select"><option>Finalizadas</option><option>Presencas</option></select>} padded><RankingBars data={ranking} /></Panel>
-        <Panel title="OS por cliente" actions={<select className="panel-select"><option>Todos</option><option>Top 5</option></select>} padded><BarChart data={clientChart} /></Panel>
+        <Panel title="Ranking de colaboradores por finalizacoes" actions={<select className="panel-select"><option>Finalizadas</option><option>Presencas</option></select>} padded className="dashboard-chart-panel"><RankingBars data={ranking} /></Panel>
+        <Panel title="OS por cliente" actions={<select className="panel-select"><option>Todos</option><option>Top 5</option></select>} padded className="dashboard-chart-panel"><BarChart data={clientChart} /></Panel>
       </div>
       <Panel title="Ranking geral de produtividade" padded><DataTable columns={['#', 'Colaborador', 'Equipe', 'Criterio', 'OS', 'Finalizadas', 'Faltas', '% Produtividade', 'Bonus Previsto']} rows={productivityRows.length ? productivityRows : [[1, '-', '-', '-', 0, 0, 0, <ProgressValue value={0} />, money(0)]]} loading={loading} /></Panel>
     </>
@@ -3848,8 +3848,8 @@ function Toolbar({ fields, count, values = {}, onChange }) {
   return <div className="toolbar">{fields.map(([label, value, type]) => <div className="filter" key={label}><label>{label}</label>{type === 'select' ? <select value={values[label] || value[0]} onChange={(event) => onChange?.((old) => ({ ...old, [label]: event.target.value }))}>{value.map((option) => <option key={option}>{option}</option>)}</select> : <input type="text" value={values[label] || ''} onChange={(event) => onChange?.((old) => ({ ...old, [label]: event.target.value }))} placeholder={value} />}</div>)}<span className="spacer" /><span className="soft">{count} registros</span></div>;
 }
 
-function Panel({ title, actions, children, padded = false }) {
-  return <div className="panel"><div className="panel-head"><h3>{title}</h3>{actions && <div className="actions">{actions}</div>}</div><div className={`panel-body ${padded ? '' : 'table-panel-body'}`}>{children}</div></div>;
+function Panel({ title, actions, children, padded = false, className = '' }) {
+  return <div className={`panel ${className}`.trim()}><div className="panel-head"><h3>{title}</h3>{actions && <div className="actions">{actions}</div>}</div><div className={`panel-body ${padded ? '' : 'table-panel-body'}`}>{children}</div></div>;
 }
 
 function DataTable({ columns, rows, loading = false }) {
