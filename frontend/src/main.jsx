@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client';
 import './styles.css';
 import './system.css';
 import stLogoTransparent from './assets/sf-torres-logo-transparent.png';
-import publicHero from './assets/sf-torres-public-hero.png';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3333';
 
@@ -50,6 +49,7 @@ const routes = {
 
 const routeKeys = Object.keys(routes);
 const talentRouteKeys = ['talentDashboard', 'talents', 'talentNew', 'talentJobs', 'talentApplications'];
+const sharedRouteKeys = ['users', 'settings'];
 const defaultAdminPermissions = Object.fromEntries(routeKeys.map((key) => [key, 'edit']));
 
 function currentUser() {
@@ -75,11 +75,13 @@ function currentEnvironment() {
 }
 
 function routeEnvironment(route) {
+  if (sharedRouteKeys.includes(route)) return 'shared';
   return talentRouteKeys.includes(route) ? 'talents' : 'operational';
 }
 
 function canUseRoute(route, user = currentUser(), environment = currentEnvironment()) {
-  return Boolean(routes[route]) && routeEnvironment(route) === environment && canView(route, user);
+  const routeEnv = routeEnvironment(route);
+  return Boolean(routes[route]) && (routeEnv === 'shared' || routeEnv === environment) && canView(route, user);
 }
 
 function isLeaderUser(user = currentUser()) {
@@ -97,8 +99,8 @@ function canEdit(route, user = currentUser()) {
 
 function defaultUserPermissions(role = 'Operacional') {
   if (role === 'Administrador') return { ...defaultAdminPermissions };
-  if (normalize(role).includes('rh') || normalize(role).includes('recrut')) return { talentDashboard: 'edit', talents: 'edit', talentNew: 'edit', talentJobs: 'edit', talentApplications: 'edit' };
-  if (normalize(role).includes('consulta')) return { talentDashboard: 'view', talents: 'view', talentJobs: 'view', talentApplications: 'view' };
+  if (normalize(role).includes('rh') || normalize(role).includes('recrut')) return { talentDashboard: 'edit', talents: 'edit', talentNew: 'edit', talentJobs: 'edit', talentApplications: 'edit', users: 'edit', settings: 'edit' };
+  if (normalize(role).includes('consulta')) return { talentDashboard: 'view', talents: 'view', talentJobs: 'view', talentApplications: 'view', users: 'view', settings: 'view' };
   if (normalize(role).includes('lider')) return { schedules: 'edit', leaderAttendance: 'edit' };
   if (normalize(role).includes('operacional')) return { dashboard: 'view', dailyOps: 'view', leaderAttendance: 'edit' };
   return { dashboard: 'view', dailyOps: 'view' };
@@ -770,10 +772,18 @@ function employeeRowsFromSpreadsheet(rows) {
 
 function readStoredSettings() {
   try {
-    return { ...defaultSettings, ...JSON.parse(localStorage.getItem('sfTorresSettings') || '{}') };
+    return { ...defaultSettings, ...JSON.parse(localStorage.getItem(settingsStorageKey()) || '{}') };
   } catch {
     return defaultSettings;
   }
+}
+
+function settingsStorageKey(environment = currentEnvironment()) {
+  return `sfTorresSettings:${environment}`;
+}
+
+function scopedSettingsEndpoint(key = 'company', environment = currentEnvironment()) {
+  return `/api/settings/${key}?environment=${encodeURIComponent(environment)}`;
 }
 
 function readStoredProfile() {
@@ -791,7 +801,7 @@ function readStoredProfile() {
 }
 
 function storeSettings(settings) {
-  localStorage.setItem('sfTorresSettings', JSON.stringify(settings));
+  localStorage.setItem(settingsStorageKey(), JSON.stringify(settings));
 }
 
 function applySystemSettings(settings) {
@@ -1057,12 +1067,12 @@ function App() {
 
   useEffect(() => {
     if (!localStorage.getItem('sfTorresToken')) return;
-    api('/api/settings/company')
+    api(scopedSettingsEndpoint('company'))
       .then((payload) => {
         if (payload.data) setSettings((old) => ({ ...old, ...payload.data }));
       })
       .catch(() => {});
-  }, []);
+  }, [authenticated]);
 
   const notify = (message) => {
     setToast(message);
@@ -1154,6 +1164,7 @@ function App() {
     const preferredRoute = localStorage.getItem('sfTorresPreferredRoute') || '';
     const environment = currentEnvironment();
     localStorage.removeItem('sfTorresPreferredRoute');
+    setSettings(readStoredSettings());
     const nextRoute = preferredRoute && canUseRoute(preferredRoute, user, environment)
       ? preferredRoute
       : requestedRoute && canUseRoute(requestedRoute, user, environment)
@@ -1162,14 +1173,6 @@ function App() {
     window.history.replaceState(null, '', `#/${nextRoute}`);
     setRoute(nextRoute);
   };
-
-  if (publicRoute === 'trabalhe-conosco') {
-    return <PublicJobs settings={settings} />;
-  }
-
-  if (!publicRoute || publicRoute === 'inicio' || publicRoute === 'site') {
-    return <PublicSite settings={settings} />;
-  }
 
   if (route === 'login' || !authenticated) {
     return <Login settings={settings} onLogin={goAfterLogin} />;
@@ -1497,7 +1500,7 @@ function Sidebar({ route, setRoute, settings, profile, collapsed, onToggle, onPr
   const user = currentUser();
   const environment = currentEnvironment();
   const visibleGroups = environment === 'talents'
-    ? groups.filter(([title]) => title === 'Banco de Talentos')
+    ? groups.filter(([title]) => ['Banco de Talentos', 'AdministraÃ§Ã£o'].includes(title))
     : groups.filter(([title]) => title !== 'Banco de Talentos');
   const go = (key) => {
     if (!canUseRoute(key, user, environment)) return;
@@ -1982,12 +1985,11 @@ function TalentJobs({ notify, editable = true }) {
     notify('Vaga apagada');
     load();
   };
-  const rows = jobs.map((job) => [<><b>{job.title}</b><div className="soft">{[job.department, job.location].filter(Boolean).join(' · ')}</div></>, <Pill value={job.status} />, job.contractType || '-', job.workMode || '-', job._count?.applications || 0, date(job.publishedAt), editable ? <><button className="btn btn-sm" onClick={() => setModal(job)}>Editar</button> <button className="btn btn-sm" onClick={() => navigator.clipboard?.writeText(`${location.origin}${location.pathname}#/trabalhe-conosco`)}>Copiar link publico</button></> : '-']);
   return (
     <>
-      <PageHead title="Vagas" subtitle="Cadastro interno de vagas publicadas na pagina Trabalhe Conosco." action={editable ? 'Nova vaga' : null} onAction={() => setModal({ status: 'Rascunho', companyUnit: 'SF TORRES', workMode: 'Presencial', contractType: 'CLT' })} ghostAction="Abrir pagina publica" onGhostAction={() => { window.location.hash = '#/trabalhe-conosco'; }} />
+      <PageHead title="Vagas" subtitle="Cadastro interno de vagas do Banco de Talentos." action={editable ? 'Nova vaga' : null} onAction={() => setModal({ status: 'Rascunho', companyUnit: 'SF TORRES', workMode: 'Presencial', contractType: 'CLT' })} />
       <div className="toolbar"><div className="filter"><label>Buscar</label><input value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="Funcao, setor, local..." /></div><div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Rascunho</option><option>Publicada</option><option>Pausada</option><option>Encerrada</option></select></div><span className="spacer" /><span className="soft">{jobs.length} vagas</span></div>
-      <Panel title="Vagas cadastradas"><DataTable columns={['Vaga', 'Status', 'Contrato', 'Modelo', 'Candidaturas', 'Publicacao', 'Acoes']} rows={jobs.map((job) => [<><b>{job.title}</b><div className="soft">{[job.department, job.location].filter(Boolean).join(' - ')}</div></>, <Pill value={job.status} />, job.contractType || '-', job.workMode || '-', job._count?.applications || 0, date(job.publishedAt), editable ? <div className="table-action-row"><button className="btn btn-sm" onClick={() => setModal(job)}>Editar</button><ActionMenu actions={[{ label: 'Copiar link publico', onClick: () => navigator.clipboard?.writeText(`${location.origin}${location.pathname}#/trabalhe-conosco`) }, { label: 'Apagar vaga', danger: true, disabled: (job._count?.applications || 0) > 0, onClick: () => setConfirmDelete(job) }]} /></div> : '-'])} loading={loading} /></Panel>
+      <Panel title="Vagas cadastradas"><DataTable columns={['Vaga', 'Status', 'Contrato', 'Modelo', 'Candidaturas', 'Publicacao', 'Acoes']} rows={jobs.map((job) => [<><b>{job.title}</b><div className="soft">{[job.department, job.location].filter(Boolean).join(' - ')}</div></>, <Pill value={job.status} />, job.contractType || '-', job.workMode || '-', job._count?.applications || 0, date(job.publishedAt), editable ? <div className="table-action-row"><button className="btn btn-sm" onClick={() => setModal(job)}>Editar</button><ActionMenu actions={[{ label: 'Apagar vaga', danger: true, disabled: (job._count?.applications || 0) > 0, onClick: () => setConfirmDelete(job) }]} /></div> : '-'])} loading={loading} /></Panel>
       {modal && <TalentJobForm initial={modal} onCancel={() => setModal(null)} onSave={save} />}
       {confirmDelete && <ConfirmModal title="Apagar vaga" text={`Deseja apagar a vaga "${confirmDelete.title}"? Essa acao nao pode ser desfeita.`} confirmLabel="Apagar vaga" danger onCancel={() => setConfirmDelete(null)} onConfirm={() => deleteJob(confirmDelete)} />}
     </>
@@ -3183,10 +3185,13 @@ function Reports() {
 }
 
 function Users({ notify, editable = true }) {
+  const environment = currentEnvironment();
+  const environmentLabel = environment === 'talents' ? 'Banco de Talentos' : 'Centro Operacional';
   return <CrudScreen config={{
     title: 'Usuários & Perfis',
-    subtitle: 'Gestão de usuários do sistema, perfis de acesso e permissões por módulo.',
+    subtitle: `Gestão de usuários, perfis e permissões do ambiente ${environmentLabel}.`,
     endpoint: '/api/users',
+    queryParams: { environment },
     newLabel: 'Novo usuário',
     ghostLabel: 'Configurar perfis',
     panelTitle: 'usuários ativos',
@@ -3198,7 +3203,8 @@ function Users({ notify, editable = true }) {
       { label: 'Último acesso', render: () => '24/07/2026 09:42' },
       { label: 'Status', render: (i) => <Pill value={i.status} /> }
     ],
-    fields: [['name', 'Nome'], ['email', 'E-mail'], ['password', 'Senha'], ['role', 'Perfil', 'select', ['Administrador', 'RH / Recrutamento', 'Consulta', 'Líder', 'Operacional', 'Financeiro']], ['status', 'Status', 'select', ['Ativo', 'Inativo']], ['permissions', 'Permissões por tela', 'permissions']]
+    fields: [['name', 'Nome'], ['email', 'E-mail'], ['password', 'Senha'], ['role', 'Perfil', 'select', ['Administrador', 'RH / Recrutamento', 'Consulta', 'Líder', 'Operacional', 'Financeiro']], ['status', 'Status', 'select', ['Ativo', 'Inativo']], ['permissions', 'Permissões por tela', 'permissions']],
+    beforeSave: (data) => ({ ...data, environment })
   }} notify={notify} editable={editable} />;
 }
 
@@ -3236,7 +3242,7 @@ function Settings({ notify, settings, setSettings, editable = true }) {
   const integrationRows = integrationItems.map((item, index) => [item.name, item.type, <span className="mono">{item.endpoint}</span>, item.lastSync, <Pill value={item.status} />, <><button className="btn btn-sm" onClick={() => { updateIntegration(index, { lastSync: nowText(), status: 'Ativo' }); notify(`${item.name} testada`); }}>Testar</button> <button className="btn btn-sm" onClick={() => setIntegrationEditor({ ...item, index })}>Editar</button> {item.status !== 'Ativo' && <button className="btn btn-sm btn-primary" onClick={() => { updateIntegration(index, { status: 'Ativo', lastSync: nowText() }); notify(`${item.name} conectada`); }}>Conectar</button>}</>]);
   const saveSettings = async () => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar configuracoes');
-    await withBusy(() => api('/api/settings/company', { method: 'PUT', body: JSON.stringify(form) }));
+    await withBusy(() => api(scopedSettingsEndpoint('company'), { method: 'PUT', body: JSON.stringify(form) }));
     setSettings(form);
     notify('Configurações salvas no banco');
   };
@@ -3244,7 +3250,7 @@ function Settings({ notify, settings, setSettings, editable = true }) {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar configuracoes');
     setForm(defaultSettings);
     setSettings(defaultSettings);
-    await withBusy(() => api('/api/settings/company', { method: 'PUT', body: JSON.stringify(defaultSettings) }));
+    await withBusy(() => api(scopedSettingsEndpoint('company'), { method: 'PUT', body: JSON.stringify(defaultSettings) }));
     notify('Padrões restaurados');
   };
   return <>
@@ -3439,6 +3445,9 @@ function CrudScreen({ config, notify, beforeTable, editable = true }) {
   const pageSize = meta.limit || 100;
   const load = (offset = pageOffset) => {
     const query = new URLSearchParams({ limit: String(pageSize), offset: String(offset) });
+    Object.entries(config.queryParams || {}).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') query.set(key, value);
+    });
     const toolbarSearch = (config.toolbar || [])
       .filter(([label, , type]) => type === 'input' && toolbarFilters[label])
       .map(([label]) => toolbarFilters[label])

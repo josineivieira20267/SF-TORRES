@@ -11,7 +11,7 @@ async function main() {
     dashboard: 'edit', tower: 'edit', dailyOps: 'edit', schedules: 'edit', productivity: 'edit',
     employees: 'edit', map: 'edit', measurement: 'edit', reports: 'edit', clients: 'edit',
     services: 'edit', equipment: 'edit', locations: 'edit', users: 'edit', settings: 'edit',
-    talentDashboard: 'edit', talents: 'edit', talentNew: 'edit', talentReports: 'edit'
+    talentDashboard: 'edit', talents: 'edit', talentNew: 'edit', talentJobs: 'edit', talentApplications: 'edit'
   };
 
   await prisma.user.upsert({
@@ -23,6 +23,7 @@ async function main() {
       email: 'admin@sftorres.local',
       role: 'Administrador',
       status: 'Ativo',
+      environment: 'operational',
       permissions: adminPermissions,
       passwordHash: bcrypt.hashSync('admin123', 10)
     }

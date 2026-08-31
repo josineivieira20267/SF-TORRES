@@ -12,17 +12,20 @@ const publicUser = (user) => {
 };
 
 const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
+const normalizeEnvironment = (value) => value === 'talents' ? 'talents' : 'operational';
 
 router.use(requireAuth);
 
 router.get('/', async (req, res, next) => {
   try {
+    const environment = normalizeEnvironment(req.query.environment || req.user?.environment);
     if (hasDatabaseUrl) {
-      const users = await prisma.user.findMany({ orderBy: { createdAt: 'desc' } });
+      const users = await prisma.user.findMany({ where: { environment }, orderBy: { createdAt: 'desc' } });
       return res.json({ data: users.map(publicUser), meta: { total: users.length, limit: users.length, offset: 0 } });
     }
     const db = await readDb();
-    return res.json({ data: db.users.map(publicUser), meta: { total: db.users.length, limit: db.users.length, offset: 0 } });
+    const users = (db.users || []).filter((item) => normalizeEnvironment(item.environment) === environment);
+    return res.json({ data: users.map(publicUser), meta: { total: users.length, limit: users.length, offset: 0 } });
   } catch (error) {
     return next(error);
   }
@@ -36,6 +39,7 @@ router.post('/', async (req, res, next) => {
       email: normalizeEmail(req.body.email),
       role: req.body.role || 'Operacional',
       status: req.body.status || 'Ativo',
+      environment: normalizeEnvironment(req.body.environment || req.query.environment || req.user?.environment),
       permissions: req.body.permissions || null,
       passwordHash
     };
