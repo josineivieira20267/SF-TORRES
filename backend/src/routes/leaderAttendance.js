@@ -229,7 +229,7 @@ router.get('/', async (req, res, next) => {
   try {
     const date = sanitizeDate(req.query.date);
     const saved = await readAttendanceDay(req.user, date);
-    const employees = await readActiveEmployees(req.query.q || '', saved?.attendance || {}, !isLeader(req.user));
+    const employees = await readActiveEmployees(req.query.q || '', saved?.attendance || {}, true);
     return res.json({ data: shapePayload({ user: req.user, date, employees, saved }) });
   } catch (error) {
     return next(error);
@@ -322,7 +322,7 @@ router.put('/', async (req, res, next) => {
     }
 
     const nextSaved = await readAttendanceDay(req.user, date);
-    const employees = await readActiveEmployees(req.body?.q || '', nextSaved.attendance || {}, !isLeader(req.user));
+    const employees = await readActiveEmployees(req.body?.q || '', nextSaved.attendance || {}, true);
     return res.json({ data: shapePayload({ user: req.user, date, employees, saved: nextSaved }) });
   } catch (error) {
     return next(error);
@@ -395,7 +395,7 @@ router.put('/corrections', async (req, res, next) => {
     }
 
     const nextSaved = await readAttendanceDay(req.user, date);
-    const employees = await readActiveEmployees(req.body?.q || '', nextSaved.attendance || {}, false);
+    const employees = await readActiveEmployees(req.body?.q || '', nextSaved.attendance || {}, true);
     return res.json({ data: shapePayload({ user: req.user, date, employees, saved: nextSaved }) });
   } catch (error) {
     return next(error);
