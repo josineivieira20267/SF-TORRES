@@ -267,8 +267,7 @@ function buildSummary({ workOrders, employees, occurrences, measurements, active
         { label: 'Finalizadas', value: finalOrders.length },
         { label: 'Em execucao', value: activeOrders.length },
         { label: 'Pendentes', value: programmedOrders.length },
-        { label: 'Faltas', value: totalAbsences },
-        { label: 'Ocorrencias', value: openOccurrences.length }
+        { label: 'Faltas', value: totalAbsences }
       ],
       dailyOrders,
       trendChart: dailyOrders.filter((_, index) => index % trendStep === 0 || index === range.days - 1),

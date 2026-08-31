@@ -1859,11 +1859,10 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 .dashboard-showcase{display:grid;grid-template-columns:1.35fr 1fr 1.35fr;gap:12px;margin-bottom:14px}
 .dashboard-rank-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
 .dashboard-showcase,.dashboard-rank-grid{align-items:stretch}
-.dashboard-chart-panel{display:grid;grid-template-rows:auto 1fr;min-height:304px}
-.dashboard-chart-panel .panel-head{min-height:44px}
-.dashboard-chart-panel .panel-body{min-height:258px;display:grid;align-items:center}
-.dashboard-rank-grid .dashboard-chart-panel{min-height:248px}
-.dashboard-rank-grid .dashboard-chart-panel .panel-body{min-height:202px}
+.dashboard-showcase>.dashboard-chart-panel{display:grid;grid-template-rows:44px minmax(0,1fr);height:304px;min-height:304px;overflow:hidden}
+.dashboard-rank-grid>.dashboard-chart-panel{display:grid;grid-template-rows:44px minmax(0,1fr);height:248px;min-height:248px;overflow:hidden}
+.dashboard-chart-panel .panel-head{height:44px;min-height:44px;box-sizing:border-box}
+.dashboard-chart-panel .panel-body{min-height:0;height:100%;display:grid;align-items:center;overflow:hidden}
 .panel-select{
   height:28px;border:1px solid var(--c-border);border-radius:var(--radius-sm);
   background:#FFFFFF;color:var(--c-text-muted);font-size:12px;padding:0 8px;
