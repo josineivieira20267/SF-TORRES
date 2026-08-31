@@ -44,12 +44,13 @@ const routes = {
   talents: { title: 'Banco de Talentos', group: 'Banco de Talentos' },
   talentNew: { title: 'Novo Candidato', group: 'Banco de Talentos' },
   talentJobs: { title: 'Vagas', group: 'Banco de Talentos' },
-  talentApplications: { title: 'Candidaturas', group: 'Banco de Talentos' }
+  talentApplications: { title: 'Candidaturas', group: 'Banco de Talentos' },
+  talentUsers: { title: 'Usuários & Perfis', group: 'Administração' },
+  talentSettings: { title: 'Configurações', group: 'Administração' }
 };
 
 const routeKeys = Object.keys(routes);
-const talentRouteKeys = ['talentDashboard', 'talents', 'talentNew', 'talentJobs', 'talentApplications'];
-const sharedRouteKeys = ['users', 'settings'];
+const talentRouteKeys = ['talentDashboard', 'talents', 'talentNew', 'talentJobs', 'talentApplications', 'talentUsers', 'talentSettings'];
 const defaultAdminPermissions = Object.fromEntries(routeKeys.map((key) => [key, 'edit']));
 
 function currentUser() {
@@ -75,13 +76,12 @@ function currentEnvironment() {
 }
 
 function routeEnvironment(route) {
-  if (sharedRouteKeys.includes(route)) return 'shared';
   return talentRouteKeys.includes(route) ? 'talents' : 'operational';
 }
 
 function canUseRoute(route, user = currentUser(), environment = currentEnvironment()) {
   const routeEnv = routeEnvironment(route);
-  return Boolean(routes[route]) && (routeEnv === 'shared' || routeEnv === environment) && canView(route, user);
+  return Boolean(routes[route]) && routeEnv === environment && canView(route, user);
 }
 
 function isLeaderUser(user = currentUser()) {
@@ -99,8 +99,8 @@ function canEdit(route, user = currentUser()) {
 
 function defaultUserPermissions(role = 'Operacional') {
   if (role === 'Administrador') return { ...defaultAdminPermissions };
-  if (normalize(role).includes('rh') || normalize(role).includes('recrut')) return { talentDashboard: 'edit', talents: 'edit', talentNew: 'edit', talentJobs: 'edit', talentApplications: 'edit', users: 'edit', settings: 'edit' };
-  if (normalize(role).includes('consulta')) return { talentDashboard: 'view', talents: 'view', talentJobs: 'view', talentApplications: 'view', users: 'view', settings: 'view' };
+  if (normalize(role).includes('rh') || normalize(role).includes('recrut')) return { talentDashboard: 'edit', talents: 'edit', talentNew: 'edit', talentJobs: 'edit', talentApplications: 'edit', talentUsers: 'edit', talentSettings: 'edit' };
+  if (normalize(role).includes('consulta')) return { talentDashboard: 'view', talents: 'view', talentJobs: 'view', talentApplications: 'view', talentUsers: 'view', talentSettings: 'view' };
   if (normalize(role).includes('lider')) return { schedules: 'edit', leaderAttendance: 'edit' };
   if (normalize(role).includes('operacional')) return { dashboard: 'view', dailyOps: 'view', leaderAttendance: 'edit' };
   return { dashboard: 'view', dailyOps: 'view' };
@@ -1443,12 +1443,12 @@ function Sidebar({ route, setRoute, settings, profile, collapsed, onToggle, onPr
     ['Movimentações', [['reports', 'RP', 'Relatórios']]],
     ['Cadastros', [['clients', 'CL', 'Clientes'], ['services', 'SV', 'Serviços'], ['equipment', 'EQ', 'Equipamentos']]],
     ['Administração', [['users', 'AD', 'Usuários & Perfis'], ['settings', 'CF', 'Configurações']]],
-    ['Banco de Talentos', [['talentDashboard', 'BT', 'Dashboard'], ['talents', 'BC', 'Candidatos'], ['talentJobs', 'VG', 'Vagas'], ['talentApplications', 'CA', 'Candidaturas']]]
+    ['Banco de Talentos', [['talentDashboard', 'BT', 'Dashboard'], ['talents', 'BC', 'Candidatos'], ['talentJobs', 'VG', 'Vagas'], ['talentApplications', 'CA', 'Candidaturas'], ['talentUsers', 'US', 'Usuários'], ['talentSettings', 'CF', 'Configurações']]]
   ];
   const user = currentUser();
   const environment = currentEnvironment();
   const visibleGroups = environment === 'talents'
-    ? groups.filter(([title]) => ['Banco de Talentos', 'AdministraÃ§Ã£o'].includes(title))
+    ? groups.filter(([title]) => title === 'Banco de Talentos')
     : groups.filter(([title]) => title !== 'Banco de Talentos');
   const go = (key) => {
     if (!canUseRoute(key, user, environment)) return;
@@ -1510,6 +1510,8 @@ function Screen({ route, notify, settings, setSettings }) {
   if (route === 'talentNew') return <TalentBank notify={notify} editable={editable} mode="new" />;
   if (route === 'talentJobs') return <TalentJobs notify={notify} editable={editable} />;
   if (route === 'talentApplications') return <TalentApplications notify={notify} editable={editable} />;
+  if (route === 'talentUsers') return <Users notify={notify} editable={editable} />;
+  if (route === 'talentSettings') return <Settings notify={notify} settings={settings} setSettings={setSettings} editable={editable} />;
   if (crudConfigs[route]) return <CrudScreen config={crudConfigs[route]} notify={notify} editable={editable} />;
   if (route === 'dashboard') return <OperationsDashboard />;
   if (route === 'tower') return <Tower />;

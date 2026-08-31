@@ -11,7 +11,8 @@ async function main() {
     dashboard: 'edit', tower: 'edit', dailyOps: 'edit', schedules: 'edit', productivity: 'edit',
     employees: 'edit', map: 'edit', measurement: 'edit', reports: 'edit', clients: 'edit',
     services: 'edit', equipment: 'edit', locations: 'edit', users: 'edit', settings: 'edit',
-    talentDashboard: 'edit', talents: 'edit', talentNew: 'edit', talentJobs: 'edit', talentApplications: 'edit'
+    talentDashboard: 'edit', talents: 'edit', talentNew: 'edit', talentJobs: 'edit', talentApplications: 'edit',
+    talentUsers: 'edit', talentSettings: 'edit'
   };
 
   await prisma.user.upsert({
