@@ -144,7 +144,7 @@ const resources = {
     metaJson: workOrderMetaJson
   }),
   measurements: createController('measurements', ['number', 'client', 'workOrder', 'status'], 'measurement'),
-  occurrences: createController('occurrences', ['workOrder', 'type', 'description', 'status'], 'occurrence'),
+  occurrences: createController('occurrences', ['workOrder', 'employeeName', 'attendanceDate', 'type', 'description', 'status'], 'occurrence'),
   schedules: createController('schedules', ['employee', 'role', 'base', 'status'], 'schedule'),
   settings: createController('settings', ['key'], 'setting')
 };

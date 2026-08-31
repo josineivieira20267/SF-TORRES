@@ -656,6 +656,17 @@ a:hover{text-decoration:underline}
 .attendance-action-cluster .action-menu-trigger,
 .attendance-card-status .action-menu-trigger{width:30px;min-width:30px;height:30px;padding:0;justify-content:center}
 .attendance-note{margin-top:5px;color:var(--c-text-soft);font-size:12px;line-height:1.35;max-width:260px}
+.attendance-occurrence-cell{display:grid;gap:5px;max-width:300px}
+.attendance-occurrence-cell span{color:var(--c-text-soft);font-size:12px;line-height:1.35;white-space:normal}
+.occurrence-person{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;padding:10px 12px;border:1px solid var(--c-border);border-radius:var(--radius-sm);background:var(--c-surface-2)}
+.occurrence-person b{color:var(--c-text)}
+.occurrence-person span{color:var(--c-text-soft);font-size:12px}
+.occurrence-detail-list{display:grid;gap:10px}
+.occurrence-detail-card{display:grid;gap:8px;padding:12px;border:1px solid var(--c-border);border-radius:var(--radius-sm);background:#FFFFFF}
+.occurrence-detail-card>div{display:flex;gap:6px;flex-wrap:wrap}
+.occurrence-detail-card p{margin:0;color:var(--c-text);line-height:1.4}
+.occurrence-detail-card span{color:var(--c-text-soft);font-size:12px}
+.occurrence-detail-card .btn{justify-self:start}
 
 /* ---------- Cartão institucional padrão ----------------- */
 .panel{
@@ -1725,23 +1736,25 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   .app-route-leaderAttendance .leader-filter-tabs span{display:flex;margin:3px auto 0}
   .app-route-leaderAttendance .attendance-mobile-list{gap:12px}
   .app-route-leaderAttendance .attendance-card{
-    grid-template-columns:50px minmax(0,1fr);column-gap:12px;padding:16px;border-radius:12px;
-    align-items:start;
+    grid-template-columns:44px minmax(0,1fr);column-gap:12px;padding:14px;border-radius:10px;
+    align-items:start;box-shadow:0 8px 18px rgba(15,36,71,.06);
   }
-  .app-route-leaderAttendance .attendance-avatar{width:48px;height:48px;align-self:start;margin-top:2px}
+  .app-route-leaderAttendance .attendance-avatar{width:44px;height:44px;align-self:start;margin-top:1px;font-size:17px}
   .app-route-leaderAttendance .attendance-card-main{
-    display:grid;grid-template-columns:1fr;gap:8px;width:100%;min-width:0;
+    display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;width:100%;min-width:0;
   }
   .app-route-leaderAttendance .attendance-card-main h3{
-    max-width:100%;font-size:18px;line-height:1.18;overflow-wrap:normal;word-break:normal;color:#071D44;
+    max-width:100%;font-size:16px;line-height:1.22;overflow-wrap:anywhere;word-break:normal;color:#071D44;
   }
-  .app-route-leaderAttendance .attendance-card-main p{margin-top:4px;font-size:13.5px;line-height:1.35}
-  .app-route-leaderAttendance .attendance-card-main small{margin-top:6px;font-size:12.5px}
-  .app-route-leaderAttendance .attendance-card-main>.pill,
-  .app-route-leaderAttendance .attendance-card-main>.attendance-pending{
-    justify-self:start;max-width:100%;height:auto;min-height:28px;white-space:normal;line-height:1.2;text-align:left;
+  .app-route-leaderAttendance .attendance-card-main p{margin-top:4px;font-size:12.5px;line-height:1.35;text-transform:uppercase;letter-spacing:0;color:#69778D}
+  .app-route-leaderAttendance .attendance-card-status{grid-column:2;grid-row:1 / span 2;align-self:start;display:flex;align-items:center;gap:6px}
+  .app-route-leaderAttendance .attendance-card-status .pill,
+  .app-route-leaderAttendance .attendance-card-status .attendance-pending{
+    max-width:128px;height:auto;min-height:28px;white-space:normal;line-height:1.2;text-align:left;
   }
+  .app-route-leaderAttendance .attendance-card-status .action-menu-trigger{width:34px;min-width:34px;height:34px}
   .app-route-leaderAttendance .attendance-actions{padding-top:14px}
+  .app-route-leaderAttendance .attendance-actions .attendance-action-cluster{grid-column:1 / -1;display:grid;grid-template-columns:1fr;gap:8px}
   .app-route-leaderAttendance .attendance-actions .btn:only-child{grid-column:1 / -1}
   html.keyboard-open .app-route-leaderAttendance .attendance-mobile-list{
     padding-bottom:calc(28px + var(--keyboard-inset, 0px));

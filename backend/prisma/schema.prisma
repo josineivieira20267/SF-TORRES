@@ -183,13 +183,21 @@ model Measurement {
 }
 
 model Occurrence {
-  id          String   @id @default(cuid())
-  workOrder   String?
-  type        String?
-  description String
-  status      String   @default("Em analise")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String    @id @default(cuid())
+  workOrder      String?
+  employeeName   String?
+  attendanceDate String?
+  type           String?
+  description    String
+  status         String    @default("Em analise")
+  approvedByName String?
+  approvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([employeeName])
+  @@index([attendanceDate])
+  @@index([status])
 }
 
 model Schedule {

@@ -2572,7 +2572,9 @@ function LeaderAttendance({ notify, editable = true }) {
   const [noteModal, setNoteModal] = useState(null);
   const [correctionModal, setCorrectionModal] = useState(null);
   const [attendanceOccurrenceModal, setAttendanceOccurrenceModal] = useState(null);
+  const [occurrenceDetailModal, setOccurrenceDetailModal] = useState(null);
   const [payload, setPayload] = useState(null);
+  const [pointOccurrences, setPointOccurrences] = useState([]);
   const [monthlySummary, setMonthlySummary] = useState({ employees: [] });
   const [selectedEmployee, setSelectedEmployee] = useState('');
   const [monthlyQuery, setMonthlyQuery] = useState('');
@@ -2580,9 +2582,15 @@ function LeaderAttendance({ notify, editable = true }) {
   const [monthlyLoading, setMonthlyLoading] = useState(false);
   const load = (date = dateValue, q = query) => {
     setLoading(true);
-    api(`/api/leader-attendance?date=${encodeURIComponent(date)}&q=${encodeURIComponent(q)}`)
-      .then((response) => setPayload(response.data))
-      .catch((error) => { setPayload(null); notify(error.message); })
+    Promise.all([
+      api(`/api/leader-attendance?date=${encodeURIComponent(date)}&q=${encodeURIComponent(q)}`),
+      api(`/api/occurrences?attendanceDate=${encodeURIComponent(date)}&limit=500`).catch(() => ({ data: [] }))
+    ])
+      .then(([attendanceResponse, occurrenceResponse]) => {
+        setPayload(attendanceResponse.data);
+        setPointOccurrences(listData(occurrenceResponse));
+      })
+      .catch((error) => { setPayload(null); setPointOccurrences([]); notify(error.message); })
       .finally(() => setLoading(false));
   };
   useEffect(() => {
@@ -2598,6 +2606,32 @@ function LeaderAttendance({ notify, editable = true }) {
       .finally(() => setMonthlyLoading(false));
   }, [monthValue, leaderProfile]);
   const employees = payload?.employees || [];
+  const occurrencesForEmployee = (item) => pointOccurrences.filter((occurrence) => {
+    const occurrenceName = normalize(occurrence.employeeName);
+    const employeeName = normalize(item.name);
+    return occurrenceName && (occurrenceName.includes(employeeName) || employeeName.includes(occurrenceName));
+  });
+  const pendingOccurrence = (item) => occurrencesForEmployee(item).find((occurrence) => !['aprovada', 'resolvida'].includes(normalize(occurrence.status)));
+  const occurrenceCell = (item) => {
+    const occurrences = occurrencesForEmployee(item);
+    if (!occurrences.length) return <span className="soft">-</span>;
+    const latest = occurrences[0];
+    return <div className="attendance-occurrence-cell"><Pill value={latest.type || 'Ocorrência'} /><span>{latest.description || '-'}</span></div>;
+  };
+  const approveOccurrence = async (occurrence) => {
+    if (!occurrence?.id) return;
+    await withBusy(() => api(`/api/occurrences/${occurrence.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        status: 'Aprovada',
+        approvedByName: user.name || user.email || 'Administrativo',
+        approvedAt: new Date().toISOString()
+      })
+    }));
+    notify('Ocorrência aprovada');
+    setOccurrenceDetailModal(null);
+    load(dateValue, query);
+  };
   const attendanceCounts = {
     marked: employees.filter((item) => Boolean(item.status)).length,
     present: employees.filter((item) => normalize(item.status) === 'presente').length,
@@ -2671,13 +2705,16 @@ function LeaderAttendance({ notify, editable = true }) {
       method: 'POST',
       body: JSON.stringify({
         workOrder: `Chamada ${dateValue}`,
+        employeeName: attendanceOccurrenceModal.name,
+        attendanceDate: dateValue,
         type: data.type || 'Ponto',
-        description: `${attendanceOccurrenceModal.name}: ${description}`,
+        description,
         status: data.status || 'Aberta',
         createdAt: new Date().toISOString()
       })
     }));
     setAttendanceOccurrenceModal(null);
+    load(dateValue, query);
     notify('Ocorrência lançada');
   };
   const approveCorrection = async (item) => {
@@ -2692,6 +2729,8 @@ function LeaderAttendance({ notify, editable = true }) {
   const canLeaderChange = (item) => !leaderProfile || !item.status || item.correctionRequest?.status === 'Aprovada';
   const extraAttendanceActions = (item) => [
     !leaderProfile && { label: 'Adicionar observação', onClick: () => setNoteModal(item) },
+    !leaderProfile && { label: 'Ver ocorrência', onClick: () => setOccurrenceDetailModal({ item, occurrences: occurrencesForEmployee(item) }), disabled: !occurrencesForEmployee(item).length },
+    !leaderProfile && { label: 'Aprovar ocorrência', onClick: () => approveOccurrence(pendingOccurrence(item)), disabled: !pendingOccurrence(item) },
     !leaderProfile && { label: 'Limpar marcação', onClick: () => mark(item, '', '', true), disabled: !item.status && !item.note, danger: true },
     leaderProfile && { label: 'Lançar ocorrência', onClick: () => setAttendanceOccurrenceModal(item) }
   ];
@@ -2701,6 +2740,7 @@ function LeaderAttendance({ notify, editable = true }) {
       const correctionButton = item.correctionRequest?.status === 'Pendente'
         ? <button className={`${buttonClass}`} disabled>Correção solicitada</button>
         : <button className={`${buttonClass}`} onClick={() => setCorrectionModal(item)} disabled={!editable}>Solicitar correção</button>;
+      if (compact) return correctionButton;
       return <div className="attendance-action-cluster">{correctionButton}<ActionMenu actions={extraAttendanceActions(item)} /></div>;
     }
     if (approverProfile && item.correctionRequest?.status === 'Pendente') {
@@ -2717,8 +2757,8 @@ function LeaderAttendance({ notify, editable = true }) {
   const rows = loading ? null : filteredEmployees.map((item) => [
     <b>{item.name}</b>,
     item.role || '-',
-    item.team || '-',
     <div>{item.status ? <Pill value={item.status} /> : <span className="soft">Sem marcação</span>}{item.note && <div className="attendance-note">{item.note}</div>}</div>,
+    occurrenceCell(item),
     <div className="inline-actions">{markActions(item)}</div>
   ]);
   const attendanceCard = (item) => (
@@ -2727,8 +2767,7 @@ function LeaderAttendance({ notify, editable = true }) {
       <div className="attendance-card-main">
         <div>
           <h3>{item.name}</h3>
-          <p>{[item.role, item.team].filter(Boolean).join(' · ') || '-'}</p>
-          <small><Icon name="users" /> Equipe: <b>{item.team || '-'}</b></small>
+          <p>{item.role || 'Função não informada'}</p>
         </div>
         <div className="attendance-card-status">
           {item.correctionRequest?.status === 'Pendente' ? <Pill value="Correção pendente" /> : item.status ? <Pill value={item.status} /> : <span className="attendance-pending">Sem marcação</span>}
@@ -2802,6 +2841,26 @@ function LeaderAttendance({ notify, editable = true }) {
         {!loading && !filteredEmployees.length && <div className="empty-chart">{query.trim() ? 'Nenhum colaborador encontrado para a busca.' : 'Pesquise um colaborador para marcar presença ou falta.'}</div>}
         {!loading && filteredEmployees.length > 0 && <div className="attendance-finish-card"><Icon name="help" /><div><b>Finalize a chamada</b><span>Confira os registros e finalize a chamada do dia.</span></div><button className="btn btn-primary" onClick={() => notify('Chamada conferida')}>Finalizar chamada</button></div>}
       </div>
+      {occurrenceDetailModal && (
+        <div className="modal-backdrop">
+          <div className="modal attendance-occurrence-modal">
+            <div className="modal-head"><h3>Ocorrências do ponto</h3><button className="btn btn-sm" onClick={() => setOccurrenceDetailModal(null)}>Fechar</button></div>
+            <div className="modal-body">
+              <div className="occurrence-person"><b>{occurrenceDetailModal.item.name}</b><span>{date(dateValue)}</span></div>
+              <div className="occurrence-detail-list">
+                {occurrenceDetailModal.occurrences.map((occurrence) => (
+                  <div className="occurrence-detail-card" key={occurrence.id}>
+                    <div><Pill value={occurrence.type || 'Ocorrência'} /><Pill value={occurrence.status || 'Aberta'} /></div>
+                    <p>{occurrence.description || '-'}</p>
+                    <span>{occurrence.approvedByName ? `Aprovada por ${occurrence.approvedByName}` : 'Aguardando aprovação'}</span>
+                    {!['aprovada', 'resolvida'].includes(normalize(occurrence.status)) && <button className="btn btn-primary" onClick={() => approveOccurrence(occurrence)}>Aprovar ocorrência</button>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {noteModal && <Editor title={`Observação: ${noteModal.name}`} fields={[['note', 'Observação', 'textarea', null, null, true]]} initial={{ note: noteModal.note || '' }} onCancel={() => setNoteModal(null)} onSave={saveNote} />}
       {correctionModal && <Editor title={`Justificar correção: ${correctionModal.name}`} fields={[['reason', 'Justificativa', 'textarea', null, null, true]]} initial={{ reason: correctionModal.correctionRequest?.reason || '' }} onCancel={() => setCorrectionModal(null)} onSave={requestCorrection} />}
       {attendanceOccurrenceModal && <Editor title={`Ocorrência: ${attendanceOccurrenceModal.name}`} fields={[
@@ -2812,7 +2871,7 @@ function LeaderAttendance({ notify, editable = true }) {
       <LeaderBottomNav active="leaderAttendance" />
       <div className="attendance-table-panel">
         <Panel title="Presença dos colaboradores" actions={<Pill value={date(dateValue)} />} padded>
-          <DataTable columns={['Colaborador', 'Função', 'Equipe', 'Status', 'Marcar']} rows={rows} loading={loading} />
+          <DataTable columns={['Colaborador', 'Função', 'Status', 'Ocorrência', 'Marcar']} rows={rows} loading={loading} />
           {!loading && !filteredEmployees.length && <div className="empty-chart">{query.trim() ? 'Nenhum colaborador encontrado para a busca.' : 'Pesquise um colaborador para marcar presença ou falta.'}</div>}
         </Panel>
       </div>
@@ -3695,9 +3754,17 @@ function ActionPanel({ type, setRoute, onClose }) {
         return haystack.includes(normalize(user.name)) || haystack.includes(normalize(user.email));
       };
       const occurrenceAlerts = listData(occurrencePayload)
-        .filter((item) => !normalize(item.status).includes('resolvida'))
+        .filter((item) => !['resolvida', 'aprovada'].includes(normalize(item.status)))
         .filter(belongsToUser)
-        .map((item) => ({ id: notificationId(item), tag: item.type || 'OCO', title: `Ocorrência na OS ${item.workOrder || '-'}`, text: `${item.description || '-'} · ${item.status || 'Aberta'}` }))
+        .map((item) => {
+          const pointOccurrence = item.attendanceDate && item.employeeName;
+          return {
+            id: notificationId(item),
+            tag: item.type || 'OCO',
+            title: pointOccurrence ? `Ocorrência de ponto: ${item.employeeName}` : `Ocorrência na OS ${item.workOrder || '-'}`,
+            text: pointOccurrence ? `${date(item.attendanceDate)} · ${item.description || '-'} · ${item.status || 'Aberta'}` : `${item.description || '-'} · ${item.status || 'Aberta'}`
+          };
+        })
         .filter((item) => !dismissed.has(item.id));
       const attendanceAlerts = listData(correctionPayload)
         .map((item) => ({
