@@ -10,7 +10,7 @@ function envValue(key, fallback) {
   return String(process.env[key] || fallback || '').trim();
 }
 
-async function upsertAdminUser({ id, environment, name, email, password, permissions }) {
+async function upsertAdminUser({ environment, name, email, password, permissions }) {
   if (!email || !password) return;
   await prisma.user.upsert({
     where: { email_environment: { email, environment } },
@@ -23,7 +23,6 @@ async function upsertAdminUser({ id, environment, name, email, password, permiss
       passwordHash: bcrypt.hashSync(password, 10)
     },
     create: {
-      id,
       name,
       email,
       role: 'Administrador',
@@ -45,7 +44,6 @@ async function main() {
   };
 
   await upsertAdminUser({
-    id: 'usr_admin',
     environment: 'operational',
     name: envValue('DEFAULT_ADMIN_NAME', 'Administrador SF'),
     email: envValue('DEFAULT_ADMIN_EMAIL', 'admin@sftorres.local').toLowerCase(),
@@ -54,7 +52,6 @@ async function main() {
   });
 
   await upsertAdminUser({
-    id: 'usr_talents_admin',
     environment: 'talents',
     name: envValue('TALENTS_ADMIN_NAME', 'Administrador Talentos'),
     email: envValue('TALENTS_ADMIN_EMAIL', '').toLowerCase(),
