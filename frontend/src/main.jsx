@@ -101,7 +101,7 @@ function defaultUserPermissions(role = 'Operacional') {
   if (role === 'Administrador') return { ...defaultAdminPermissions };
   if (normalize(role).includes('rh') || normalize(role).includes('recrut')) return { talentDashboard: 'edit', talents: 'edit', talentNew: 'edit', talentJobs: 'edit', talentApplications: 'edit', talentUsers: 'edit', talentSettings: 'edit' };
   if (normalize(role).includes('consulta')) return { talentDashboard: 'view', talents: 'view', talentJobs: 'view', talentApplications: 'view', talentUsers: 'view', talentSettings: 'view' };
-  if (normalize(role).includes('lider')) return { schedules: 'edit', leaderAttendance: 'edit' };
+  if (normalize(role).includes('lider')) return { dailyOps: 'edit', schedules: 'edit', leaderAttendance: 'edit' };
   if (normalize(role).includes('operacional')) return { dashboard: 'view', dailyOps: 'view', leaderAttendance: 'edit' };
   return { dashboard: 'view', dailyOps: 'view' };
 }
@@ -2224,6 +2224,7 @@ function LeaderBottomNav({ active }) {
   };
   return (
     <nav className="leader-bottom-nav">
+      <button type="button" className={active === 'dailyOps' ? 'active' : ''} onClick={() => go('dailyOps')}><Icon name="box" /><span>Nova OS</span></button>
       <button type="button" className={active === 'schedules' ? 'active' : ''} onClick={() => go('schedules')}><Icon name="file" /><span>Minhas OS</span></button>
       <button type="button" className={active === 'leaderAttendance' ? 'active' : ''} onClick={() => go('leaderAttendance')}><Icon name="users" /><span>Chamada</span></button>
     </nav>
@@ -3361,6 +3362,13 @@ function DailyOps({ notify, editable = true }) {
     loadOccurrences();
   };
   const selectedOccurrences = selected ? occurrences.filter((item) => occurrenceBelongsToOrder(item, selected)) : [];
+  const mobileStatusClass = (status) => {
+    const value = normalize(status);
+    if (value.includes('finalizado') || value.includes('conclu')) return 'done';
+    if (value.includes('exec')) return 'active';
+    if (value.includes('cancel')) return 'danger';
+    return 'pending';
+  };
   const detailContent = () => {
     if (!selected) return null;
     if (activeTab === 'Equipe') return [['Equipe', Array.isArray(selected.teamMembers) && selected.teamMembers.length ? selected.teamMembers.join(', ') : 'Sem integrantes definidos'], ['Responsável', selected.responsible || '-'], ['Justificativa', selected.teamNote || '-']];
@@ -3376,6 +3384,11 @@ function DailyOps({ notify, editable = true }) {
   return (
     <>
       <PageHead title="Operação Diária" subtitle="Gestão detalhada das OS com filtros, confirmação de equipe, horários e ocorrências." ghostActions={['Histórico', 'Exportar planilha']} onGhostAction={(label) => label === 'Histórico' ? setHistoryOpen(true) : exportFiltered()} action="Nova OS" onAction={() => setModal({ status: 'Programado' })} />
+      <LeaderMobileNav active="dailyOps" title="Operação Diária" onRefresh={load} />
+      <div className="dailyops-mobile-primary">
+        <button type="button" className="btn btn-primary" onClick={() => setModal({ status: 'Programado' })}><Icon name="box" />Nova OS</button>
+        <button type="button" className="btn" onClick={() => setHistoryOpen(true)}><Icon name="clock" />Histórico</button>
+      </div>
       <div className="toolbar">
         <div className="filter"><label>Buscar</label><input type="text" value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="OS, cliente, equipamento..." /></div>
         <div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Programado</option><option>Em execucao</option><option>Finalizado</option><option>Cancelado</option></select></div>
@@ -3385,6 +3398,36 @@ function DailyOps({ notify, editable = true }) {
         <span className="spacer" />
         <span className="soft">{filteredItems.length} resultados</span>
       </div>
+      <div className="dailyops-mobile-list">
+        {loading ? <LoadingBlock /> : filteredItems.length ? filteredItems.map((item) => {
+          const occurrencesCount = occurrences.filter((occurrence) => occurrenceBelongsToOrder(occurrence, item)).length;
+          return (
+            <article className="dailyops-card" key={item.id} onClick={() => setSelectedId(item.id)}>
+              <div className="dailyops-card-top">
+                <div>
+                  <span className="dailyops-code">OS {item.number}</span>
+                  <h3>{item.client || 'Cliente não informado'}</h3>
+                </div>
+                <span className={`dailyops-status ${mobileStatusClass(item.status)}`}>{item.status || 'Programado'}</span>
+              </div>
+              <div className="dailyops-card-grid">
+                <div><span>Data</span><b>{dateTime(item.date) || '-'}</b></div>
+                <div><span>Serviço</span><b>{item.service || '-'}</b></div>
+                <div><span>Equipamento</span><b>{item.equipment || '-'}</b></div>
+                <div><span>Equipe</span><b>{Array.isArray(item.teamMembers) ? item.teamMembers.length : 0} integrante(s)</b></div>
+              </div>
+              <div className="dailyops-card-foot">
+                <span>{occurrencesCount ? `${occurrencesCount} ocorrência(s)` : 'Sem ocorrências'}</span>
+                <span>{absenceCount(item)} falta(s)</span>
+              </div>
+              <div className="dailyops-card-actions">
+                <button type="button" className="btn btn-primary" onClick={(event) => { event.stopPropagation(); setModal(item); }}>Editar OS</button>
+                <button type="button" className="btn" onClick={(event) => { event.stopPropagation(); setSelectedId(item.id); setOccurrenceModal(item); }}>Ocorrência</button>
+              </div>
+            </article>
+          );
+        }) : <div className="dailyops-empty"><b>Nenhuma OS encontrada</b><span>Use Nova OS para registrar uma operação.</span></div>}
+      </div>
       <div className="detail">
         <div className="pane" style={{ overflow: 'hidden' }}>
           <div className="table-tools"><input className="search-input" value={filters.table} onChange={(event) => setFilters((old) => ({ ...old, table: event.target.value }))} placeholder="Filtrar resultados..." /><span className="spacer" /><button className="btn btn-sm" onClick={() => setItems((old) => [...old].sort((a, b) => String(b.date).localeCompare(String(a.date))))}>Ordenar: Data ↓</button></div>
@@ -3392,9 +3435,10 @@ function DailyOps({ notify, editable = true }) {
         </div>
         <div className="pane">{selected && <><div className="pane-head"><div><div className="eyebrow">Ordem de Serviço</div><div className="mono-title">OS {selected.number} · {selected.client}</div></div><div className="meta"><Pill value={selected.status} /></div></div><div className="tabs">{['Dados', 'Equipe', 'Horários', 'Ocorrências'].map((tab) => <div key={tab} className={`tab ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>{tab}</div>)}</div><div className="pane-body">{detailContent().map(([k, v]) => <div className="field-row" key={k}><b>{k}</b><span>{displayValue(v)}</span></div>)}</div><div className="action-strip"><button className="btn" onClick={() => setModal(selected)}>Editar OS</button>{selected.correctionRequested && !selected.correctionApproved && <button className="btn btn-primary" onClick={releaseCorrection}>Liberar correção</button>}<button className="btn btn-success" onClick={registerOccurrence}>Lançar ocorrência</button><button className="btn btn-danger push" onClick={remove}>Apagar</button></div></>}</div>
       </div>
-      {modal && <Editor title={modal.id ? 'Editar OS' : 'Nova OS'} fields={fields} initial={modal} onCancel={() => setModal(null)} onSave={save} />}
+      {modal && <Editor title={modal.id ? 'Editar OS' : 'Nova OS'} fields={fields} initial={modal} className="operation-modal" onCancel={() => setModal(null)} onSave={save} />}
       {occurrenceModal && <Editor title={`Lançar ocorrência · OS ${occurrenceModal.number}`} fields={occurrenceFields} initial={{ workOrder: occurrenceModal.number, type: 'Operacional', status: 'Aberta' }} onCancel={() => setOccurrenceModal(null)} onSave={saveOccurrence} />}
       {historyOpen && <div className="modal-backdrop"><div className="modal"><div className="modal-head"><h3>Histórico da operação</h3><button className="btn btn-sm" onClick={() => setHistoryOpen(false)}>Fechar</button></div><div className="modal-body"><DataTable columns={['OS', 'Cliente', 'Status', 'Data', 'Criado por']} rows={items.map((item) => [item.number, item.client, <Pill value={item.status} />, dateTime(item.date), item.createdBy || '-'])} /></div></div></div>}
+      <LeaderBottomNav active="dailyOps" />
     </>
   );
 }

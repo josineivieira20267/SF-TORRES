@@ -1546,15 +1546,17 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 .schedule-status-tabs{display:none}
 .attendance-mobile-list{display:none}
 .attendance-table-panel{display:block}
+.dailyops-mobile-primary,.dailyops-mobile-list{display:none}
 .leader-bottom-nav{display:none}
 
 @media (max-width:820px){
-  .app-route-schedules,.app-route-leaderAttendance{display:block;height:auto;min-height:100vh;max-width:100vw;overflow-x:hidden}
+  .app-route-schedules,.app-route-leaderAttendance,.app-route-dailyOps{display:block;height:auto;min-height:100vh;max-width:100vw;overflow-x:hidden}
   .app-route-schedules .sidebar,.app-route-schedules .topbar,
-  .app-route-leaderAttendance .sidebar,.app-route-leaderAttendance .topbar{display:none}
-  .app-route-schedules .main,.app-route-leaderAttendance .main{min-height:100vh;overflow-x:hidden;background:#EEF3F8}
-  .app-route-schedules .page,.app-route-leaderAttendance .page{padding:12px 12px 28px}
-  .app-route-schedules .page-head,.app-route-leaderAttendance .page-head{display:none}
+  .app-route-leaderAttendance .sidebar,.app-route-leaderAttendance .topbar,
+  .app-route-dailyOps .sidebar,.app-route-dailyOps .topbar{display:none}
+  .app-route-schedules .main,.app-route-leaderAttendance .main,.app-route-dailyOps .main{min-height:100vh;overflow-x:hidden;background:#EEF3F8}
+  .app-route-schedules .page,.app-route-leaderAttendance .page,.app-route-dailyOps .page{padding:12px 12px 28px}
+  .app-route-schedules .page-head,.app-route-leaderAttendance .page-head,.app-route-dailyOps .page-head{display:none}
   .schedule-mobile-head{
     display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:10px;
     width:auto;max-width:100vw;margin:-12px -12px 12px;padding:14px 12px 12px;
@@ -1578,12 +1580,13 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   .leader-mobile-actions{display:grid;gap:6px}
   .leader-mobile-actions .btn{min-width:82px;justify-content:center;padding:0 10px}
   .leader-mobile-actions .leader-logout{background:rgba(255,255,255,.08);color:#FFFFFF}
-  .schedule-toolbar,.app-route-leaderAttendance .toolbar{display:grid;grid-template-columns:1fr;gap:8px;padding:10px;background:transparent;border:none;margin-bottom:10px}
-  .schedule-toolbar .filter,.app-route-leaderAttendance .toolbar .filter{width:100%;height:44px;background:#FFFFFF;border-color:#CAD4E2;border-radius:8px;padding:0 12px}
+  .schedule-toolbar,.app-route-leaderAttendance .toolbar,.app-route-dailyOps .toolbar{display:grid;grid-template-columns:1fr;gap:8px;padding:10px;background:transparent;border:none;margin-bottom:10px}
+  .schedule-toolbar .filter,.app-route-leaderAttendance .toolbar .filter,.app-route-dailyOps .toolbar .filter{width:100%;height:44px;background:#FFFFFF;border-color:#CAD4E2;border-radius:8px;padding:0 12px}
   .schedule-toolbar .filter input,.schedule-toolbar .filter select,
-  .app-route-leaderAttendance .toolbar .filter input,.app-route-leaderAttendance .toolbar .filter select{width:100%;min-width:0;font-size:14px}
-  .schedule-toolbar .soft,.app-route-leaderAttendance .toolbar .soft{justify-self:end;font-size:12px;padding-right:4px}
-  .schedule-toolbar .spacer,.app-route-leaderAttendance .toolbar .spacer{display:none}
+  .app-route-leaderAttendance .toolbar .filter input,.app-route-leaderAttendance .toolbar .filter select,
+  .app-route-dailyOps .toolbar .filter input,.app-route-dailyOps .toolbar .filter select{width:100%;min-width:0;font-size:14px}
+  .schedule-toolbar .soft,.app-route-leaderAttendance .toolbar .soft,.app-route-dailyOps .toolbar .soft{justify-self:end;font-size:12px;padding-right:4px}
+  .schedule-toolbar .spacer,.app-route-leaderAttendance .toolbar .spacer,.app-route-dailyOps .toolbar .spacer{display:none}
   .app-route-leaderAttendance .toolbar > .soft{display:none}
   .app-route-schedules .kpi-grid,.app-route-leaderAttendance .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px}
   .app-route-schedules .kpi,.app-route-leaderAttendance .kpi{padding:10px;border-radius:8px;gap:9px}
@@ -1621,7 +1624,7 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   .schedule-card-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .schedule-touch-action{height:42px;justify-content:center;border-radius:8px;font-weight:700}
   .schedule-touch-action.primary-touch{grid-column:1 / -1}
-  .app-route-schedules .page,.app-route-leaderAttendance .page{width:100%;max-width:100vw;overflow-x:hidden;padding:0 16px calc(92px + env(safe-area-inset-bottom));background:#F6F8FC}
+  .app-route-schedules .page,.app-route-leaderAttendance .page,.app-route-dailyOps .page{width:100%;max-width:100vw;overflow-x:hidden;padding:0 16px calc(92px + env(safe-area-inset-bottom));background:#F6F8FC}
   .schedule-mobile-head{
     display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:12px;
     margin:0 -16px 0;padding:22px 20px 26px;background:#073A7A;color:#FFFFFF;position:relative;top:auto;
@@ -1634,20 +1637,21 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
     width:46px;height:46px;border:1px solid rgba(255,255,255,.18);border-radius:10px;background:rgba(255,255,255,.12);
     color:#FFFFFF;display:grid;place-items:center;font-size:24px;font-weight:800;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);
   }
-  .schedule-toolbar,.app-route-leaderAttendance .toolbar{
+  .schedule-toolbar,.app-route-leaderAttendance .toolbar,.app-route-dailyOps .toolbar{
     position:relative;z-index:2;margin:12px 0 14px;padding:0;background:transparent;border:none;box-shadow:none;
   }
   .app-route-schedules .schedule-toolbar{grid-template-columns:1fr}
   .app-route-schedules .schedule-toolbar .filter:nth-of-type(2){display:none}
-  .app-route-leaderAttendance .toolbar{grid-template-columns:1fr;gap:10px}
-  .schedule-toolbar .filter,.app-route-leaderAttendance .toolbar .filter{
+  .app-route-leaderAttendance .toolbar,.app-route-dailyOps .toolbar{grid-template-columns:1fr;gap:10px}
+  .schedule-toolbar .filter,.app-route-leaderAttendance .toolbar .filter,.app-route-dailyOps .toolbar .filter{
     height:56px;background:#FFFFFF;border:1px solid #DFE5EE;border-radius:10px;padding:0 14px;box-shadow:0 7px 18px rgba(15,36,71,.06);
   }
   .schedule-toolbar .filter,
-  .app-route-leaderAttendance .toolbar .filter{overflow:visible}
-  .schedule-toolbar .filter label,.app-route-leaderAttendance .toolbar .filter label{font-size:10px;font-weight:800;color:#7B8798}
+  .app-route-leaderAttendance .toolbar .filter,.app-route-dailyOps .toolbar .filter{overflow:visible}
+  .schedule-toolbar .filter label,.app-route-leaderAttendance .toolbar .filter label,.app-route-dailyOps .toolbar .filter label{font-size:10px;font-weight:800;color:#7B8798}
   .schedule-toolbar .filter input,.schedule-toolbar .filter select,
-  .app-route-leaderAttendance .toolbar .filter input,.app-route-leaderAttendance .toolbar .filter select{font-size:14px;font-weight:650;color:#0F2447}
+  .app-route-leaderAttendance .toolbar .filter input,.app-route-leaderAttendance .toolbar .filter select,
+  .app-route-dailyOps .toolbar .filter input,.app-route-dailyOps .toolbar .filter select{font-size:14px;font-weight:650;color:#0F2447}
   .app-route-schedules .kpi-grid,.app-route-leaderAttendance .kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:0 0 18px;background:#FFFFFF;border:1px solid #E4E9F1;border-radius:10px;box-shadow:0 8px 22px rgba(15,36,71,.05);overflow:hidden}
   .app-route-schedules .kpi,.app-route-leaderAttendance .kpi{
     display:grid;grid-template-columns:1fr;justify-items:center;text-align:center;gap:5px;min-height:92px;border:0;border-radius:0;box-shadow:none;
@@ -1715,7 +1719,7 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   .attendance-finish-card span{display:block;color:#233B61;font-size:13px}
   .attendance-finish-card .btn{height:56px;border-radius:8px;font-size:15px;font-weight:850}
   .leader-bottom-nav{
-    position:fixed;left:0;right:0;bottom:0;z-index:35;display:grid;grid-template-columns:1fr 1fr;
+    position:fixed;left:0;right:0;bottom:0;z-index:35;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
     height:calc(78px + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);
     background:#FFFFFF;border:1px solid #E4E9F1;border-left:0;border-right:0;border-bottom:0;border-radius:18px 18px 0 0;box-shadow:0 -10px 28px rgba(15,36,71,.18);
   }
@@ -1829,6 +1833,85 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
     padding-bottom:calc(96px + var(--keyboard-inset, 0px));
   }
   html.keyboard-open .operation-modal .modal-actions{
+    display:none;
+  }
+  .app-route-dailyOps .dailyops-mobile-primary{
+    display:grid;grid-template-columns:1.15fr .85fr;gap:10px;margin:14px 0 12px;
+  }
+  .app-route-dailyOps .dailyops-mobile-primary .btn{
+    height:46px;border-radius:9px;justify-content:center;font-size:14px;font-weight:850;
+  }
+  .app-route-dailyOps .toolbar{
+    margin:12px 0 14px;grid-template-columns:1fr;gap:10px;
+  }
+  .app-route-dailyOps .toolbar .filter{
+    min-width:0;height:54px;padding:0 12px;
+  }
+  .app-route-dailyOps .toolbar .filter input,
+  .app-route-dailyOps .toolbar .filter select{
+    min-width:0;overflow:hidden;text-overflow:ellipsis;
+  }
+  .app-route-dailyOps .toolbar .filter:nth-of-type(2),
+  .app-route-dailyOps .toolbar .filter:nth-of-type(3),
+  .app-route-dailyOps .toolbar .filter:nth-of-type(4),
+  .app-route-dailyOps .toolbar .soft{
+    display:none;
+  }
+  .app-route-dailyOps .detail{display:none}
+  .app-route-dailyOps .dailyops-mobile-list{
+    display:grid;gap:12px;margin-top:2px;
+  }
+  .dailyops-card{
+    background:#FFFFFF;border:1px solid #E0E7F0;border-radius:10px;padding:14px;
+    box-shadow:0 8px 20px rgba(15,36,71,.06);
+  }
+  .dailyops-card-top{
+    display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:start;
+  }
+  .dailyops-code{
+    display:inline-flex;align-items:center;min-height:22px;padding:0 8px;border-radius:999px;
+    background:#EEF4FF;color:#173B6D;font-size:11px;font-weight:850;
+  }
+  .dailyops-card h3{
+    margin:8px 0 0;font-size:18px;line-height:1.18;color:#071D44;font-weight:850;overflow-wrap:anywhere;
+  }
+  .dailyops-status{
+    display:inline-flex;align-items:center;min-height:30px;max-width:128px;padding:0 9px;border-radius:7px;
+    border:1px solid #D8E0EA;background:#F1F5F9;color:#53627A;font-size:11px;font-weight:850;text-transform:uppercase;line-height:1.15;text-align:left;
+  }
+  .dailyops-status.done{border-color:#BFE6D2;background:#EAF8F1;color:#087848}
+  .dailyops-status.active{border-color:#BBD8FF;background:#EAF3FF;color:#0B64CE}
+  .dailyops-status.pending{border-color:#F1D79B;background:#FFF8E8;color:#8A6100}
+  .dailyops-status.danger{border-color:#F0C4C8;background:#FFF0F1;color:#A6202A}
+  .dailyops-card-grid{
+    display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:13px;padding:12px;
+    background:#F8FAFD;border:1px solid #E8EEF5;border-radius:9px;
+  }
+  .dailyops-card-grid div{min-width:0}
+  .dailyops-card-grid span{
+    display:block;font-size:10px;text-transform:uppercase;letter-spacing:.35px;color:#718096;font-weight:800;
+  }
+  .dailyops-card-grid b{
+    display:block;margin-top:3px;font-size:12.5px;line-height:1.25;color:#10264A;font-weight:750;overflow-wrap:anywhere;
+  }
+  .dailyops-card-foot{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;color:#66758A;font-size:12px;
+  }
+  .dailyops-card-actions{
+    display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:13px;
+  }
+  .dailyops-card-actions .btn{
+    min-width:0;height:42px;border-radius:8px;justify-content:center;font-size:13px;font-weight:850;
+  }
+  .dailyops-empty{
+    display:grid;gap:5px;place-items:center;text-align:center;min-height:150px;padding:18px;
+    background:#FFFFFF;border:1px dashed #B8C5D6;border-radius:10px;color:#66758A;
+  }
+  .dailyops-empty b{color:#071D44}
+  html.keyboard-open .app-route-dailyOps .page{
+    padding-bottom:calc(24px + var(--keyboard-inset, 0px));
+  }
+  html.keyboard-open .app-route-dailyOps .dailyops-mobile-primary{
     display:none;
   }
 }
