@@ -1859,10 +1859,10 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 .dashboard-showcase{display:grid;grid-template-columns:1.35fr 1fr 1.35fr;gap:12px;margin-bottom:14px}
 .dashboard-rank-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
 .dashboard-showcase,.dashboard-rank-grid{align-items:stretch}
-.dashboard-showcase>.dashboard-chart-panel{display:grid;grid-template-rows:44px minmax(0,1fr);height:304px;min-height:304px;overflow:hidden}
-.dashboard-rank-grid>.dashboard-chart-panel{display:grid;grid-template-rows:44px minmax(0,1fr);height:248px;min-height:248px;overflow:hidden}
+.dashboard-showcase>.dashboard-chart-panel{display:grid;grid-template-rows:44px minmax(0,260px);height:304px;min-height:304px;overflow:hidden}
+.dashboard-rank-grid>.dashboard-chart-panel{display:grid;grid-template-rows:44px minmax(0,204px);height:248px;min-height:248px;overflow:hidden}
 .dashboard-chart-panel .panel-head{height:44px;min-height:44px;box-sizing:border-box}
-.dashboard-chart-panel .panel-body{min-height:0;height:100%;display:grid;align-items:center;overflow:hidden}
+.dashboard-chart-panel .panel-body{min-height:0;height:auto;display:grid;align-items:center;overflow:hidden;box-sizing:border-box}
 .panel-select{
   height:28px;border:1px solid var(--c-border);border-radius:var(--radius-sm);
   background:#FFFFFF;color:var(--c-text-muted);font-size:12px;padding:0 8px;
@@ -1877,7 +1877,7 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 .chart-legend span{display:flex;align-items:center;gap:8px}
 .chart-legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
 .chart-legend b{margin-left:auto;color:var(--c-text);font-variant-numeric:tabular-nums}
-.bar-chart{min-height:230px;display:grid;align-content:center;gap:13px}
+.bar-chart{min-height:0;height:100%;display:grid;align-content:center;gap:13px}
 .bar-row{display:grid;grid-template-columns:minmax(120px,1.2fr) minmax(130px,2fr) 86px;align-items:center;gap:10px;font-size:var(--fs-13)}
 .bar-row span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bar-row b{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
@@ -1894,7 +1894,7 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 .column-chart path{stroke:#D7E0EC;stroke-width:1;fill:none}
 .column-chart rect{fill:#4466E8}
 .column-chart text{font-size:10px;fill:var(--c-text-soft)}
-.ranking-bars{min-height:230px;display:grid;align-content:center;gap:10px}
+.ranking-bars{min-height:0;height:100%;display:grid;align-content:center;gap:10px}
 .ranking-row{
   display:grid;grid-template-columns:22px minmax(145px,1fr) minmax(150px,2fr) 76px;
   align-items:center;gap:10px;font-size:var(--fs-13);
@@ -1914,7 +1914,7 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 .progress-line{height:8px;min-width:90px;flex:1;background:#E8EEF6;border-radius:999px;overflow:hidden}
 .progress-line i{display:block;height:100%;background:#08A86B;border-radius:999px}
 .progress-value b{min-width:38px;text-align:right;font-variant-numeric:tabular-nums}
-.empty-chart{min-height:160px;display:grid;place-items:center;color:var(--c-text-soft);border:1px dashed var(--c-border-strong);border-radius:var(--radius-md)}
+.empty-chart{min-height:0;height:100%;display:grid;place-items:center;color:var(--c-text-soft);border:1px dashed var(--c-border-strong);border-radius:var(--radius-md)}
 
 @media (max-width:1100px){
   .metric-grid{grid-template-columns:repeat(2,1fr)}
