@@ -16,8 +16,8 @@ async function main() {
   };
 
   await prisma.user.upsert({
-    where: { email: 'admin@sftorres.local' },
-    update: { permissions: adminPermissions },
+    where: { email_environment: { email: 'admin@sftorres.local', environment: 'operational' } },
+    update: { environment: 'operational', permissions: adminPermissions },
     create: {
       id: 'usr_admin',
       name: 'Administrador SF',

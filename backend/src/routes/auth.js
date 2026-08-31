@@ -24,8 +24,8 @@ router.post('/login', async (req, res, next) => {
 
     const email = parsed.data.email.trim().toLowerCase();
     const user = hasDatabaseUrl
-      ? await prisma.user.findUnique({ where: { email } })
-      : (await readDb()).users.find((item) => item.email.toLowerCase() === email);
+      ? await prisma.user.findFirst({ where: { email, environment: parsed.data.environment } })
+      : (await readDb()).users.find((item) => item.email.toLowerCase() === email && (item.environment || 'operational') === parsed.data.environment);
     if (!user || !bcrypt.compareSync(parsed.data.password, user.passwordHash)) {
       return res.status(401).json({ error: { message: 'E-mail ou senha invalidos' } });
     }

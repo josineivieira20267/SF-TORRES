@@ -106,6 +106,18 @@ function defaultUserPermissions(role = 'Operacional') {
   return { dashboard: 'view', dailyOps: 'view' };
 }
 
+function permissionRouteKeysForEnvironment(environment = currentEnvironment()) {
+  return routeKeys.filter((key) => routeEnvironment(key) === environment);
+}
+
+function permissionsForEnvironment(permissions = {}, environment = currentEnvironment()) {
+  return Object.fromEntries(permissionRouteKeysForEnvironment(environment).map((key) => [key, permissions?.[key] || 'none']));
+}
+
+function defaultUserPermissionsForEnvironment(role = 'Operacional', environment = currentEnvironment()) {
+  return permissionsForEnvironment(defaultUserPermissions(role), environment);
+}
+
 function absenceCount(order) {
   if (!order?.attendance) return 0;
   return Object.values(order.attendance).filter((value) => normalize(typeof value === 'object' ? value.status : value) === 'falta').length;
@@ -3158,8 +3170,8 @@ function Users({ notify, editable = true }) {
       { label: 'Último acesso', render: () => '24/07/2026 09:42' },
       { label: 'Status', render: (i) => <Pill value={i.status} /> }
     ],
-    fields: [['name', 'Nome'], ['email', 'E-mail'], ['password', 'Senha'], ['role', 'Perfil', 'select', ['Administrador', 'RH / Recrutamento', 'Consulta', 'Líder', 'Operacional', 'Financeiro']], ['status', 'Status', 'select', ['Ativo', 'Inativo']], ['permissions', 'Permissões por tela', 'permissions']],
-    beforeSave: (data) => ({ ...data, environment })
+    fields: [['name', 'Nome'], ['email', 'E-mail'], ['password', 'Senha'], ['role', 'Perfil', 'select', ['Administrador', 'RH / Recrutamento', 'Consulta', 'Líder', 'Operacional', 'Financeiro']], ['status', 'Status', 'select', ['Ativo', 'Inativo']], ['permissions', 'Permissões por tela', 'permissions', { environment }]],
+    beforeSave: (data) => ({ ...data, environment, permissions: permissionsForEnvironment(data.permissions, environment) })
   }} notify={notify} editable={editable} />;
 }
 
@@ -3519,8 +3531,10 @@ function panelTitle(config, count) {
 
 function Editor({ title, fields, initial, onCancel, onSave, uppercase = false, className = '' }) {
   const hasEmployeePicker = fields.some(([, , type]) => type === 'employees');
+  const permissionField = fields.find(([, , type]) => type === 'permissions');
+  const permissionEnvironment = permissionField?.[3]?.environment || currentEnvironment();
   const [form, setForm] = useState(() => ({
-    ...Object.fromEntries(fields.map(([name, , type]) => [name, ['permissions', 'employees'].includes(type) ? (initial?.[name] || (type === 'permissions' ? defaultUserPermissions(initial?.role) : [])) : initial?.[name] ?? ''])),
+    ...Object.fromEntries(fields.map(([name, , type]) => [name, ['permissions', 'employees'].includes(type) ? (initial?.[name] || (type === 'permissions' ? defaultUserPermissionsForEnvironment(initial?.role, permissionEnvironment) : [])) : initial?.[name] ?? ''])),
     ...(hasEmployeePicker ? { teamRoles: initial?.teamRoles || {} } : {})
   }));
   const [submitting, setSubmitting] = useState(false);
@@ -3533,7 +3547,7 @@ function Editor({ title, fields, initial, onCancel, onSave, uppercase = false, c
       if (!normalize(value).includes('carreta')) next.trailerPlate = '';
     }
     if (name === 'role' && fields.some(([, , fieldType]) => fieldType === 'permissions')) {
-      next.permissions = defaultUserPermissions(value);
+      next.permissions = defaultUserPermissionsForEnvironment(value, permissionEnvironment);
     }
     return next;
   });
@@ -3561,7 +3575,7 @@ function Editor({ title, fields, initial, onCancel, onSave, uppercase = false, c
         <form className="modal-body" onSubmit={submit}>
           <div className="form-grid">{fields.map(([name, label, type = 'text', options, visible, required]) => {
             if (!isVisible(visible)) return null;
-            if (type === 'permissions') return <PermissionMatrix key={name} label={label} value={form[name]} onChange={(value) => change(name, value, type)} />;
+            if (type === 'permissions') return <PermissionMatrix key={name} label={label} value={form[name]} environment={options?.environment} onChange={(value) => change(name, value, type)} />;
             if (type === 'employees') return <EmployeePicker key={name} label={`${label}${isRequired(required) ? ' *' : ''}`} source={typeof options === 'function' ? options(form) : options} value={form[name]} rolesValue={form.teamRoles || {}} onChange={(value) => change(name, value, type)} onRolesChange={(value) => change('teamRoles', value)} />;
             return <div className="form-field" key={name}><label>{label}{isRequired(required) ? ' *' : ''}</label>{type === 'select' ? <select value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)}>{options.map((o) => <option key={o || '-'} value={o}>{o || '-'}</option>)}</select> : type === 'textarea' ? <textarea value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)} /> : <input type={['cpf', 'personName', 'uppercaseText'].includes(type) ? 'text' : type} value={form[name]} required={isRequired(required)} maxLength={type === 'cpf' ? 14 : undefined} onFocus={(e) => type === 'number' && String(form[name]) === '0' && e.target.select()} onChange={(e) => change(name, e.target.value, type)} />}</div>;
           })}</div>
@@ -3572,12 +3586,15 @@ function Editor({ title, fields, initial, onCancel, onSave, uppercase = false, c
   );
 }
 
-function PermissionMatrix({ label, value = {}, onChange }) {
+function PermissionMatrix({ label, value = {}, environment = currentEnvironment(), onChange }) {
   const setPermission = (route, permission) => onChange({ ...value, [route]: permission });
+  const availableRoutes = permissionRouteKeysForEnvironment(environment);
   return (
     <div className="permissions-grid">
       <div className="permissions-head">{label}</div>
-      {Object.entries(routes).map(([key, item]) => (
+      {availableRoutes.map((key) => {
+        const item = routes[key];
+        return (
         <div className="permissions-row" key={key}>
           <div><b>{item.title}</b><span>{item.group}</span></div>
           <select value={value?.[key] || 'none'} onChange={(event) => setPermission(key, event.target.value)}>
@@ -3586,7 +3603,8 @@ function PermissionMatrix({ label, value = {}, onChange }) {
             <option value="edit">Editar</option>
           </select>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
