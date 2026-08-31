@@ -97,6 +97,7 @@ function correctionObject(rows = []) {
     acc[row.employeeName] = {
       status: row.status,
       currentStatus: row.currentStatus || '',
+      reason: row.reason || '',
       requestedBy: { id: row.requestedById || '', name: row.requestedByName || '' },
       requestedAt: row.requestedAt,
       approvedBy: { id: row.approvedById || '', name: row.approvedByName || '' },
@@ -280,6 +281,10 @@ router.put('/', async (req, res, next) => {
 
     if (hasDatabaseUrl) {
       await Promise.all(Object.entries(incoming).map(async ([name, item]) => {
+        if (item?.clear) {
+          await prisma.employeeAttendance.deleteMany({ where: { date, employeeName: name } });
+          return;
+        }
         const employee = await findEmployeeByName(name);
         const payload = {
           employeeId: employee?.id || null,
@@ -304,7 +309,11 @@ router.put('/', async (req, res, next) => {
       Object.keys(incoming).forEach((name) => {
         if (correctionRequests[name]?.status === 'Aprovada') delete correctionRequests[name];
       });
-      const attendance = { ...(saved?.attendance || {}), ...incoming };
+      const attendance = { ...(saved?.attendance || {}) };
+      Object.entries(incoming).forEach(([name, item]) => {
+        if (item?.clear) delete attendance[name];
+        else attendance[name] = item;
+      });
       await saveLegacyAttendanceValue(attendanceKey(date), {
         date,
         updatedBy: { id: req.user.id, name: req.user.name, email: req.user.email, role: req.user.role },
@@ -340,7 +349,9 @@ router.put('/corrections', async (req, res, next) => {
     if (!isLeader(req.user)) return res.status(403).json({ error: { message: 'Somente lider pode solicitar correcao' } });
     const date = sanitizeDate(req.body?.date);
     const name = String(req.body?.name || '').trim();
+    const reason = String(req.body?.reason || '').trim();
     if (!name) return res.status(400).json({ error: { message: 'Colaborador obrigatorio' } });
+    if (!reason) return res.status(400).json({ error: { message: 'Justificativa obrigatoria para solicitar correcao' } });
     const saved = await readAttendanceDay(req.user, date);
 
     if (hasDatabaseUrl) {
@@ -351,6 +362,7 @@ router.put('/corrections', async (req, res, next) => {
           employeeId: employee?.id || null,
           status: 'Pendente',
           currentStatus: saved.attendance?.[name]?.status || '',
+          reason,
           requestedById: req.user.id || '',
           requestedByName: req.user.name || req.user.email || '',
           requestedAt: new Date()
@@ -361,6 +373,7 @@ router.put('/corrections', async (req, res, next) => {
           date,
           status: 'Pendente',
           currentStatus: saved.attendance?.[name]?.status || '',
+          reason,
           requestedById: req.user.id || '',
           requestedByName: req.user.name || req.user.email || ''
         }
@@ -374,6 +387,7 @@ router.put('/corrections', async (req, res, next) => {
           [name]: {
             status: 'Pendente',
             currentStatus: saved.attendance?.[name]?.status || '',
+            reason,
             requestedBy: { id: req.user.id, name: req.user.name, email: req.user.email },
             requestedAt: new Date().toISOString()
           }

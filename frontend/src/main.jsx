@@ -2569,6 +2569,9 @@ function LeaderAttendance({ notify, editable = true }) {
   const [monthValue, setMonthValue] = useState(currentMonthValue());
   const [query, setQuery] = useState('');
   const [mobileFilter, setMobileFilter] = useState('Todos');
+  const [noteModal, setNoteModal] = useState(null);
+  const [correctionModal, setCorrectionModal] = useState(null);
+  const [attendanceOccurrenceModal, setAttendanceOccurrenceModal] = useState(null);
   const [payload, setPayload] = useState(null);
   const [monthlySummary, setMonthlySummary] = useState({ employees: [] });
   const [selectedEmployee, setSelectedEmployee] = useState('');
@@ -2633,23 +2636,49 @@ function LeaderAttendance({ notify, editable = true }) {
     ...old,
     employees: (old?.employees || []).map((item) => item.name === name ? { ...item, ...patch } : item)
   }));
-  const mark = async (item, status) => {
+  const mark = async (item, status, note = item.note || '', clear = false) => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
-    updateEmployee(item.name, { status });
+    updateEmployee(item.name, { status: clear ? '' : status, note: clear ? '' : note });
     const response = await withBusy(() => api('/api/leader-attendance', {
       method: 'PUT',
-      body: JSON.stringify({ date: dateValue, q: query, attendance: { [item.name]: { status, note: item.note || '' } } })
+      body: JSON.stringify({ date: dateValue, q: query, attendance: { [item.name]: clear ? { clear: true } : { status, note } } })
     }));
     setPayload(response.data);
   };
-  const requestCorrection = async (item) => {
+  const saveNote = async (data) => {
+    if (!noteModal) return;
+    await mark(noteModal, noteModal.status || '', data.note || '');
+    setNoteModal(null);
+  };
+  const requestCorrection = async (data) => {
+    if (!correctionModal) return;
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
+    const reason = String(data.reason || '').trim();
+    if (!reason) return notify('Informe a justificativa da correção');
     const response = await withBusy(() => api('/api/leader-attendance/corrections', {
       method: 'PUT',
-      body: JSON.stringify({ date: dateValue, q: query, name: item.name })
+      body: JSON.stringify({ date: dateValue, q: query, name: correctionModal.name, reason })
     }));
     setPayload(response.data);
+    setCorrectionModal(null);
     notify('Solicitação de correção enviada');
+  };
+  const saveAttendanceOccurrence = async (data) => {
+    if (!attendanceOccurrenceModal) return;
+    const description = String(data.description || '').trim();
+    if (!description) return notify('Informe a descrição da ocorrência');
+    await withBusy(() => api('/api/occurrences', {
+      method: 'POST',
+      body: JSON.stringify({
+        workOrder: `Chamada ${dateValue}`,
+        type: data.type || 'Ponto',
+        description: `${attendanceOccurrenceModal.name}: ${description}`,
+        status: data.status || 'Aberta',
+        createdAt: new Date().toISOString()
+      })
+    }));
+    setAttendanceOccurrenceModal(null);
+    notify('Ocorrência lançada');
   };
   const approveCorrection = async (item) => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
@@ -2661,11 +2690,18 @@ function LeaderAttendance({ notify, editable = true }) {
     notify('Correção liberada para o líder');
   };
   const canLeaderChange = (item) => !leaderProfile || !item.status || item.correctionRequest?.status === 'Aprovada';
+  const extraAttendanceActions = (item) => [
+    !leaderProfile && { label: 'Adicionar observação', onClick: () => setNoteModal(item) },
+    !leaderProfile && { label: 'Limpar marcação', onClick: () => mark(item, '', '', true), disabled: !item.status && !item.note, danger: true },
+    leaderProfile && { label: 'Lançar ocorrência', onClick: () => setAttendanceOccurrenceModal(item) }
+  ];
   const markActions = (item, compact = false) => {
     const buttonClass = compact ? 'btn' : 'btn btn-sm';
     if (leaderProfile && !canLeaderChange(item)) {
-      if (item.correctionRequest?.status === 'Pendente') return <button className={`${buttonClass}`} disabled>Correção solicitada</button>;
-      return <button className={`${buttonClass}`} onClick={() => requestCorrection(item)} disabled={!editable}>Solicitar correção</button>;
+      const correctionButton = item.correctionRequest?.status === 'Pendente'
+        ? <button className={`${buttonClass}`} disabled>Correção solicitada</button>
+        : <button className={`${buttonClass}`} onClick={() => setCorrectionModal(item)} disabled={!editable}>Solicitar correção</button>;
+      return <div className="attendance-action-cluster">{correctionButton}<ActionMenu actions={extraAttendanceActions(item)} /></div>;
     }
     if (approverProfile && item.correctionRequest?.status === 'Pendente') {
       return <button className={`${buttonClass} btn-primary`} onClick={() => approveCorrection(item)} disabled={!editable}>Aprovar correção</button>;
@@ -2674,6 +2710,7 @@ function LeaderAttendance({ notify, editable = true }) {
       <>
         <button className={`${buttonClass} btn-success`} onClick={() => mark(item, 'Presente')} disabled={!editable}>Presente</button>
         <button className={`${buttonClass} btn-danger`} onClick={() => mark(item, 'Falta')} disabled={!editable}>Falta</button>
+        {!compact && <ActionMenu actions={extraAttendanceActions(item)} />}
       </>
     );
   };
@@ -2681,7 +2718,7 @@ function LeaderAttendance({ notify, editable = true }) {
     <b>{item.name}</b>,
     item.role || '-',
     item.team || '-',
-    item.status ? <Pill value={item.status} /> : <span className="soft">Sem marcação</span>,
+    <div>{item.status ? <Pill value={item.status} /> : <span className="soft">Sem marcação</span>}{item.note && <div className="attendance-note">{item.note}</div>}</div>,
     <div className="inline-actions">{markActions(item)}</div>
   ]);
   const attendanceCard = (item) => (
@@ -2693,7 +2730,10 @@ function LeaderAttendance({ notify, editable = true }) {
           <p>{[item.role, item.team].filter(Boolean).join(' · ') || '-'}</p>
           <small><Icon name="users" /> Equipe: <b>{item.team || '-'}</b></small>
         </div>
-        {item.correctionRequest?.status === 'Pendente' ? <Pill value="Correção pendente" /> : item.status ? <Pill value={item.status} /> : <span className="attendance-pending">Sem marcação</span>}
+        <div className="attendance-card-status">
+          {item.correctionRequest?.status === 'Pendente' ? <Pill value="Correção pendente" /> : item.status ? <Pill value={item.status} /> : <span className="attendance-pending">Sem marcação</span>}
+          {leaderProfile && <ActionMenu actions={extraAttendanceActions(item)} />}
+        </div>
       </div>
       <div className="attendance-actions">
         {markActions(item, true)}
@@ -2762,6 +2802,13 @@ function LeaderAttendance({ notify, editable = true }) {
         {!loading && !filteredEmployees.length && <div className="empty-chart">{query.trim() ? 'Nenhum colaborador encontrado para a busca.' : 'Pesquise um colaborador para marcar presença ou falta.'}</div>}
         {!loading && filteredEmployees.length > 0 && <div className="attendance-finish-card"><Icon name="help" /><div><b>Finalize a chamada</b><span>Confira os registros e finalize a chamada do dia.</span></div><button className="btn btn-primary" onClick={() => notify('Chamada conferida')}>Finalizar chamada</button></div>}
       </div>
+      {noteModal && <Editor title={`Observação: ${noteModal.name}`} fields={[['note', 'Observação', 'textarea', null, null, true]]} initial={{ note: noteModal.note || '' }} onCancel={() => setNoteModal(null)} onSave={saveNote} />}
+      {correctionModal && <Editor title={`Justificar correção: ${correctionModal.name}`} fields={[['reason', 'Justificativa', 'textarea', null, null, true]]} initial={{ reason: correctionModal.correctionRequest?.reason || '' }} onCancel={() => setCorrectionModal(null)} onSave={requestCorrection} />}
+      {attendanceOccurrenceModal && <Editor title={`Ocorrência: ${attendanceOccurrenceModal.name}`} fields={[
+        ['type', 'Tipo', 'select', ['Saída antecipada', 'Mal-estar', 'Atraso', 'Outro'], null, true],
+        ['description', 'Descrição', 'textarea', null, null, true],
+        ['status', 'Status', 'select', ['Aberta', 'Em análise', 'Resolvida']]
+      ]} initial={{ type: 'Saída antecipada', description: '', status: 'Aberta' }} onCancel={() => setAttendanceOccurrenceModal(null)} onSave={saveAttendanceOccurrence} />}
       <LeaderBottomNav active="leaderAttendance" />
       <div className="attendance-table-panel">
         <Panel title="Presença dos colaboradores" actions={<Pill value={date(dateValue)} />} padded>
@@ -3657,7 +3704,7 @@ function ActionPanel({ type, setRoute, onClose }) {
           id: `attendance-correction-${item.date}-${item.name}-${item.requestedAt || ''}`,
           tag: 'CHAMADA',
           title: `Correção de chamada: ${item.name}`,
-          text: `${item.requestedBy?.name || 'Líder'} solicitou liberação · ${date(item.date)}`
+          text: `${item.requestedBy?.name || 'Líder'} solicitou liberação · ${date(item.date)}${item.reason ? ` · ${item.reason}` : ''}`
         }))
         .filter((item) => !dismissed.has(item.id));
       setNotifications([...attendanceAlerts, ...occurrenceAlerts].slice(0, 50));

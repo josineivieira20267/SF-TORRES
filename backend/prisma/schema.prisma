@@ -85,6 +85,7 @@ model AttendanceCorrection {
   date            String
   status          String    @default("Pendente")
   currentStatus   String?
+  reason          String?
   requestedById   String?
   requestedByName String?
   requestedAt     DateTime  @default(now())
