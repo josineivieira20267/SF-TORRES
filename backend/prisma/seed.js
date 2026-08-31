@@ -6,6 +6,35 @@ const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL })
 });
 
+function envValue(key, fallback) {
+  return String(process.env[key] || fallback || '').trim();
+}
+
+async function upsertAdminUser({ id, environment, name, email, password, permissions }) {
+  if (!email || !password) return;
+  await prisma.user.upsert({
+    where: { email_environment: { email, environment } },
+    update: {
+      name,
+      role: 'Administrador',
+      status: 'Ativo',
+      environment,
+      permissions,
+      passwordHash: bcrypt.hashSync(password, 10)
+    },
+    create: {
+      id,
+      name,
+      email,
+      role: 'Administrador',
+      status: 'Ativo',
+      environment,
+      permissions,
+      passwordHash: bcrypt.hashSync(password, 10)
+    }
+  });
+}
+
 async function main() {
   const adminPermissions = {
     dashboard: 'edit', tower: 'edit', dailyOps: 'edit', schedules: 'edit', productivity: 'edit',
@@ -15,19 +44,22 @@ async function main() {
     talentUsers: 'edit', talentSettings: 'edit'
   };
 
-  await prisma.user.upsert({
-    where: { email_environment: { email: 'admin@sftorres.local', environment: 'operational' } },
-    update: { environment: 'operational', permissions: adminPermissions },
-    create: {
-      id: 'usr_admin',
-      name: 'Administrador SF',
-      email: 'admin@sftorres.local',
-      role: 'Administrador',
-      status: 'Ativo',
-      environment: 'operational',
-      permissions: adminPermissions,
-      passwordHash: bcrypt.hashSync('admin123', 10)
-    }
+  await upsertAdminUser({
+    id: 'usr_admin',
+    environment: 'operational',
+    name: envValue('DEFAULT_ADMIN_NAME', 'Administrador SF'),
+    email: envValue('DEFAULT_ADMIN_EMAIL', 'admin@sftorres.local').toLowerCase(),
+    password: envValue('DEFAULT_ADMIN_PASSWORD', 'admin123'),
+    permissions: adminPermissions
+  });
+
+  await upsertAdminUser({
+    id: 'usr_talents_admin',
+    environment: 'talents',
+    name: envValue('TALENTS_ADMIN_NAME', 'Administrador Talentos'),
+    email: envValue('TALENTS_ADMIN_EMAIL', '').toLowerCase(),
+    password: envValue('TALENTS_ADMIN_PASSWORD', ''),
+    permissions: adminPermissions
   });
 
   await prisma.client.createMany({
