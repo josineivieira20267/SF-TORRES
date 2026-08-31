@@ -1630,7 +1630,7 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   }
   .app-route-schedules .schedule-toolbar{grid-template-columns:1fr}
   .app-route-schedules .schedule-toolbar .filter:nth-of-type(2){display:none}
-  .app-route-leaderAttendance .toolbar{grid-template-columns:minmax(96px,.38fr) minmax(0,1fr);gap:8px}
+  .app-route-leaderAttendance .toolbar{grid-template-columns:1fr;gap:10px}
   .schedule-toolbar .filter,.app-route-leaderAttendance .toolbar .filter{
     height:56px;background:#FFFFFF;border:1px solid #DFE5EE;border-radius:10px;padding:0 14px;box-shadow:0 7px 18px rgba(15,36,71,.06);
   }
@@ -1639,10 +1639,7 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   .schedule-toolbar .filter label,.app-route-leaderAttendance .toolbar .filter label{font-size:10px;font-weight:800;color:#7B8798}
   .schedule-toolbar .filter input,.schedule-toolbar .filter select,
   .app-route-leaderAttendance .toolbar .filter input,.app-route-leaderAttendance .toolbar .filter select{font-size:14px;font-weight:650;color:#0F2447}
-  .app-route-schedules .kpi-grid,.app-route-leaderAttendance .kpi-grid{
-    display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:0 0 18px;background:#FFFFFF;border:1px solid #E4E9F1;
-    border-radius:10px;box-shadow:0 8px 22px rgba(15,36,71,.05);overflow:hidden;
-  }
+  .app-route-schedules .kpi-grid,.app-route-leaderAttendance .kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:0 0 18px;background:#FFFFFF;border:1px solid #E4E9F1;border-radius:10px;box-shadow:0 8px 22px rgba(15,36,71,.05);overflow:hidden}
   .app-route-schedules .kpi,.app-route-leaderAttendance .kpi{
     display:grid;grid-template-columns:1fr;justify-items:center;text-align:center;gap:5px;min-height:92px;border:0;border-radius:0;box-shadow:none;
     border-right:1px solid #E7ECF3;padding:12px 6px;background:#FFFFFF;
@@ -1678,14 +1675,11 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   .schedule-card-actions{grid-template-columns:.8fr 1.12fr;gap:12px}
   .schedule-touch-action{height:56px;border-radius:8px;font-size:16px;font-weight:800}
   .schedule-touch-action.primary-touch{grid-column:auto}
-  .leader-filter-tabs{
-    display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:0 0 18px;background:#FFFFFF;border:1px solid #E0E5EF;border-radius:8px;overflow:hidden;
-  }
-  .leader-filter-tabs button{height:48px;border:0;border-right:1px solid #E0E5EF;background:#FFFFFF;color:#172A4A;font-size:12px;font-weight:800;padding:0 4px;min-width:0}
-  .leader-filter-tabs button:last-child{border-right:0}
-  .leader-filter-tabs button.active{background:#073A7A;color:#FFFFFF}
-  .leader-filter-tabs span{display:inline-grid;place-items:center;min-width:20px;height:20px;margin-left:4px;border-radius:999px;background:rgba(15,36,71,.1);font-size:12px}
-  .leader-filter-tabs button.active span{background:rgba(255,255,255,.18)}
+  .leader-filter-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 16px;background:transparent;border:0;border-radius:0;overflow:visible}
+  .leader-filter-tabs button{height:44px;border:1px solid #DDE4EE;background:#FFFFFF;color:#172A4A;font-size:12px;font-weight:800;padding:0 10px;min-width:0;border-radius:9px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 6px 16px rgba(15,36,71,.045)}
+  .leader-filter-tabs button.active{background:#073A7A;border-color:#073A7A;color:#FFFFFF}
+  .leader-filter-tabs span{display:grid;place-items:center;min-width:24px;height:22px;margin:0;padding:0 7px;border-radius:999px;background:#EEF2F7;color:#172A4A;font-size:12px;font-weight:850}
+  .leader-filter-tabs button.active span{background:rgba(255,255,255,.18);color:#FFFFFF}
   .schedule-status-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
   .app-route-schedules .kpi-grid{display:none}
   .attendance-card{
@@ -1727,31 +1721,30 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
   html.keyboard-open .app-route-leaderAttendance .kpi-grid,
   html.keyboard-open .app-route-leaderAttendance .leader-filter-tabs{display:none}
   .app-route-leaderAttendance .kpi-grid{display:none}
-  .app-route-leaderAttendance .toolbar{grid-template-columns:minmax(142px,.44fr) minmax(0,1fr);gap:10px;margin:14px 0 14px}
-  .app-route-leaderAttendance .toolbar .filter{min-width:0;height:58px;padding:0 12px}
+  .app-route-leaderAttendance .toolbar{grid-template-columns:1fr;gap:10px;margin:14px 0 14px}
+  .app-route-leaderAttendance .toolbar .filter{min-width:0;height:54px;padding:0 12px}
   .app-route-leaderAttendance .toolbar .filter input{min-width:0;overflow:hidden;text-overflow:ellipsis}
-  .app-route-leaderAttendance .toolbar .filter:first-child input{font-size:13px}
+  .app-route-leaderAttendance .toolbar .filter:first-child{max-width:185px}
+  .app-route-leaderAttendance .toolbar .filter:first-child input{font-size:14px}
   .app-route-leaderAttendance .leader-filter-tabs{margin-bottom:16px}
-  .app-route-leaderAttendance .leader-filter-tabs button{height:46px;font-size:11.5px;line-height:1.1}
-  .app-route-leaderAttendance .leader-filter-tabs span{display:flex;margin:3px auto 0}
+  .app-route-leaderAttendance .leader-filter-tabs button{height:44px;font-size:12px;line-height:1.1}
   .app-route-leaderAttendance .attendance-mobile-list{gap:12px}
   .app-route-leaderAttendance .attendance-card{
     grid-template-columns:44px minmax(0,1fr);column-gap:12px;padding:14px;border-radius:10px;
-    align-items:start;box-shadow:0 8px 18px rgba(15,36,71,.06);
+    align-items:start;box-shadow:0 8px 18px rgba(15,36,71,.06);position:relative;
   }
   .app-route-leaderAttendance .attendance-avatar{width:44px;height:44px;align-self:start;margin-top:1px;font-size:17px}
-  .app-route-leaderAttendance .attendance-card-main{
-    display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;width:100%;min-width:0;
-  }
+  .app-route-leaderAttendance .attendance-card-main{display:grid;grid-template-columns:1fr;gap:8px;width:100%;min-width:0;padding-right:40px}
   .app-route-leaderAttendance .attendance-card-main h3{
     max-width:100%;font-size:16px;line-height:1.22;overflow-wrap:anywhere;word-break:normal;color:#071D44;
   }
   .app-route-leaderAttendance .attendance-card-main p{margin-top:4px;font-size:12.5px;line-height:1.35;text-transform:uppercase;letter-spacing:0;color:#69778D}
-  .app-route-leaderAttendance .attendance-card-status{grid-column:2;grid-row:1 / span 2;align-self:start;display:flex;align-items:center;gap:6px}
+  .app-route-leaderAttendance .attendance-card-status{grid-column:1;grid-row:auto;align-self:start;display:flex;align-items:center;gap:6px;justify-content:flex-start}
   .app-route-leaderAttendance .attendance-card-status .pill,
   .app-route-leaderAttendance .attendance-card-status .attendance-pending{
     max-width:128px;height:auto;min-height:28px;white-space:normal;line-height:1.2;text-align:left;
   }
+  .app-route-leaderAttendance .attendance-card-status .action-menu{position:absolute;right:14px;top:14px}
   .app-route-leaderAttendance .attendance-card-status .action-menu-trigger{width:34px;min-width:34px;height:34px}
   .app-route-leaderAttendance .attendance-actions{padding-top:14px}
   .app-route-leaderAttendance .attendance-actions .attendance-action-cluster{grid-column:1 / -1;display:grid;grid-template-columns:1fr;gap:8px}
