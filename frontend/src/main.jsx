@@ -2571,6 +2571,7 @@ function LeaderAttendance({ notify, editable = true }) {
   const [mobileFilter, setMobileFilter] = useState('Todos');
   const [noteModal, setNoteModal] = useState(null);
   const [correctionModal, setCorrectionModal] = useState(null);
+  const [correctionReviewModal, setCorrectionReviewModal] = useState(null);
   const [attendanceOccurrenceModal, setAttendanceOccurrenceModal] = useState(null);
   const [occurrenceDetailModal, setOccurrenceDetailModal] = useState(null);
   const [payload, setPayload] = useState(null);
@@ -2717,18 +2718,20 @@ function LeaderAttendance({ notify, editable = true }) {
     load(dateValue, query);
     notify('Ocorrência lançada');
   };
-  const approveCorrection = async (item) => {
+  const decideCorrection = async (item, approved = true) => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     const response = await withBusy(() => api('/api/leader-attendance/corrections/approve', {
       method: 'PUT',
-      body: JSON.stringify({ date: dateValue, q: query, name: item.name })
+      body: JSON.stringify({ date: dateValue, q: query, name: item.name, approved })
     }));
     setPayload(response.data);
-    notify('Correção liberada para o líder');
+    setCorrectionReviewModal(null);
+    notify(approved ? 'Correção liberada para o líder' : 'Correção negada');
   };
   const canLeaderChange = (item) => !leaderProfile || !item.status || item.correctionRequest?.status === 'Aprovada';
   const extraAttendanceActions = (item) => [
     !leaderProfile && { label: 'Adicionar observação', onClick: () => setNoteModal(item) },
+    !leaderProfile && { label: 'Ver solicitação de correção', onClick: () => setCorrectionReviewModal(item), disabled: item.correctionRequest?.status !== 'Pendente' },
     !leaderProfile && { label: 'Ver ocorrência', onClick: () => setOccurrenceDetailModal({ item, occurrences: occurrencesForEmployee(item) }), disabled: !occurrencesForEmployee(item).length },
     !leaderProfile && { label: 'Aprovar ocorrência', onClick: () => approveOccurrence(pendingOccurrence(item)), disabled: !pendingOccurrence(item) },
     !leaderProfile && { label: 'Limpar marcação', onClick: () => mark(item, '', '', true), disabled: !item.status && !item.note, danger: true },
@@ -2744,7 +2747,7 @@ function LeaderAttendance({ notify, editable = true }) {
       return <div className="attendance-action-cluster">{correctionButton}<ActionMenu actions={extraAttendanceActions(item)} /></div>;
     }
     if (approverProfile && item.correctionRequest?.status === 'Pendente') {
-      return <button className={`${buttonClass} btn-primary`} onClick={() => approveCorrection(item)} disabled={!editable}>Aprovar correção</button>;
+      return <button className={`${buttonClass} btn-primary`} onClick={() => setCorrectionReviewModal(item)} disabled={!editable}>Ver solicitação</button>;
     }
     return (
       <>
@@ -2856,6 +2859,31 @@ function LeaderAttendance({ notify, editable = true }) {
                     {!['aprovada', 'resolvida'].includes(normalize(occurrence.status)) && <button className="btn btn-primary" onClick={() => approveOccurrence(occurrence)}>Aprovar ocorrência</button>}
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {correctionReviewModal && (
+        <div className="modal-backdrop">
+          <div className="modal attendance-correction-modal">
+            <div className="modal-head"><h3>Solicitação de correção</h3><button className="btn btn-sm" onClick={() => setCorrectionReviewModal(null)}>Fechar</button></div>
+            <div className="modal-body">
+              <div className="correction-review-head">
+                <div><b>{correctionReviewModal.name}</b><span>{date(dateValue)}</span></div>
+                <Pill value={correctionReviewModal.correctionRequest?.currentStatus || correctionReviewModal.status || 'Sem marcação'} />
+              </div>
+              <div className="correction-review-block">
+                <span>Solicitado por</span>
+                <b>{correctionReviewModal.correctionRequest?.requestedBy?.name || 'Líder'}</b>
+              </div>
+              <div className="correction-review-block">
+                <span>Justificativa</span>
+                <p>{correctionReviewModal.correctionRequest?.reason || 'Sem justificativa informada.'}</p>
+              </div>
+              <div className="modal-actions">
+                <button className="btn btn-danger" onClick={() => decideCorrection(correctionReviewModal, false)}>Negar</button>
+                <button className="btn btn-primary" onClick={() => decideCorrection(correctionReviewModal, true)}>Aprovar correção</button>
               </div>
             </div>
           </div>

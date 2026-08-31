@@ -409,6 +409,8 @@ router.put('/corrections/approve', async (req, res, next) => {
     if (!canApproveCorrections(req.user)) return res.status(403).json({ error: { message: 'Seu perfil nao aprova correcao de chamada' } });
     const date = sanitizeDate(req.body?.date);
     const name = String(req.body?.name || '').trim();
+    const approved = req.body?.approved !== false;
+    const nextStatus = approved ? 'Aprovada' : 'Negada';
     if (!name) return res.status(400).json({ error: { message: 'Colaborador obrigatorio' } });
     const saved = await readAttendanceDay(req.user, date);
 
@@ -418,7 +420,7 @@ router.put('/corrections/approve', async (req, res, next) => {
         where: { date_employeeName: { date, employeeName: name } },
         update: {
           employeeId: employee?.id || null,
-          status: 'Aprovada',
+          status: nextStatus,
           approvedById: req.user.id || '',
           approvedByName: req.user.name || req.user.email || '',
           approvedAt: new Date()
@@ -427,7 +429,7 @@ router.put('/corrections/approve', async (req, res, next) => {
           employeeId: employee?.id || null,
           employeeName: name,
           date,
-          status: 'Aprovada',
+          status: nextStatus,
           currentStatus: saved.attendance?.[name]?.status || '',
           approvedById: req.user.id || '',
           approvedByName: req.user.name || req.user.email || '',
@@ -443,7 +445,7 @@ router.put('/corrections/approve', async (req, res, next) => {
           ...(saved.correctionRequests || {}),
           [name]: {
             ...(current || {}),
-            status: 'Aprovada',
+            status: nextStatus,
             approvedBy: { id: req.user.id, name: req.user.name, email: req.user.email },
             approvedAt: new Date().toISOString()
           }
