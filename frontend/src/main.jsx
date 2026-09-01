@@ -2538,6 +2538,7 @@ function LeaderAttendance({ notify, editable = true }) {
   const [dateValue, setDateValue] = useState(localDateValue(new Date()));
   const [monthValue, setMonthValue] = useState(currentMonthValue());
   const [query, setQuery] = useState('');
+  const [locationFilter, setLocationFilter] = useState('Todos');
   const [mobileFilter, setMobileFilter] = useState('Todos');
   const [noteModal, setNoteModal] = useState(null);
   const [correctionModal, setCorrectionModal] = useState(null);
@@ -2613,13 +2614,17 @@ function LeaderAttendance({ notify, editable = true }) {
     setOccurrenceDetailModal((current) => current ? { ...current, occurrences: current.occurrences.filter((item) => item.id !== occurrence.id) } : current);
     load(dateValue, query);
   };
+  const locationOptions = ['Todos', ...Array.from(new Set(employees.map((item) => item.location).filter((value) => value && value !== '-'))).sort((a, b) => String(a).localeCompare(String(b)))];
+  const employeesByLocation = locationFilter === 'Todos'
+    ? employees
+    : employees.filter((item) => normalize(item.location) === normalize(locationFilter));
   const attendanceCounts = {
-    marked: employees.filter((item) => Boolean(item.status)).length,
-    present: employees.filter((item) => normalize(item.status) === 'presente').length,
-    absences: employees.filter((item) => normalize(item.status) === 'falta').length,
-    results: employees.length
+    marked: employeesByLocation.filter((item) => Boolean(item.status)).length,
+    present: employeesByLocation.filter((item) => normalize(item.status) === 'presente').length,
+    absences: employeesByLocation.filter((item) => normalize(item.status) === 'falta').length,
+    results: employeesByLocation.length
   };
-  const filteredEmployees = employees.filter((item) => {
+  const filteredEmployees = employeesByLocation.filter((item) => {
     if (mobileFilter === 'Presentes') return normalize(item.status) === 'presente';
     if (mobileFilter === 'Faltas') return normalize(item.status) === 'falta';
     if (mobileFilter === 'Resultados') return Boolean(item.status);
@@ -2769,6 +2774,7 @@ function LeaderAttendance({ notify, editable = true }) {
       <PageHead title="Chamada de Ponto" subtitle="Pesquise o colaborador e marque presença ou falta, separado das ordens de serviço." action="Atualizar" onAction={() => load(dateValue, query)} />
       <div className="toolbar">
         <div className="filter"><label>Data</label><input type="date" value={dateValue} onChange={(event) => setDateValue(event.target.value || localDateValue(new Date()))} /></div>
+        <div className="filter"><label>Local</label><select value={locationFilter} onChange={(event) => setLocationFilter(event.target.value)}>{locationOptions.map((location) => <option key={location}>{location}</option>)}</select></div>
         <div className="filter grow"><label>Buscar colaborador</label><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Digite nome, função ou equipe..." /></div>
         <span className="spacer" />
         <span className="soft">{user.name || user.email || 'Lider'}</span>

@@ -44,6 +44,7 @@ function employeeRow(employee, attendance = {}, correctionRequests = {}) {
     name: employee.name,
     role: employee.role || '-',
     team: employee.team || '-',
+    location: employee.location || '-',
     status: saved.status || '',
     note: saved.note || '',
     correctionRequest: correction && correction.status !== 'Cancelada' ? correction : null
