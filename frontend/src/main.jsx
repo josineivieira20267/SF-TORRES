@@ -3256,6 +3256,9 @@ function Settings({ notify, settings, setSettings, editable = true }) {
 }
 
 function DailyOps({ notify, editable = true }) {
+  const user = currentUser();
+  const leaderProfile = isLeaderUser(user);
+  const leaderResponsibleName = user.name || user.email || '';
   const [items, setItems] = useState([]);
   const [clients, setClients] = useState([]);
   const [equipment, setEquipment] = useState([]);
@@ -3282,7 +3285,7 @@ function DailyOps({ notify, editable = true }) {
     ['date', 'Data programada', 'datetime-local', null, null, true],
     ['carrier', 'Transportador'],
     ['service', 'Serviço', 'select', ['', ...optionValues(services, 'description', 'code')], null, true],
-    ['responsible', 'Responsável', 'select', ['', ...optionValues(leaders, 'name')], null, true],
+    ['responsible', 'Responsável', 'select', leaderProfile ? [leaderResponsibleName].filter(Boolean) : ['', ...optionValues(leaders, 'name')], null, true],
     ['teamMembers', 'Integrantes da equipe', 'employees', { endpoint: '/api/employees', roles: (form) => isMichelinOrder(form, productivityRules) ? [] : productivityRules.standard }],
     ['product', 'Produto'],
     ['operationStart', 'Início da operação', 'datetime-local'],
@@ -3313,7 +3316,7 @@ function DailyOps({ notify, editable = true }) {
   const load = () => {
     const range = periodRange();
     setLoading(true);
-    api(workOrdersRangeEndpoint(range.from, range.to)).then((p) => { const data = listData(p); setItems(data); setSelectedId((old) => old || data[0]?.id || ''); }).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false));
+    api(workOrdersRangeEndpoint(range.from, range.to, { mine: leaderProfile ? true : '' })).then((p) => { const data = listData(p); setItems(data); setSelectedId((old) => old || data[0]?.id || ''); }).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false));
   };
   const loadOccurrences = () => api('/api/occurrences').then((p) => setOccurrences(listData(p))).catch(() => setOccurrences([]));
   useEffect(() => { load(); }, [filters.period, filters.from, filters.to]);
@@ -3330,11 +3333,10 @@ function DailyOps({ notify, editable = true }) {
   }, [filters, items]);
   const save = async (data) => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
-    const user = currentUser();
     if (items.some((item) => item.id !== modal?.id && normalize(item.number) === normalize(data.number))) return notify('Ja existe uma OS com este numero');
     const members = Array.isArray(data.teamMembers) ? data.teamMembers : [];
     const teamRoles = isMichelinOrder(data, productivityRules) ? {} : Object.fromEntries(Object.entries(data.teamRoles || {}).filter(([name]) => members.includes(name)));
-    const cleanData = { ...data, teamRoles, location: '' };
+    const cleanData = { ...data, responsible: leaderProfile ? leaderResponsibleName : data.responsible, teamRoles, location: '' };
     const payload = modal?.id ? cleanData : { ...cleanData, progress: data.progress || 0, createdBy: data.createdBy || user.name || user.email || 'Administrador SF' };
     await withBusy(() => api(modal?.id ? `/api/workOrders/${modal.id}` : '/api/workOrders', { method: modal?.id ? 'PUT' : 'POST', body: JSON.stringify(payload) }));
     setModal(null); notify('OS salva'); load();
@@ -3389,10 +3391,10 @@ function DailyOps({ notify, editable = true }) {
   };
   return (
     <>
-      <PageHead title="Operação Diária" subtitle="Gestão detalhada das OS com filtros, confirmação de equipe, horários e ocorrências." ghostActions={['Histórico', 'Exportar planilha']} onGhostAction={(label) => label === 'Histórico' ? setHistoryOpen(true) : exportFiltered()} action="Nova OS" onAction={() => setModal({ status: 'Programado' })} />
+      <PageHead title="Operação Diária" subtitle="Gestão detalhada das OS com filtros, confirmação de equipe, horários e ocorrências." ghostActions={['Histórico', 'Exportar planilha']} onGhostAction={(label) => label === 'Histórico' ? setHistoryOpen(true) : exportFiltered()} action="Nova OS" onAction={() => setModal({ status: 'Programado', responsible: leaderResponsibleName })} />
       <LeaderMobileNav active="dailyOps" title="Operação Diária" onRefresh={load} />
       <div className="dailyops-mobile-primary">
-        <button type="button" className="btn btn-primary" onClick={() => setModal({ status: 'Programado' })}><Icon name="box" />Nova OS</button>
+        <button type="button" className="btn btn-primary" onClick={() => setModal({ status: 'Programado', responsible: leaderResponsibleName })}><Icon name="box" />Nova OS</button>
         <button type="button" className="btn" onClick={() => setHistoryOpen(true)}><Icon name="clock" />Histórico</button>
       </div>
       <div className="toolbar">

@@ -22,7 +22,9 @@ function appendAnd(where, condition) {
 }
 
 function shouldRestrictToLoggedUser(query, req) {
-  return String(query.mine || '').toLowerCase() === 'true' && !normalize(req.user?.role).includes('administrador');
+  const role = normalize(req.user?.role);
+  if (role.includes('administrador')) return false;
+  return role.includes('lider') || String(query.mine || '').toLowerCase() === 'true';
 }
 
 function workOrderMineWhere(query, req) {
@@ -30,10 +32,7 @@ function workOrderMineWhere(query, req) {
   const terms = [req.user?.name, req.user?.email].filter(Boolean);
   if (!terms.length) return { id: '__none__' };
   return {
-    OR: terms.flatMap((term) => [
-      { responsible: { contains: String(term), mode: 'insensitive' } },
-      { carrier: { contains: String(term), mode: 'insensitive' } }
-    ])
+    OR: terms.map((term) => ({ responsible: { contains: String(term), mode: 'insensitive' } }))
   };
 }
 
@@ -53,7 +52,7 @@ function applyWorkOrderJsonFilters(items, query, req) {
   let result = [...items];
   if (shouldRestrictToLoggedUser(query, req)) {
     const terms = [req.user?.name, req.user?.email].map(normalize).filter(Boolean);
-    result = result.filter((item) => terms.some((term) => normalize(`${item.responsible} ${item.carrier}`).includes(term)));
+    result = result.filter((item) => terms.some((term) => normalize(item.responsible).includes(term)));
   }
   if (query.statusGroup === 'Finalizados') {
     result = result.filter((item) => normalize(item.status).includes('finaliz') || normalize(item.status).includes('conclu'));
