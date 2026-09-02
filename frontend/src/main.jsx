@@ -3351,7 +3351,7 @@ function DailyOps({ notify, editable = true }) {
   }, [filters, items]);
   const save = async (data) => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
-    if (items.some((item) => item.id !== modal?.id && normalize(item.number) === normalize(data.number))) return notify('Ja existe uma OS com este numero');
+    if (items.some((item) => item.id !== modal?.id && normalize(item.number).trim() === normalize(data.number).trim() && normalizeLabel(item.client) === normalizeLabel(data.client))) return notify('Ja existe uma OS com este numero para este cliente');
     const members = Array.isArray(data.teamMembers) ? data.teamMembers : [];
     const teamRoles = isMichelinOrder(data, productivityRules) ? {} : Object.fromEntries(Object.entries(data.teamRoles || {}).filter(([name]) => members.includes(name)));
     const cleanData = { ...data, responsible: leaderProfile ? leaderResponsibleName : data.responsible, teamRoles, location: '' };

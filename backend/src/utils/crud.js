@@ -138,8 +138,10 @@ function createController(collection, searchableFields = ['name', 'code', 'descr
 
     async update(req, res, next) {
       try {
+        let body = req.body;
+        if (options.prepareUpdate) body = await options.prepareUpdate(body, req);
         if (hasDatabaseUrl) {
-          const item = await prisma[prismaModel].update({ where: { id: req.params.id }, data: req.body });
+          const item = await prisma[prismaModel].update({ where: { id: req.params.id }, data: body });
           return res.json({ data: item });
         }
 
@@ -147,7 +149,7 @@ function createController(collection, searchableFields = ['name', 'code', 'descr
           const list = db[collection] || [];
           const index = list.findIndex((entry) => entry.id === req.params.id);
           if (index === -1) return null;
-          list[index] = { ...list[index], ...req.body, id: list[index].id, updatedAt: new Date().toISOString() };
+          list[index] = { ...list[index], ...body, id: list[index].id, updatedAt: new Date().toISOString() };
           return list[index];
         });
         if (!item) return res.status(404).json({ error: { message: 'Registro nao encontrado' } });

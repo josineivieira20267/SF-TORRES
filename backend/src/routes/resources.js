@@ -117,6 +117,58 @@ function nextServiceCodeFrom(items) {
   return `SV-${String(nextNumber).padStart(3, '0')}`;
 }
 
+function normalizedUniqueValue(value) {
+  return normalize(value).trim();
+}
+
+function duplicateWorkOrderError() {
+  const error = new Error('Ja existe uma OS com este numero para este cliente');
+  error.status = 409;
+  return error;
+}
+
+async function ensureUniqueWorkOrderByClient(data, req) {
+  const { readDb } = require('../db/jsonStore');
+  let candidate = data;
+
+  if (req.params.id) {
+    if (hasDatabaseUrl) {
+      const current = await prisma.workOrder.findUnique({ where: { id: req.params.id } });
+      if (current) candidate = { ...current, ...data };
+    } else {
+      const db = await readDb();
+      const current = (db.workOrders || []).find((item) => item.id === req.params.id);
+      if (current) candidate = { ...current, ...data };
+    }
+  }
+
+  const number = normalizedUniqueValue(candidate.number);
+  const client = normalizedUniqueValue(candidate.client);
+  if (!number || !client) return data;
+
+  if (hasDatabaseUrl) {
+    const orders = await prisma.workOrder.findMany({
+      select: { id: true, number: true, client: true }
+    });
+    const exists = orders.some((item) =>
+      item.id !== req.params.id &&
+      normalizedUniqueValue(item.number) === number &&
+      normalizedUniqueValue(item.client) === client
+    );
+    if (exists) throw duplicateWorkOrderError();
+    return data;
+  }
+
+  const db = await readDb();
+  const exists = (db.workOrders || []).some((item) =>
+    item.id !== req.params.id &&
+    normalizedUniqueValue(item.number) === number &&
+    normalizedUniqueValue(item.client) === client
+  );
+  if (exists) throw duplicateWorkOrderError();
+  return data;
+}
+
 async function prepareServiceCreate(data) {
   if (String(data.code || '').trim()) return data;
   if (hasDatabaseUrl) {
@@ -140,7 +192,9 @@ const resources = {
     applyPrismaWhere: applyWorkOrderPrismaWhere,
     applyJsonFilters: applyWorkOrderJsonFilters,
     metaPrisma: workOrderMetaPrisma,
-    metaJson: workOrderMetaJson
+    metaJson: workOrderMetaJson,
+    prepareCreate: ensureUniqueWorkOrderByClient,
+    prepareUpdate: ensureUniqueWorkOrderByClient
   }),
   measurements: createController('measurements', ['number', 'client', 'workOrder', 'status'], 'measurement'),
   occurrences: createController('occurrences', ['workOrder', 'employeeName', 'attendanceDate', 'type', 'description', 'status'], 'occurrence'),
