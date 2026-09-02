@@ -112,6 +112,36 @@ function productivityTotalFor(summary) {
   return Number(summary.customBonus || 0) + bonusAmountFor({ ...summary, present: standardPresent });
 }
 
+function displayDate(value) {
+  if (!value) return '';
+  const raw = String(value);
+  const br = raw.match(/^(\d{2}\/\d{2}\/\d{4})/);
+  if (br) return br[1];
+  const [year, month, day] = raw.slice(0, 10).split('-');
+  return year && month && day ? `${day}/${month}/${year}` : raw;
+}
+
+function displayDateTime(value) {
+  if (!value) return '';
+  const raw = String(value);
+  const br = raw.match(/^(\d{2}\/\d{2}\/\d{4})(?:,?\s+(\d{2}:\d{2}))?/);
+  if (br) return br[2] ? `${br[1]} ${br[2]}` : br[1];
+  const [datePart, timePart = ''] = raw.split('T');
+  const [year, month, day] = datePart.split('-');
+  const date = year && month && day ? `${day}/${month}/${year}` : datePart;
+  return timePart ? `${date} ${timePart.slice(0, 5)}` : date;
+}
+
+function durationText(order) {
+  const hours = durationHours(order);
+  if (!hours) return '00:00:00';
+  const totalSeconds = Math.round(hours * 3600);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  return `${pad2(h)}:${pad2(m)}:${pad2(s)}`;
+}
+
 function timeMinutes(value) {
   const match = String(value || '').match(/(\d{2}):(\d{2})/);
   return match ? Number(match[1]) * 60 + Number(match[2]) : null;
@@ -167,6 +197,20 @@ function countBy(items, readLabel) {
   }, {})).sort((a, b) => b.value - a.value);
 }
 
+function rangeFromQuery(query) {
+  if (query.from || query.to) {
+    const now = monthRange(query.month);
+    const from = String(query.from || now.from.slice(0, 10)).slice(0, 10);
+    const to = String(query.to || now.to.slice(0, 10)).slice(0, 10);
+    return {
+      month: from.slice(0, 7),
+      from: `${from}T00:00:00`,
+      to: `${to}T23:59:59`
+    };
+  }
+  return monthRange(query.month);
+}
+
 function attendanceByName(attendanceRows = []) {
   const byNameDate = {};
   attendanceRows.forEach((row) => {
@@ -182,6 +226,159 @@ function attendanceByName(attendanceRows = []) {
     if (status === 'falta') result[key].absences += 1;
     return result;
   }, {});
+}
+
+function workOrderAttendanceStatus(order, name) {
+  const value = order?.attendance?.[name];
+  const status = typeof value === 'object' ? value?.status : value;
+  return status || 'Presente';
+}
+
+function equipmentLabel(order) {
+  const text = normalize(`${order.equipment || ''} ${order.equipmentType || ''}`);
+  if (text.includes('container') || text.includes('conteiner')) return 'CONTEINER';
+  if (text.includes('carreta')) return 'CARRETA';
+  if (text.includes('caminh') || text.includes('truck')) return 'CAMINHAO';
+  return String(order.equipment || '').trim();
+}
+
+function numberingLabel(order) {
+  return order.containerNumber || order.trailerPlate || order.numbering || '';
+}
+
+function sheetNameForClient(client, usedNames) {
+  const base = String(client || 'SEM CLIENTE').replace(/[:\\/?*\[\]]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 31) || 'SEM CLIENTE';
+  let name = base;
+  let index = 2;
+  while (usedNames.has(normalize(name))) {
+    const suffix = ` ${index}`;
+    name = `${base.slice(0, 31 - suffix.length)}${suffix}`;
+    index += 1;
+  }
+  usedNames.add(normalize(name));
+  return name;
+}
+
+function escapeXml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function xmlCell(value) {
+  return `<Cell><Data ss:Type="String">${escapeXml(value)}</Data></Cell>`;
+}
+
+function buildExcelXml(sheets) {
+  const worksheets = sheets.map((sheet) => `
+    <Worksheet ss:Name="${escapeXml(sheet.name)}">
+      <Table>
+        ${(sheet.rows || []).map((row) => `<Row>${row.map(xmlCell).join('')}</Row>`).join('')}
+      </Table>
+    </Worksheet>`).join('');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+  <Styles>
+    <Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Center"/></Style>
+  </Styles>
+  ${worksheets}
+</Workbook>`;
+}
+
+function buildProductivityExport({ workOrders, employees, attendanceRows, productivityRules, query }) {
+  const employeeByName = Object.fromEntries(employees.map((item) => [normalize(item.name), item]));
+  const callsByName = attendanceByName(attendanceRows);
+  const headers = [
+    'OS N° ST',
+    'DATA DA OPERAÇÃO',
+    'NOME COLABORADOR',
+    'VALOR DA OPERAÇÃO',
+    'FUNÇÃO',
+    'PRODUTO',
+    'ARMADOR',
+    'SERVIÇO',
+    'EQUIPAMENTO',
+    'INCIO DA OPERAÇÃO',
+    'TERMINO DA OPERAÇÃO',
+    'DURAÇÃO DA OPERAÇÃO',
+    'NUMERAÇÃO',
+    'QUANTIDADE MÃO DE OBRA'
+  ];
+  const rows = workOrders.flatMap((order) => {
+    const members = Array.isArray(order.teamMembers) ? order.teamMembers : Object.keys(order.attendance || {});
+    return members.flatMap((name) => {
+      const employee = employeeByName[normalize(name)] || { name, role: '', team: '' };
+      const michelinShare = michelinShareForEntry(order, name, employeeByName, productivityRules);
+      const criteria = michelinShare !== null
+        ? [{ key: 'michelin', name: 'MICHELIN', base: michelinShare, mode: 'per-os', match: 'michelin' }]
+        : (rulesForAssignment(order.teamRoles?.[name], productivityRules).length
+          ? rulesForAssignment(order.teamRoles?.[name], productivityRules)
+          : [bonusCriterionFor(employee, productivityRules)]);
+      return criteria.map((criterion) => {
+        const status = workOrderAttendanceStatus(order, name);
+        const absences = callsByName[normalize(name)]?.absences || 0;
+        const payable = normalize(status) === 'falta' || normalize(status) === 'pendente' || criterion.mode === 'monthly'
+          ? 0
+          : Number(michelinShare ?? (Number(criterion.base || 0) * bonusDiscountFor(absences)));
+        const label = michelinShare !== null ? 'MICHELIN' : criterion.name;
+        return {
+          order,
+          name,
+          label,
+          status,
+          row: [
+            order.number,
+            displayDate(order.date),
+            name,
+            `R$ ${payable.toFixed(2).replace('.', ',')}`,
+            label,
+            order.product,
+            order.carrier,
+            order.service,
+            equipmentLabel(order),
+            displayDateTime(order.operationStart),
+            displayDateTime(order.operationEnd),
+            durationText(order),
+            numberingLabel(order),
+            members.length || ''
+          ]
+        };
+      });
+    });
+  }).filter((entry) => {
+    const text = normalize(`${entry.order.number} ${entry.order.client} ${entry.order.service} ${entry.order.date} ${entry.name} ${entry.label}`);
+    const queryOk = !query.q || text.includes(normalize(query.q));
+    const employeeOk = !query.employee || query.employee === 'Todos' || entry.name === query.employee;
+    const clientOk = !query.client || query.client === 'Todos' || entry.order.client === query.client;
+    const serviceOk = !query.service || query.service === 'Todos' || entry.order.service === query.service;
+    const criterionOk = !query.criterion || query.criterion === 'Todos' || normalize(entry.label).includes(normalize(query.criterion));
+    const statusOk = !query.status || query.status === 'Todos' || normalize(entry.status) === normalize(query.status);
+    return queryOk && employeeOk && clientOk && serviceOk && criterionOk && statusOk;
+  }).sort((a, b) =>
+    String(a.order.client || '').localeCompare(String(b.order.client || '')) ||
+    String(a.order.date || '').localeCompare(String(b.order.date || '')) ||
+    String(a.order.number || '').localeCompare(String(b.order.number || '')) ||
+    a.name.localeCompare(b.name)
+  );
+
+  const usedNames = new Set();
+  const grouped = rows.reduce((acc, entry) => {
+    const client = entry.order.client || 'SEM CLIENTE';
+    acc[client] = acc[client] || [];
+    acc[client].push(entry.row);
+    return acc;
+  }, {});
+  const sheets = Object.entries(grouped).map(([client, clientRows]) => ({
+    name: sheetNameForClient(client, usedNames),
+    rows: [headers, ...clientRows]
+  }));
+  return sheets.length ? sheets : [{ name: 'SEM DADOS', rows: [headers] }];
 }
 
 function buildSummary({ workOrders, employees, occurrences, measurements, activeClients, activeEmployees, range, productivityRules = defaultProductivityRules, attendanceRows = [] }) {
@@ -322,6 +519,54 @@ router.get('/summary', async (req, res, next) => {
       productivityRules: mergeProductivityRules(productivitySetting?.value),
       attendanceRows: db.employeeAttendances || []
     }) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get('/productivity-export', async (req, res, next) => {
+  try {
+    const range = rangeFromQuery(req.query);
+
+    if (hasDatabaseUrl) {
+      const [workOrders, employees, productivitySetting, attendanceRows] = await Promise.all([
+        prisma.workOrder.findMany({
+          where: { date: { gte: range.from, lte: range.to } },
+          orderBy: [{ client: 'asc' }, { date: 'asc' }, { number: 'asc' }]
+        }),
+        prisma.employee.findMany(),
+        prisma.setting.findUnique({ where: { key: 'productivityRules' } }),
+        prisma.employeeAttendance.findMany({
+          where: { date: { gte: range.from.slice(0, 10), lte: range.to.slice(0, 10) } }
+        })
+      ]);
+      const sheets = buildProductivityExport({
+        workOrders,
+        employees,
+        attendanceRows,
+        productivityRules: mergeProductivityRules(productivitySetting?.value),
+        query: req.query
+      });
+      const xml = buildExcelXml(sheets);
+      res.setHeader('Content-Type', 'application/vnd.ms-excel; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="produtividade-colaboradores.xls"');
+      return res.send(`\ufeff${xml}`);
+    }
+
+    const db = await readDb();
+    const workOrders = (db.workOrders || []).filter((item) => inRange(item, 'date', range));
+    const productivitySetting = (db.settings || []).find((item) => item.key === 'productivityRules');
+    const sheets = buildProductivityExport({
+      workOrders,
+      employees: db.employees || [],
+      attendanceRows: db.employeeAttendances || [],
+      productivityRules: mergeProductivityRules(productivitySetting?.value),
+      query: req.query
+    });
+    const xml = buildExcelXml(sheets);
+    res.setHeader('Content-Type', 'application/vnd.ms-excel; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="produtividade-colaboradores.xls"');
+    return res.send(`\ufeff${xml}`);
   } catch (error) {
     return next(error);
   }

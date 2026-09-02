@@ -3025,13 +3025,20 @@ function Productivity() {
     const monthlyBonus = item.criteria.has?.('Equipe PA') && item.present > 0 ? ((productivityRules.standard || []).find((rule) => rule.name === 'Equipe PA')?.base || 0) * factor : 0;
     return sum + item.customBonus + (item.standardBonus * factor) + monthlyBonus;
   }, 0);
-  const exportRows = [['Colaborador', 'Função', 'Equipe cadastro', 'Critério', 'OS', 'Presenças', 'Faltas', 'Valor base', 'Percentual', 'Total'], ...productivityRows.map((row) => row.map((cell) => displayText(cell)))];
-  const exportOsRows = [['OS', 'Data', 'Cliente', 'Colaborador', 'Equipe', 'Critério', 'Chamada', 'Valor'], ...osRows.map((row) => row.map((cell) => displayText(cell)))];
-  const exportProductivityWorkbook = () => downloadWorkbook('produtividade-colaboradores.xls', [
-    { name: 'Produtividade', rows: exportRows },
-    { name: 'Lançamentos por OS', rows: exportOsRows }
-  ]);
   const range = productivityRange();
+  const exportProductivityWorkbook = async () => {
+    const query = new URLSearchParams({
+      from: range.from,
+      to: range.to,
+      q: filters.q,
+      client: filters.client,
+      service: filters.service,
+      employee: filters.employee,
+      criterion: filters.criterion,
+      status: filters.status
+    });
+    await withBusy(() => openProtectedFile(`/api/dashboard/productivity-export?${query.toString()}`, 'produtividade-colaboradores.xls', true));
+  };
   return (
     <>
       <PageHead title="Produtividade dos colaboradores" subtitle="Apuração por período, OS, chamada, faltas e critérios de bonificação." ghostActions={[compare ? 'Ocultar critérios' : 'Ver critérios', showOsLaunches ? 'Ocultar lançamentos por OS' : 'Ver lançamentos por OS']} onGhostAction={(label) => label.includes('critério') || label.includes('critérios') ? setCompare((value) => !value) : setShowOsLaunches((value) => !value)} action="Exportar relatório" onAction={exportProductivityWorkbook} />
