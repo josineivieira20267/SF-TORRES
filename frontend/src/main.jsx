@@ -3365,7 +3365,50 @@ function DailyOps({ notify, editable = true }) {
     await withBusy(() => api(`/api/workOrders/${selected.id}`, { method: 'DELETE' }));
     notify('OS apagada'); setSelectedId(''); load();
   };
-  const exportFiltered = () => downloadCsv('operacao-diaria.csv', [['OS', 'Cliente', 'Equipamento', 'Status', 'Data', 'Serviço', 'Equipe'], ...filteredItems.map((item) => [item.number, item.client, item.equipment, item.status, item.date, item.service, item.carrier])]);
+  const exportFiltered = () => downloadCsv('operacao-diaria.csv', [
+    [
+      'OS',
+      'Cliente',
+      'Status',
+      'Faltas',
+      'Data programada',
+      'Criado por',
+      'Transportador',
+      'Servico',
+      'Produto',
+      'Equipamento',
+      'Numero do container',
+      'Placa',
+      'Responsavel',
+      'Integrantes da equipe',
+      'Inicio da operacao',
+      'Fim da operacao',
+      'Percentual',
+      'Prioridade',
+      'Observacao da equipe'
+    ],
+    ...filteredItems.map((item) => [
+      item.number,
+      item.client,
+      item.status,
+      absenceCount(item),
+      dateTime(item.date),
+      item.createdBy,
+      item.carrier,
+      item.service,
+      item.product,
+      item.equipment,
+      item.containerNumber,
+      item.trailerPlate,
+      item.responsible,
+      Array.isArray(item.teamMembers) ? item.teamMembers.join(', ') : item.teamMembers,
+      dateTime(item.operationStart),
+      dateTime(item.operationEnd),
+      `${item.progress || 0}%`,
+      item.priority,
+      item.teamNote
+    ])
+  ]);
   const releaseCorrection = async () => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     if (!selected) return;
