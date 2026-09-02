@@ -11,6 +11,7 @@ const userRoutes = require('./routes/users');
 const settingsRoutes = require('./routes/settings');
 const leaderAttendanceRoutes = require('./routes/leaderAttendance');
 const talentRoutes = require('./routes/talents');
+const workOrderComandaRoutes = require('./routes/workOrderComandas');
 
 const app = express();
 const allowedOrigins = new Set(env.CORS_ORIGIN.map(normalizeOrigin));
@@ -73,6 +74,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/leader-attendance', leaderAttendanceRoutes);
 app.use('/api/talents', talentRoutes);
+app.use('/api/workOrders', workOrderComandaRoutes);
 app.use('/api', resourceRoutes);
 
 app.use(notFound);

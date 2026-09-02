@@ -484,6 +484,14 @@ function isPlateEquipment(value) {
   return equipment.includes('carreta') || equipment.includes('caminh') || equipment.includes('truck');
 }
 
+function comandaTemplateFromClient(client) {
+  const value = normalizeLabel(client);
+  if (value.includes('hines')) return 'hines';
+  if (value.includes('fabrica') || value.includes('tv')) return 'tv';
+  if (value.includes('tucunare')) return 'cd';
+  return '';
+}
+
 function formatPersonName(value) {
   return String(value || '')
     .trim()
@@ -3279,6 +3287,7 @@ function DailyOps({ notify, editable = true }) {
   const [selectedId, setSelectedId] = useState('');
   const [modal, setModal] = useState(null);
   const [occurrenceModal, setOccurrenceModal] = useState(null);
+  const [comandaModal, setComandaModal] = useState(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('Dados');
   const [filters, setFilters] = useState({ q: '', status: 'Todos', client: 'Todos', period: 'Este mês', from: monthRange().from.slice(0, 10), to: monthRange().to.slice(0, 10), table: '' });
@@ -3378,6 +3387,23 @@ function DailyOps({ notify, editable = true }) {
     setOccurrenceModal(null);
     loadOccurrences();
   };
+  const generateComanda = async (order = selected, template = '') => {
+    if (!order?.id) return;
+    const autoTemplate = comandaTemplateFromClient(order.client);
+    if (!template && !autoTemplate) {
+      setComandaModal(order);
+      return;
+    }
+    const suffix = template ? `?template=${encodeURIComponent(template)}` : '';
+    await withBusy(() => openProtectedFile(`/api/workOrders/${order.id}/comanda${suffix}`, `comanda-os-${order.number || order.id}.pdf`));
+    notify('Comanda gerada');
+  };
+  const saveComandaTemplate = async (data) => {
+    const map = { 'CD TUCUNARE': 'cd', HINES: 'hines', 'TV/FABRICA': 'tv' };
+    const order = comandaModal;
+    setComandaModal(null);
+    await generateComanda(order, map[data.template] || data.template);
+  };
   const selectedOccurrences = selected ? occurrences.filter((item) => occurrenceBelongsToOrder(item, selected)) : [];
   const mobileStatusClass = (status) => {
     const value = normalize(status);
@@ -3439,6 +3465,7 @@ function DailyOps({ notify, editable = true }) {
               </div>
               <div className="dailyops-card-actions">
                 <button type="button" className="btn btn-primary" onClick={(event) => { event.stopPropagation(); setModal(item); }}>Editar OS</button>
+                <button type="button" className="btn" onClick={(event) => { event.stopPropagation(); generateComanda(item); }}>Gerar comanda</button>
                 <button type="button" className="btn" onClick={(event) => { event.stopPropagation(); setSelectedId(item.id); setOccurrenceModal(item); }}>Ocorrência</button>
               </div>
             </article>
@@ -3450,10 +3477,11 @@ function DailyOps({ notify, editable = true }) {
           <div className="table-tools"><input className="search-input" value={filters.table} onChange={(event) => setFilters((old) => ({ ...old, table: event.target.value }))} placeholder="Filtrar resultados..." /><span className="spacer" /><button className="btn btn-sm" onClick={() => setItems((old) => [...old].sort((a, b) => String(b.date).localeCompare(String(a.date))))}>Ordenar: Data ↓</button></div>
           <div className="table-scroll"><table className="dtbl"><thead><tr><th>OS</th><th>Cliente</th><th>Equipamento</th><th>Status</th><th className="right">Falta</th><th className="right">Data programada</th></tr></thead><tbody>{loading ? <LoadingCell colSpan={6} /> : filteredItems.map((i) => <tr key={i.id} className={selected?.id === i.id ? 'selected' : ''} onClick={() => setSelectedId(i.id)}><td className="mono">{i.number}</td><td>{i.client}</td><td className="mono">{i.equipment || '-'}</td><td><Pill value={i.status} /></td><td className="right">{absenceCount(i)}</td><td className="right">{dateTime(i.date)}</td></tr>)}</tbody></table></div>
         </div>
-        <div className="pane">{selected && <><div className="pane-head"><div><div className="eyebrow">Ordem de Serviço</div><div className="mono-title">OS {selected.number} · {selected.client}</div></div><div className="meta"><Pill value={selected.status} /></div></div><div className="tabs">{['Dados', 'Equipe', 'Horários', 'Ocorrências'].map((tab) => <div key={tab} className={`tab ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>{tab}</div>)}</div><div className="pane-body">{detailContent().map(([k, v]) => <div className="field-row" key={k}><b>{k}</b><span>{displayValue(v)}</span></div>)}</div><div className="action-strip"><button className="btn" onClick={() => setModal(selected)}>Editar OS</button>{selected.correctionRequested && !selected.correctionApproved && <button className="btn btn-primary" onClick={releaseCorrection}>Liberar correção</button>}<button className="btn btn-success" onClick={registerOccurrence}>Lançar ocorrência</button><button className="btn btn-danger push" onClick={remove}>Apagar</button></div></>}</div>
+        <div className="pane">{selected && <><div className="pane-head"><div><div className="eyebrow">Ordem de Serviço</div><div className="mono-title">OS {selected.number} · {selected.client}</div></div><div className="meta"><Pill value={selected.status} /></div></div><div className="tabs">{['Dados', 'Equipe', 'Horários', 'Ocorrências'].map((tab) => <div key={tab} className={`tab ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>{tab}</div>)}</div><div className="pane-body">{detailContent().map(([k, v]) => <div className="field-row" key={k}><b>{k}</b><span>{displayValue(v)}</span></div>)}</div><div className="action-strip"><button className="btn" onClick={() => setModal(selected)}>Editar OS</button>{selected.correctionRequested && !selected.correctionApproved && <button className="btn btn-primary" onClick={releaseCorrection}>Liberar correção</button>}<button className="btn" onClick={() => generateComanda(selected)}>Gerar comanda</button><button className="btn btn-success" onClick={registerOccurrence}>Lançar ocorrência</button><button className="btn btn-danger push" onClick={remove}>Apagar</button></div></>}</div>
       </div>
       {modal && <Editor title={modal.id ? 'Editar OS' : 'Nova OS'} fields={fields} initial={modal} className="operation-modal" onCancel={() => setModal(null)} onSave={save} />}
       {occurrenceModal && <Editor title={`Lançar ocorrência · OS ${occurrenceModal.number}`} fields={occurrenceFields} initial={{ workOrder: occurrenceModal.number, type: 'Operacional', status: 'Aberta' }} onCancel={() => setOccurrenceModal(null)} onSave={saveOccurrence} />}
+      {comandaModal && <Editor title={`Modelo da comanda · OS ${comandaModal.number}`} fields={[['template', 'Modelo', 'select', ['CD TUCUNARE', 'HINES', 'TV/FABRICA'], null, true]]} initial={{ template: 'CD TUCUNARE' }} onCancel={() => setComandaModal(null)} onSave={saveComandaTemplate} />}
       {historyOpen && <div className="modal-backdrop"><div className="modal"><div className="modal-head"><h3>Histórico da operação</h3><button className="btn btn-sm" onClick={() => setHistoryOpen(false)}>Fechar</button></div><div className="modal-body"><DataTable columns={['OS', 'Cliente', 'Status', 'Data', 'Criado por']} rows={items.map((item) => [item.number, item.client, <Pill value={item.status} />, dateTime(item.date), item.createdBy || '-'])} /></div></div></div>}
       <LeaderBottomNav active="dailyOps" />
     </>
