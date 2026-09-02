@@ -475,8 +475,12 @@ function normalize(value) {
   return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+function normalizeLabel(value) {
+  return normalize(value).replace(/\s+/g, ' ').trim();
+}
+
 function isPlateEquipment(value) {
-  const equipment = normalize(value);
+  const equipment = normalizeLabel(value);
   return equipment.includes('carreta') || equipment.includes('caminh') || equipment.includes('truck');
 }
 
@@ -3297,7 +3301,7 @@ function DailyOps({ notify, editable = true }) {
     ['operationEnd', 'Fim da operação', 'datetime-local'],
     ['progress', 'Percentual', 'number']
   ];
-  const clientOptions = ['Todos', ...Array.from(new Set(items.map((item) => item.client).filter(Boolean)))];
+  const clientOptions = ['Todos', ...Array.from(new Map(items.map((item) => [normalizeLabel(item.client), item.client]).filter(([key]) => key)).values())];
   const periodRange = () => {
     const today = new Date();
     const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -3314,7 +3318,7 @@ function DailyOps({ notify, editable = true }) {
     const text = normalize(`${item.number} ${item.client} ${item.equipment} ${item.service} ${item.carrier}`);
     const query = normalize(`${filters.q} ${filters.table}`);
     const statusOk = filters.status === 'Todos' || normalize(item.status) === normalize(filters.status);
-    const clientOk = filters.client === 'Todos' || item.client === filters.client;
+    const clientOk = filters.client === 'Todos' || normalizeLabel(item.client) === normalizeLabel(filters.client);
     return text.includes(query.trim()) && statusOk && clientOk;
   });
   const selected = filteredItems.find((i) => i.id === selectedId) || filteredItems[0];
