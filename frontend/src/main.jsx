@@ -475,6 +475,11 @@ function normalize(value) {
   return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+function isPlateEquipment(value) {
+  const equipment = normalize(value);
+  return equipment.includes('carreta') || equipment.includes('caminh') || equipment.includes('truck');
+}
+
 function formatPersonName(value) {
   return String(value || '')
     .trim()
@@ -2397,7 +2402,7 @@ function Schedules({ notify, editable = true }) {
     const missing = required.find(([name]) => String(order[name] ?? '').trim() === '');
     if (missing) return missing[1];
     if (normalize(order.equipment).includes('container') && !String(order.containerNumber || '').trim()) return 'Número do container';
-    if (normalize(order.equipment).includes('carreta') && !String(order.trailerPlate || '').trim()) return 'Placa da carreta';
+    if (isPlateEquipment(order.equipment) && !String(order.trailerPlate || '').trim()) return 'Placa';
     if (!Array.isArray(order.teamMembers) || !order.teamMembers.length) return 'Integrantes da equipe';
     return '';
   };
@@ -2525,7 +2530,7 @@ function Schedules({ notify, editable = true }) {
       </div>
       <LeaderBottomNav active="schedules" />
       <div className="schedule-table-panel"><Panel title="OS direcionadas ao lider" actions={<Pill value={user.name || user.email || 'usuario'} />}><DataTable columns={['OS', 'Cliente', 'Servico', 'Produto', 'Integrantes', 'Data programada', 'Status', 'Inicio', 'Fim', 'Acao']} rows={rows} loading={loading} /></Panel></div>
-      {operationModal && <Editor title="Editar operacao da OS" uppercase className="operation-modal" fields={[['carrier', 'Transportador', 'text', null, null, true], ['product', 'Produto', 'text', null, null, true], ['equipment', 'Equipamento', 'select', equipmentOptions, null, true], ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')], ['trailerPlate', 'Placa da carreta', 'text', null, (form) => normalize(form.equipment).includes('carreta')], ['teamMembers', 'Incluir integrantes da equipe', 'employees', { endpoint: '/api/employees', roles: isMichelinOrder(operationModal, productivityRules) ? [] : productivityRules.standard }], ['teamNote', 'Observacao obrigatoria ao alterar equipe', 'textarea', null, () => absenceCount(operationModal) > 0], ['progress', 'Percentual', 'number', null, null, true]]} initial={operationModal} onCancel={() => setOperationModal(null)} onSave={saveOperationEdit} />}
+      {operationModal && <Editor title="Editar operacao da OS" uppercase className="operation-modal" fields={[['carrier', 'Transportador', 'text', null, null, true], ['product', 'Produto', 'text', null, null, true], ['equipment', 'Equipamento', 'select', equipmentOptions, null, true], ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')], ['trailerPlate', 'Placa', 'text', null, (form) => isPlateEquipment(form.equipment)], ['teamMembers', 'Incluir integrantes da equipe', 'employees', { endpoint: '/api/employees', roles: isMichelinOrder(operationModal, productivityRules) ? [] : productivityRules.standard }], ['teamNote', 'Observacao obrigatoria ao alterar equipe', 'textarea', null, () => absenceCount(operationModal) > 0], ['progress', 'Percentual', 'number', null, null, true]]} initial={operationModal} onCancel={() => setOperationModal(null)} onSave={saveOperationEdit} />}
       {occurrenceModal && <Editor title={`Lançar ocorrência · OS ${occurrenceModal.number}`} fields={occurrenceFields} initial={{ workOrder: occurrenceModal.number, type: 'Operacional', status: 'Aberta' }} onCancel={() => setOccurrenceModal(null)} onSave={saveLeaderOccurrence} />}
     </>
   );
@@ -3280,7 +3285,7 @@ function DailyOps({ notify, editable = true }) {
     ['client', 'Cliente', 'select', ['', ...optionValues(clients, 'name', 'legalName')], null, true],
     ['equipment', 'Equipamento', 'select', equipmentTypes],
     ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')],
-    ['trailerPlate', 'Placa da carreta', 'text', null, (form) => normalize(form.equipment).includes('carreta')],
+    ['trailerPlate', 'Placa', 'text', null, (form) => isPlateEquipment(form.equipment)],
     ['status', 'Status', 'select', ['Programado', 'Em execucao', 'Finalizado', 'Cancelado']],
     ['date', 'Data programada', 'datetime-local', null, null, true],
     ['carrier', 'Transportador'],
@@ -3596,7 +3601,7 @@ function Editor({ title, fields, initial, onCancel, onSave, uppercase = false, c
     const next = { ...old, [name]: formatted };
     if (name === 'equipment') {
       if (!normalize(value).includes('container')) next.containerNumber = '';
-      if (!normalize(value).includes('carreta')) next.trailerPlate = '';
+      if (!isPlateEquipment(value)) next.trailerPlate = '';
     }
     if (name === 'role' && fields.some(([, , fieldType]) => fieldType === 'permissions')) {
       next.permissions = defaultUserPermissionsForEnvironment(value, permissionEnvironment);
