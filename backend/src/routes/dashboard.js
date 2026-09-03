@@ -11,6 +11,7 @@ const defaultProductivityRules = {
   standard: [
     { key: 'pa', name: 'Equipe PA', base: 150, mode: 'monthly', match: 'equipe pa, pa' },
     { key: 'batedores', name: 'Batedores', base: 8, mode: 'per-os', match: 'batedor, batedores, conferente' },
+    { key: 'bipador', name: 'Bipador', base: 8, mode: 'per-os', match: 'bipador, bipadores' },
     { key: 'apoio', name: 'Apoio', base: 5, mode: 'per-os', match: 'apoio' }
   ],
   michelin: {
@@ -30,8 +31,13 @@ const defaultProductivityRules = {
 
 function mergeProductivityRules(value) {
   const saved = value && typeof value === 'object' ? value : {};
+  const savedStandard = Array.isArray(saved.standard) ? saved.standard : [];
+  const mergedStandard = defaultProductivityRules.standard.map((defaultRule) => savedStandard.find((rule) => normalize(rule.key) === normalize(defaultRule.key) || normalize(rule.name) === normalize(defaultRule.name)) || defaultRule);
+  savedStandard.forEach((rule) => {
+    if (!mergedStandard.some((item) => normalize(item.key) === normalize(rule.key) || normalize(item.name) === normalize(rule.name))) mergedStandard.push(rule);
+  });
   return {
-    standard: Array.isArray(saved.standard) && saved.standard.length ? saved.standard : defaultProductivityRules.standard,
+    standard: mergedStandard,
     michelin: { ...defaultProductivityRules.michelin, ...(saved.michelin || {}) }
   };
 }
