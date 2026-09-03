@@ -147,11 +147,11 @@ async function buildComandaPdf(order, templateKey) {
   const equipment = splitEquipment(order.equipment);
   const marks = serviceMarks(order);
 
-  page.drawRectangle({ x: 508, y: 727, width: 76, height: 15, color: rgb(1, 1, 1) });
-  drawText(page, font, scheduled.date, 70, 729, { size: 10 });
-  drawText(page, font, order.number, 512, 730, { size: 11, color: rgb(0, 0, 0.85) });
-  drawText(page, font, order.carrier, 108, 651, { size: 9, limit: 75 });
-  drawText(page, font, order.responsible, 174, 626, { size: 9, limit: 70 });
+  page.drawRectangle({ x: 507, y: 722, width: 78, height: 24, color: rgb(1, 1, 1) });
+  drawText(page, font, scheduled.date, 103, 731, { size: 9 });
+  drawText(page, font, order.number, 512, 731, { size: 10, color: rgb(0, 0, 0.85) });
+  drawText(page, font, order.carrier, 162, 651, { size: 8, limit: 75 });
+  drawText(page, font, order.responsible, 219, 633, { size: 8, limit: 70 });
 
   if (marks.ova) mark(page, font, 115, 603);
   if (marks.desova) mark(page, font, 197, 603);
@@ -160,18 +160,18 @@ async function buildComandaPdf(order, templateKey) {
 
   if (normalize(order.equipment).includes('container')) mark(page, font, 142, 581);
   if (isPlateEquipment(order)) mark(page, font, 142, 558);
-  drawWrappedText(page, font, order.product, 474, 558, { size: 8, maxWidth: 68, maxLines: 1 });
+  drawWrappedText(page, font, order.product, 476, 561, { size: 7, maxWidth: 64, maxLines: 1 });
 
-  drawText(page, bold, order.containerNumber, 153, 510, { size: 10, limit: 32 });
-  drawText(page, bold, equipment.type, 505, 510, { size: 10, limit: 24 });
-  drawText(page, bold, order.trailerPlate, 153, 487, { size: 10, limit: 32 });
-  drawText(page, bold, equipment.code, 505, 487, { size: 10, limit: 24 });
+  drawText(page, bold, order.containerNumber, 184, 506, { size: 8, limit: 32 });
+  drawText(page, bold, equipment.type, 503, 506, { size: 7, limit: 24 });
+  drawText(page, bold, order.trailerPlate, 145, 482, { size: 8, limit: 32 });
+  drawText(page, bold, equipment.code, 518, 482, { size: 8, limit: 24 });
 
   const members = Array.isArray(order.teamMembers) ? order.teamMembers.slice(0, 7) : [];
   members.forEach((member, index) => {
-    const y = 418 - (index * 22);
-    drawWrappedText(page, font, member, 72, y, { size: 8, maxWidth: 210, maxLines: 1 });
-    drawWrappedText(page, font, roleText(order, member), 296, y, { size: 8, maxWidth: 130, maxLines: 1 });
+    const y = 430 - (index * 17.4);
+    drawWrappedText(page, font, member, 72, y, { size: 6.5, maxWidth: 210, maxLines: 1 });
+    drawWrappedText(page, font, roleText(order, member), 296, y, { size: 6.5, maxWidth: 130, maxLines: 1 });
   });
   drawWrappedText(page, font, order.teamNote, 72, 279, { size: 8, maxWidth: 480, maxLines: 2 });
 
