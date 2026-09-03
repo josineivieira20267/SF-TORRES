@@ -977,7 +977,7 @@ async function buildAttendanceReportImage({ dateValue, leader, employees = [], o
   const absences = rows.filter((item) => normalize(item.status) === 'falta').length;
   const width = 1080;
   const rowHeight = 74;
-  const height = Math.max(760, 300 + (rows.length * rowHeight) + 70);
+  const height = Math.max(820, 430 + (rows.length * rowHeight) + 120);
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
@@ -1007,8 +1007,9 @@ async function buildAttendanceReportImage({ dateValue, leader, employees = [], o
   ctx.fillStyle = '#0F2447';
   ctx.font = '800 22px Arial, sans-serif';
   ctx.fillText('COLABORADOR', 76, 326);
-  ctx.fillText('LOCAL', 570, 326);
-  ctx.fillText('STATUS', 850, 326);
+  ctx.fillText('LOCAL', 530, 326);
+  ctx.fillText('TURNO', 700, 326);
+  ctx.fillText('STATUS', 860, 326);
   ctx.strokeStyle = '#0F2447';
   ctx.lineWidth = 3;
   ctx.beginPath();
@@ -1022,15 +1023,16 @@ async function buildAttendanceReportImage({ dateValue, leader, employees = [], o
     ctx.fillRect(76, y - 24, width - 152, rowHeight);
     ctx.fillStyle = '#071D44';
     ctx.font = '800 22px Arial, sans-serif';
-    wrapCanvasText(ctx, String(item.name || '').toUpperCase(), 94, y + 4, 430, 24, 2);
+    wrapCanvasText(ctx, String(item.name || '').toUpperCase(), 94, y + 4, 380, 24, 2);
     ctx.fillStyle = '#35465F';
     ctx.font = '700 18px Arial, sans-serif';
-    wrapCanvasText(ctx, String(item.location || '-').toUpperCase(), 570, y + 4, 230, 22, 2);
+    wrapCanvasText(ctx, String(item.location || '-').toUpperCase(), 530, y + 4, 140, 22, 2);
+    wrapCanvasText(ctx, String(item.shift || '-').toUpperCase(), 700, y + 4, 130, 22, 2);
     ctx.fillStyle = isAbsence ? '#B3261E' : '#1F8A4C';
-    ctx.fillRect(850, y - 8, 140, 34);
+    ctx.fillRect(860, y - 8, 140, 34);
     ctx.fillStyle = '#FFFFFF';
     ctx.font = '800 18px Arial, sans-serif';
-    ctx.fillText(isAbsence ? 'FALTA' : 'PRESENTE', 868, y + 15);
+    ctx.fillText(isAbsence ? 'FALTA' : 'PRESENTE', 878, y + 15);
   });
   if (!rows.length) {
     ctx.fillStyle = '#69778D';
