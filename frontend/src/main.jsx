@@ -899,6 +899,103 @@ function downloadBlob(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
+function canvasBlob(canvas, type = 'image/png') {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Nao foi possivel gerar a imagem')), type);
+  });
+}
+
+function wrapCanvasText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 2) {
+  const words = String(text || '').split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = '';
+  words.forEach((word) => {
+    const next = line ? `${line} ${word}` : word;
+    if (ctx.measureText(next).width <= maxWidth) {
+      line = next;
+      return;
+    }
+    if (line) lines.push(line);
+    line = word;
+  });
+  if (line) lines.push(line);
+  lines.slice(0, maxLines).forEach((item, index) => ctx.fillText(index === maxLines - 1 && lines.length > maxLines ? `${item.slice(0, 22)}...` : item, x, y + (index * lineHeight)));
+}
+
+async function buildAttendanceReportImage({ dateValue, leader, employees = [] }) {
+  const rows = employees
+    .filter((item) => ['presente', 'falta'].includes(normalize(item.status)))
+    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+  const present = rows.filter((item) => normalize(item.status) === 'presente').length;
+  const absences = rows.filter((item) => normalize(item.status) === 'falta').length;
+  const width = 1080;
+  const rowHeight = 74;
+  const height = Math.max(760, 300 + (rows.length * rowHeight) + 70);
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#F4F7FB';
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(44, 44, width - 88, height - 88);
+  ctx.strokeStyle = '#D6DFEA';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(44, 44, width - 88, height - 88);
+  ctx.fillStyle = '#0F2447';
+  ctx.font = '800 38px Arial, sans-serif';
+  ctx.fillText('RELATORIO DE CHAMADA', 76, 108);
+  ctx.font = '700 24px Arial, sans-serif';
+  ctx.fillText(`DATA: ${date(dateValue)}`, 76, 152);
+  ctx.fillText(`LIDER: ${String(leader?.name || leader?.email || '-').toUpperCase()}`, 76, 188);
+  ctx.fillStyle = '#1F8A4C';
+  ctx.fillRect(76, 220, 220, 54);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = '800 24px Arial, sans-serif';
+  ctx.fillText(`PRESENTES: ${present}`, 96, 255);
+  ctx.fillStyle = '#B3261E';
+  ctx.fillRect(316, 220, 180, 54);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillText(`FALTAS: ${absences}`, 336, 255);
+  ctx.fillStyle = '#0F2447';
+  ctx.font = '800 22px Arial, sans-serif';
+  ctx.fillText('COLABORADOR', 76, 326);
+  ctx.fillText('FUNCAO', 570, 326);
+  ctx.fillText('STATUS', 850, 326);
+  ctx.strokeStyle = '#0F2447';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(76, 342);
+  ctx.lineTo(width - 76, 342);
+  ctx.stroke();
+  rows.forEach((item, index) => {
+    const y = 370 + (index * rowHeight);
+    const isAbsence = normalize(item.status) === 'falta';
+    ctx.fillStyle = index % 2 ? '#F8FAFD' : '#FFFFFF';
+    ctx.fillRect(76, y - 24, width - 152, rowHeight);
+    ctx.fillStyle = '#071D44';
+    ctx.font = '800 22px Arial, sans-serif';
+    wrapCanvasText(ctx, String(item.name || '').toUpperCase(), 94, y + 4, 430, 24, 2);
+    ctx.fillStyle = '#35465F';
+    ctx.font = '700 18px Arial, sans-serif';
+    wrapCanvasText(ctx, String(item.role || item.team || '-').toUpperCase(), 570, y + 4, 230, 22, 2);
+    ctx.fillStyle = isAbsence ? '#B3261E' : '#1F8A4C';
+    ctx.fillRect(850, y - 8, 140, 34);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '800 18px Arial, sans-serif';
+    ctx.fillText(isAbsence ? 'FALTA' : 'PRESENTE', 868, y + 15);
+  });
+  if (!rows.length) {
+    ctx.fillStyle = '#69778D';
+    ctx.font = '700 24px Arial, sans-serif';
+    ctx.fillText('Nenhuma presenca ou falta marcada neste dia.', 76, 390);
+  }
+  ctx.fillStyle = '#69778D';
+  ctx.font = '600 16px Arial, sans-serif';
+  ctx.fillText('SF TORRES - chamada diaria', 76, height - 78);
+  return canvasBlob(canvas, 'image/png');
+}
+
 async function openProtectedFile(path, filename, download = false) {
   const blob = await fetchProtectedBlob(path);
   const url = URL.createObjectURL(blob);
@@ -2738,10 +2835,10 @@ function LeaderAttendance({ notify, editable = true }) {
   };
   const finishAttendance = async () => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
-    const filename = `relatorio-chamada-${dateValue}.csv`;
+    const filename = `relatorio-chamada-${dateValue}.png`;
     const message = `Relatorio de chamada ${date(dateValue)} - Presentes: ${attendanceCounts.present} - Faltas: ${attendanceCounts.absences}`;
-    const blob = await withBusy(() => fetchProtectedBlob(`/api/leader-attendance/report?date=${encodeURIComponent(dateValue)}`));
-    const file = typeof File !== 'undefined' ? new File([blob], filename, { type: blob.type || 'text/csv' }) : null;
+    const blob = await withBusy(() => buildAttendanceReportImage({ dateValue, leader: user, employees }));
+    const file = typeof File !== 'undefined' ? new File([blob], filename, { type: 'image/png' }) : null;
     if (file && navigator.canShare?.({ files: [file] }) && navigator.share) {
       try {
         await navigator.share({ title: 'Relatorio da chamada', text: message, files: [file] });
@@ -2752,8 +2849,8 @@ function LeaderAttendance({ notify, editable = true }) {
       }
     }
     downloadBlob(blob, filename);
-    window.open(`https://wa.me/?text=${encodeURIComponent(`${message}\nArquivo gerado: ${filename}`)}`, '_blank', 'noopener,noreferrer');
-    notify('Relatorio baixado. Anexe o arquivo no WhatsApp aberto.');
+    window.open(`https://wa.me/?text=${encodeURIComponent(`${message}\nImagem gerada: ${filename}`)}`, '_blank', 'noopener,noreferrer');
+    notify('Imagem baixada. Anexe a imagem no WhatsApp aberto.');
   };
   const decideCorrection = async (item, approved = true) => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
