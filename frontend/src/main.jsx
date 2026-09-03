@@ -2939,7 +2939,7 @@ function LeaderAttendance({ notify, editable = true }) {
   return (
     <>
       <LeaderMobileNav active="leaderAttendance" title="Chamada" onRefresh={() => load(dateValue, query)} />
-      <PageHead title="Chamada de Ponto" subtitle="Pesquise o colaborador e marque presença ou falta, separado das ordens de serviço." action="Atualizar" onAction={() => load(dateValue, query)} />
+      <PageHead title="Chamada de Ponto" subtitle="Pesquise o colaborador e marque presença ou falta, separado das ordens de serviço." ghostAction={!leaderProfile ? 'Atualizar' : null} onGhostAction={() => load(dateValue, query)} action={!leaderProfile ? 'Finalizar chamada' : 'Atualizar'} onAction={!leaderProfile ? finishAttendance : () => load(dateValue, query)} />
       <div className="toolbar">
         <div className="filter"><label>Data</label><input type="date" value={dateValue} onChange={(event) => setDateValue(event.target.value || localDateValue(new Date()))} /></div>
         <div className="filter"><label>Local</label><select value={locationFilter} onChange={(event) => setLocationFilter(event.target.value)}>{locationOptions.map((location) => <option key={location}>{location}</option>)}</select></div>
