@@ -26,6 +26,11 @@ const defaultProductivityRules = {
     commercialTruck: 28.09,
     afterContainer: 68.26,
     afterTruck: 39.01
+  },
+  daikin: {
+    enabled: true,
+    client: 'DAIKIN',
+    value: 12
   }
 };
 
@@ -38,7 +43,8 @@ function mergeProductivityRules(value) {
   });
   return {
     standard: mergedStandard,
-    michelin: { ...defaultProductivityRules.michelin, ...(saved.michelin || {}) }
+    michelin: { ...defaultProductivityRules.michelin, ...(saved.michelin || {}) },
+    daikin: { ...defaultProductivityRules.daikin, ...(saved.daikin || {}) }
   };
 }
 
@@ -92,6 +98,15 @@ function rulesForAssignment(names = [], rules = defaultProductivityRules) {
 function isMichelinOrder(order, rules = defaultProductivityRules) {
   const config = rules.michelin || defaultProductivityRules.michelin;
   return Boolean(config.enabled) && normalize(order?.client) === normalize(config.client);
+}
+
+function isDaikinOrder(order, rules = defaultProductivityRules) {
+  const config = rules.daikin || defaultProductivityRules.daikin;
+  return Boolean(config.enabled) && normalize(order?.client) === normalize(config.client);
+}
+
+function isSpecialBonusOrder(order, rules = defaultProductivityRules) {
+  return isMichelinOrder(order, rules) || isDaikinOrder(order, rules);
 }
 
 function bonusCriterionFor(employee, rules = defaultProductivityRules) {
@@ -184,6 +199,22 @@ function michelinShareForEntry(order, name, employeeByName, rules = defaultProdu
   const payableMembers = members;
   if (!payableMembers.includes(name) || !payableMembers.length) return 0;
   return total / payableMembers.length;
+}
+
+function daikinShareForEntry(order, name, employeeByName, rules = defaultProductivityRules) {
+  const config = rules.daikin || defaultProductivityRules.daikin;
+  if (!config.enabled || normalize(order?.client) !== normalize(config.client)) return null;
+  const members = Array.isArray(order.teamMembers) ? order.teamMembers : Object.keys(order.attendance || {});
+  if (!members.includes(name) || !members.length) return 0;
+  return Number(config.value || 0) / members.length;
+}
+
+function specialBonusForEntry(order, name, employeeByName, rules = defaultProductivityRules) {
+  const michelinShare = michelinShareForEntry(order, name, employeeByName, rules);
+  if (michelinShare !== null) return { key: 'michelin', name: 'MICHELIN', share: michelinShare };
+  const daikinShare = daikinShareForEntry(order, name, employeeByName, rules);
+  if (daikinShare !== null) return { key: 'daikin', name: 'DAIKIN', share: daikinShare };
+  return null;
 }
 
 function durationHours(order) {
@@ -320,9 +351,9 @@ function buildProductivityExport({ workOrders, employees, attendanceRows, produc
     const members = Array.isArray(order.teamMembers) ? order.teamMembers : Object.keys(order.attendance || {});
     return members.flatMap((name) => {
       const employee = employeeByName[normalize(name)] || { name, role: '', team: '' };
-      const michelinShare = michelinShareForEntry(order, name, employeeByName, productivityRules);
-      const criteria = michelinShare !== null
-        ? [{ key: 'michelin', name: 'MICHELIN', base: michelinShare, mode: 'per-os', match: 'michelin' }]
+      const special = specialBonusForEntry(order, name, employeeByName, productivityRules);
+      const criteria = special
+        ? [{ key: special.key, name: special.name, base: special.share, mode: 'per-os', match: special.key }]
         : (rulesForAssignment(order.teamRoles?.[name], productivityRules).length
           ? rulesForAssignment(order.teamRoles?.[name], productivityRules)
           : [bonusCriterionFor(employee, productivityRules)]);
@@ -331,8 +362,8 @@ function buildProductivityExport({ workOrders, employees, attendanceRows, produc
         const absences = callsByName[normalize(name)]?.absences || 0;
         const payable = normalize(status) === 'falta' || normalize(status) === 'pendente' || criterion.mode === 'monthly'
           ? 0
-          : Number(michelinShare ?? (Number(criterion.base || 0) * bonusDiscountFor(absences)));
-        const label = michelinShare !== null ? 'MICHELIN' : criterion.name;
+          : Number(special?.share ?? (Number(criterion.base || 0) * bonusDiscountFor(absences)));
+        const label = special?.name || criterion.name;
         return {
           order,
           name,
@@ -397,7 +428,8 @@ function buildSummary({ workOrders, employees, occurrences, measurements, active
   const memberEntries = workOrders.flatMap((order) => {
     const members = Array.isArray(order.teamMembers) ? order.teamMembers : [];
     return members.flatMap((name) => {
-      if (isMichelinOrder(order, productivityRules)) return [{ order, name, criterion: { key: 'michelin', name: 'MICHELIN', base: 0, mode: 'per-os', match: 'michelin' } }];
+      const special = specialBonusForEntry(order, name, employeeByName, productivityRules);
+      if (special) return [{ order, name, criterion: { key: special.key, name: special.name, base: 0, mode: 'per-os', match: special.key } }];
       const assignedRules = rulesForAssignment(order.teamRoles?.[name], productivityRules);
       const roles = assignedRules.length ? assignedRules : [{ key: 'none', name: 'Sem criterio', base: 0, mode: 'per-os', match: '' }];
       return roles.map((criterion) => ({ order, name, criterion }));
@@ -406,16 +438,16 @@ function buildSummary({ workOrders, employees, occurrences, measurements, active
   const productivity = Object.values(memberEntries.reduce((acc, entry) => {
     const key = normalize(entry.name);
     const employee = employeeByName[key] || { name: entry.name, role: '-', team: '-' };
-    const michelinShare = michelinShareForEntry(entry.order, entry.name, employeeByName, productivityRules);
+    const special = specialBonusForEntry(entry.order, entry.name, employeeByName, productivityRules);
     const criterion = entry.criterion;
     acc[key] = acc[key] || { employee, criterion, criteria: new Set(), osSet: new Set(), michelinSet: new Set(), os: 0, present: 0, absences: callsByName[key]?.absences || 0, pending: 0, customBonus: 0, standardBonus: 0 };
     acc[key].criteria.add(criterion.name);
     acc[key].osSet.add(entry.order.id || entry.order.number);
     acc[key].present += 1;
-    if (michelinShare === null && criterion.mode !== 'monthly') acc[key].standardBonus += Number(criterion.base || 0);
-    const michelinKey = `${entry.order.id || entry.order.number}:${entry.name}`;
-    if (michelinShare !== null && !acc[key].michelinSet.has(michelinKey)) {
-      if (michelinShare !== null) acc[key].customBonus += michelinShare;
+    if (!special && criterion.mode !== 'monthly') acc[key].standardBonus += Number(criterion.base || 0);
+    const michelinKey = `${special?.key || 'standard'}:${entry.order.id || entry.order.number}:${entry.name}`;
+    if (special && !acc[key].michelinSet.has(michelinKey)) {
+      acc[key].customBonus += special.share;
       acc[key].michelinSet.add(michelinKey);
     }
     return acc;
@@ -470,7 +502,7 @@ function buildSummary({ workOrders, employees, occurrences, measurements, active
     ranking: productivity.slice(0, 8).map((item, index) => ({
       index: index + 1,
       employee: { name: item.employee.name, team: item.employee.team || '-', photo: item.employee.photo || item.employee.profilePhoto || '' },
-      criterion: { name: item.customBonus ? `${item.criterion.name} + MICHELIN` : item.criterion.name },
+      criterion: { name: item.criterion.name },
       os: item.os,
       present: item.present,
       absences: item.absences,
