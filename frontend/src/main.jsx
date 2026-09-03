@@ -3129,7 +3129,7 @@ function Productivity() {
     api(`/api/leader-attendance/summary?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`).then((payload) => setAttendanceSummary(payload.data || { employees: [] })).catch(() => {});
   };
   useEffect(() => {
-    api('/api/employees').then((payload) => setEmployees(listData(payload))).catch((error) => triggerAction(error.message));
+    api('/api/employees?limit=500').then((payload) => setEmployees(listData(payload))).catch((error) => triggerAction(error.message));
     api('/api/settings/productivityRules').then((payload) => setProductivityRules(mergeProductivityRules(payload.data))).catch(() => {});
   }, []);
   useEffect(() => { loadProductivity(); }, [filters.period, filters.from, filters.to, filters.client, filters.service]);
