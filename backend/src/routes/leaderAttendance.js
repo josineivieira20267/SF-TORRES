@@ -45,6 +45,7 @@ function employeeRow(employee, attendance = {}, correctionRequests = {}) {
     role: employee.role || '-',
     team: employee.team || '-',
     location: employee.location || '-',
+    shift: employee.shift || '-',
     status: saved.status || '',
     note: saved.note || '',
     markedById: saved.markedById || '',
@@ -89,14 +90,15 @@ function attendanceReportCsv({ date, user, attendance = {}, employees = [] }) {
         employee.role || '',
         employee.team || '',
         employee.location || '',
+        employee.shift || '',
         normalized === 'falta' ? 'Falta' : 'Presente',
         item?.note || ''
       ];
     })
     .filter(Boolean)
     .sort((a, b) => String(a[2] || '').localeCompare(String(b[2] || '')));
-  const present = rows.filter((row) => normalize(row[6]) === 'presente').length;
-  const absences = rows.filter((row) => normalize(row[6]) === 'falta').length;
+  const present = rows.filter((row) => normalize(row[7]) === 'presente').length;
+  const absences = rows.filter((row) => normalize(row[7]) === 'falta').length;
   const header = [
     ['Relatorio de chamada'],
     ['Data', dateLabel(date)],
@@ -104,7 +106,7 @@ function attendanceReportCsv({ date, user, attendance = {}, employees = [] }) {
     ['Presentes', present],
     ['Faltas', absences],
     [],
-    ['Data', 'Lider', 'Colaborador', 'Funcao', 'Equipe', 'Local', 'Status', 'Observacao']
+    ['Data', 'Lider', 'Colaborador', 'Funcao', 'Equipe', 'Local', 'Turno', 'Status', 'Observacao']
   ];
   return `\uFEFF${[...header, ...rows].map((row) => row.map(csvCell).join(';')).join('\n')}`;
 }
@@ -243,6 +245,7 @@ function includeAllEmployees(summary = [], employees = []) {
         name: employee.name,
         role: employee.role || '',
         team: employee.team || '',
+        shift: employee.shift || '',
         present: byName[key]?.present || 0,
         absences: byName[key]?.absences || 0,
         days: byName[key]?.days || []
