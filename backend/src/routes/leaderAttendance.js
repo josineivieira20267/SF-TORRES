@@ -61,6 +61,51 @@ function attendanceSummary(attendance = {}) {
   };
 }
 
+function dateLabel(value) {
+  const text = String(value || '').slice(0, 10);
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : text;
+}
+
+function csvCell(value) {
+  return `"${String(value ?? '').replace(/"/g, '""')}"`;
+}
+
+function attendanceReportCsv({ date, user, attendance = {}, employees = [] }) {
+  const byName = Object.fromEntries(employees.map((employee) => [normalize(employee.name), employee]));
+  const rows = Object.entries(attendance)
+    .map(([name, item]) => {
+      const status = item?.status || item || '';
+      const normalized = normalize(status);
+      if (normalized !== 'presente' && normalized !== 'falta') return null;
+      const employee = byName[normalize(name)] || {};
+      return [
+        dateLabel(date),
+        user.name || user.email || '',
+        name,
+        employee.role || '',
+        employee.team || '',
+        employee.location || '',
+        normalized === 'falta' ? 'Falta' : 'Presente',
+        item?.note || ''
+      ];
+    })
+    .filter(Boolean)
+    .sort((a, b) => String(a[2] || '').localeCompare(String(b[2] || '')));
+  const present = rows.filter((row) => normalize(row[6]) === 'presente').length;
+  const absences = rows.filter((row) => normalize(row[6]) === 'falta').length;
+  const header = [
+    ['Relatorio de chamada'],
+    ['Data', dateLabel(date)],
+    ['Lider', user.name || user.email || ''],
+    ['Presentes', present],
+    ['Faltas', absences],
+    [],
+    ['Data', 'Lider', 'Colaborador', 'Funcao', 'Equipe', 'Local', 'Status', 'Observacao']
+  ];
+  return `\uFEFF${[...header, ...rows].map((row) => row.map(csvCell).join(';')).join('\n')}`;
+}
+
 function shapePayload({ user, date, employees, saved }) {
   const attendance = saved?.attendance || {};
   const correctionRequests = saved?.correctionRequests || {};
@@ -258,6 +303,21 @@ router.get('/summary', async (req, res, next) => {
     const settings = (db.settings || []).filter((item) => String(item.key || '').startsWith(prefix));
     const monthlyEmployees = includeAllEmployees(mergeLegacySummary([], settings, from, to), db.employees || []);
     return res.json({ data: { month, from: from || null, to: to || null, employees: monthlyEmployees } });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get('/report', async (req, res, next) => {
+  try {
+    const date = sanitizeDate(req.query.date);
+    const saved = await readAttendanceDay(req.user, date);
+    const employees = await readActiveEmployees('', saved?.attendance || {}, true);
+    const csv = attendanceReportCsv({ date, user: req.user, attendance: saved?.attendance || {}, employees });
+    const filename = `relatorio-chamada-${date}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(csv);
   } catch (error) {
     return next(error);
   }

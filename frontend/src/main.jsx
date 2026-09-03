@@ -876,7 +876,7 @@ function downloadDataFile(file) {
   document.body.removeChild(link);
 }
 
-async function openProtectedFile(path, filename, download = false) {
+async function fetchProtectedBlob(path) {
   const token = localStorage.getItem('sfTorresToken');
   const response = await fetch(`${API_URL}${path}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -885,16 +885,26 @@ async function openProtectedFile(path, filename, download = false) {
     const payload = await response.json().catch(() => null);
     throw new Error(payload?.error?.message || 'Nao foi possivel abrir o arquivo');
   }
-  const blob = await response.blob();
+  return response.blob();
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename || 'arquivo';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+async function openProtectedFile(path, filename, download = false) {
+  const blob = await fetchProtectedBlob(path);
   const url = URL.createObjectURL(blob);
   if (download) {
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename || 'curriculo';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    downloadBlob(blob, filename || 'curriculo');
+    URL.revokeObjectURL(url);
     return;
   }
   window.open(url, '_blank', 'noopener,noreferrer');
@@ -2726,6 +2736,25 @@ function LeaderAttendance({ notify, editable = true }) {
     load(dateValue, query);
     notify('Ocorrência lançada');
   };
+  const finishAttendance = async () => {
+    if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
+    const filename = `relatorio-chamada-${dateValue}.csv`;
+    const message = `Relatorio de chamada ${date(dateValue)} - Presentes: ${attendanceCounts.present} - Faltas: ${attendanceCounts.absences}`;
+    const blob = await withBusy(() => fetchProtectedBlob(`/api/leader-attendance/report?date=${encodeURIComponent(dateValue)}`));
+    const file = typeof File !== 'undefined' ? new File([blob], filename, { type: blob.type || 'text/csv' }) : null;
+    if (file && navigator.canShare?.({ files: [file] }) && navigator.share) {
+      try {
+        await navigator.share({ title: 'Relatorio da chamada', text: message, files: [file] });
+        notify('Relatorio enviado para compartilhamento');
+        return;
+      } catch (error) {
+        if (error?.name === 'AbortError') return;
+      }
+    }
+    downloadBlob(blob, filename);
+    window.open(`https://wa.me/?text=${encodeURIComponent(`${message}\nArquivo gerado: ${filename}`)}`, '_blank', 'noopener,noreferrer');
+    notify('Relatorio baixado. Anexe o arquivo no WhatsApp aberto.');
+  };
   const decideCorrection = async (item, approved = true) => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     const response = await withBusy(() => api('/api/leader-attendance/corrections/approve', {
@@ -2852,7 +2881,7 @@ function LeaderAttendance({ notify, editable = true }) {
       <div className="attendance-mobile-list">
         {loading ? <LoadingBlock /> : filteredEmployees.map(attendanceCard)}
         {!loading && !filteredEmployees.length && <div className="empty-chart">{query.trim() ? 'Nenhum colaborador encontrado para a busca.' : 'Pesquise um colaborador para marcar presença ou falta.'}</div>}
-        {!loading && filteredEmployees.length > 0 && <div className="attendance-finish-card"><Icon name="help" /><div><b>Finalize a chamada</b><span>Confira os registros e finalize a chamada do dia.</span></div><button className="btn btn-primary" onClick={() => notify('Chamada conferida')}>Finalizar chamada</button></div>}
+        {!loading && filteredEmployees.length > 0 && <div className="attendance-finish-card"><Icon name="help" /><div><b>Finalize a chamada</b><span>Gere o relatorio do dia e envie pelo WhatsApp.</span></div><button className="btn btn-primary" onClick={finishAttendance} disabled={!editable}>Finalizar chamada</button></div>}
       </div>
       {occurrenceDetailModal && (
         <div className="modal-backdrop">
