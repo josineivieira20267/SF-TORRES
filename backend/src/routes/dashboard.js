@@ -109,6 +109,10 @@ function isSpecialBonusOrder(order, rules = defaultProductivityRules) {
   return isMichelinOrder(order, rules) || isDaikinOrder(order, rules);
 }
 
+function workOrderIdentity(order = {}) {
+  return order.id || `${normalize(order.client)}:${normalize(order.number)}`;
+}
+
 function bonusCriterionFor(employee, rules = defaultProductivityRules) {
   const team = normalize(employee?.team);
   const role = normalize(employee?.role);
@@ -212,6 +216,7 @@ function daikinShareForEntry(order, name, employeeByName, rules = defaultProduct
 function specialBonusForEntry(order, name, employeeByName, rules = defaultProductivityRules) {
   const michelinShare = michelinShareForEntry(order, name, employeeByName, rules);
   if (michelinShare !== null) return { key: 'michelin', name: 'MICHELIN', share: michelinShare };
+  if (isMichelinOrder(order, rules)) return { key: 'michelin', name: 'MICHELIN', share: 0 };
   const daikinShare = daikinShareForEntry(order, name, employeeByName, rules);
   if (daikinShare !== null) return { key: 'daikin', name: 'DAIKIN', share: daikinShare };
   return null;
@@ -442,10 +447,10 @@ function buildSummary({ workOrders, employees, occurrences, measurements, active
     const criterion = entry.criterion;
     acc[key] = acc[key] || { employee, criterion, criteria: new Set(), osSet: new Set(), michelinSet: new Set(), os: 0, present: 0, absences: callsByName[key]?.absences || 0, pending: 0, customBonus: 0, standardBonus: 0 };
     acc[key].criteria.add(criterion.name);
-    acc[key].osSet.add(entry.order.id || entry.order.number);
+    acc[key].osSet.add(workOrderIdentity(entry.order));
     acc[key].present += 1;
     if (!special && criterion.mode !== 'monthly') acc[key].standardBonus += Number(criterion.base || 0);
-    const michelinKey = `${special?.key || 'standard'}:${entry.order.id || entry.order.number}:${entry.name}`;
+    const michelinKey = `${special?.key || 'standard'}:${workOrderIdentity(entry.order)}:${entry.name}`;
     if (special && !acc[key].michelinSet.has(michelinKey)) {
       acc[key].customBonus += special.share;
       acc[key].michelinSet.add(michelinKey);

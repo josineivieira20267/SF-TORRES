@@ -197,6 +197,10 @@ function isSpecialBonusOrder(order, rules = defaultProductivityRules) {
   return isMichelinOrder(order, rules) || isDaikinOrder(order, rules);
 }
 
+function workOrderIdentity(order = {}) {
+  return order.id || `${normalizeLabel(order.client)}:${normalizeLabel(order.number)}`;
+}
+
 function bonusCriterionFor(employee, rules = defaultProductivityRules) {
   const team = normalize(employee?.team);
   const role = normalize(employee?.role);
@@ -270,6 +274,7 @@ function daikinShareForEntry(order, name, employeeByName, rules = defaultProduct
 function specialBonusForEntry(order, name, employeeByName, rules = defaultProductivityRules) {
   const michelinShare = michelinShareForEntry(order, name, employeeByName, rules);
   if (michelinShare !== null) return { key: 'michelin', name: 'MICHELIN', share: michelinShare };
+  if (isMichelinOrder(order, rules)) return { key: 'michelin', name: 'MICHELIN', share: 0 };
   const daikinShare = daikinShareForEntry(order, name, employeeByName, rules);
   if (daikinShare !== null) return { key: 'daikin', name: 'DAIKIN', share: daikinShare };
   return null;
@@ -3172,10 +3177,10 @@ function Productivity() {
     const criterion = entry.criterion;
     acc[key] = acc[key] || { employee, criterion, criteria: new Set(), osSet: new Set(), michelinSet: new Set(), os: 0, present: 0, standardPresent: 0, absences: attendanceByName[key]?.absences || 0, pending: 0, customBonus: 0, standardBonus: 0 };
     acc[key].criteria.add(criterion.name);
-    acc[key].osSet.add(entry.order.id || entry.order.number);
+    acc[key].osSet.add(workOrderIdentity(entry.order));
     acc[key].os += 1;
     acc[key].present += 1;
-    const michelinKey = `${special?.key || 'standard'}:${entry.order.id || entry.order.number}:${entry.name}`;
+    const michelinKey = `${special?.key || 'standard'}:${workOrderIdentity(entry.order)}:${entry.name}`;
     if (special && !acc[key].michelinSet.has(michelinKey)) {
       acc[key].customBonus += special.share;
       acc[key].michelinSet.add(michelinKey);
@@ -3240,7 +3245,7 @@ function Productivity() {
       </div>
       <div className="kpi-grid">
         <Kpi icon="users" label="Colaboradores avaliados" value={byEmployee.length} delta="com OS no filtro" success />
-        <Kpi icon="file" label="OS apuradas" value={new Set(filteredEntries.map((entry) => entry.order.id || entry.order.number)).size} delta="filtradas no banco pelo período" />
+        <Kpi icon="file" label="OS apuradas" value={new Set(filteredEntries.map((entry) => workOrderIdentity(entry.order))).size} delta="filtradas no banco pelo período" />
         <Kpi icon="alert" label="Faltas registradas" value={totalAbsences} delta={`${pendingCalls} chamadas pendentes`} warning />
         <Kpi icon="money" label="Bônus previsto" value={money(totalBonus)} delta="conforme critérios" />
       </div>
@@ -3249,7 +3254,6 @@ function Productivity() {
       {showOsLaunches && <Panel title="Lançamentos por OS" padded><DataTable columns={['OS', 'Data', 'Cliente', 'Colaborador', 'Equipe', 'Critério', 'Chamada', 'Valor']} rows={osRows} loading={loading} /></Panel>}
     </>
   );
-  return <><PageHead title="Produtividade dos colaboradores" subtitle="Apuração mensal por OS, chamada, faltas e critérios de bonificação." ghostActions={[compare ? 'Ocultar critérios' : 'Ver critérios', showOsLaunches ? 'Ocultar lançamentos' : 'Ver lançamentos por OS']} onGhostAction={(label) => label.includes('critério') || label.includes('critérios') ? setCompare((value) => !value) : setShowOsLaunches((value) => !value)} action="Exportar relatório" onAction={() => downloadCsv('produtividade-colaboradores.csv', exportRows)} /><div className="toolbar"><div className="filter"><label>Buscar</label><input value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="OS, cliente, colaborador..." /></div><div className="filter"><label>Colaborador</label><select value={filters.employee} onChange={(event) => setFilters((old) => ({ ...old, employee: event.target.value }))}>{employeeOptions.map((name) => <option key={name}>{name}</option>)}</select></div><div className="filter"><label>Critério</label><select value={filters.criterion} onChange={(event) => setFilters((old) => ({ ...old, criterion: event.target.value }))}><option>Todos</option>{(productivityRules.standard || []).map((rule) => <option key={rule.key}>{rule.name}</option>)}<option>MICHELIN</option><option>DAIKIN</option><option>Sem critério</option></select></div><div className="filter"><label>Chamada</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Presente</option><option>Falta</option><option>Pendente</option></select></div><span className="spacer" /><span className="soft">{filteredEntries.length} lançamentos</span></div><div className="kpi-grid"><Kpi icon="users" label="Colaboradores avaliados" value={byEmployee.length} delta="com OS no filtro" success /><Kpi icon="file" label="OS apuradas" value={new Set(filteredEntries.map((entry) => entry.order.id || entry.order.number)).size} delta="mês atual filtrado no banco" /><Kpi icon="alert" label="Faltas registradas" value={totalAbsences} delta={`${pendingCalls} chamadas pendentes`} warning /><Kpi icon="money" label="Bônus previsto" value={money(totalBonus)} delta="conforme critérios" /></div>{compare && <Panel title="Critérios de bonificação" padded><DataTable columns={['Equipe/Função', 'Valor integral', '1 ausência', '2 ausências', '3 ausências', '4+ ausências']} rows={(productivityRules.standard || []).map(ruleRow)} /></Panel>}<Panel title="Produtividade por colaborador" padded><DataTable columns={['Colaborador', 'Função', 'Equipe cadastro', 'Critério', 'OS', 'Pres.', 'Faltas', 'Valor base', '%', 'Total']} rows={productivityRows} /></Panel>{showOsLaunches && <Panel title="Lançamentos por OS" padded><DataTable columns={['OS', 'Data', 'Cliente', 'Colaborador', 'Equipe', 'Critério', 'Chamada', 'Valor']} rows={osRows} /></Panel>}</>;
 }
 
 function BonusCriteria({ notify, editable = true }) {
