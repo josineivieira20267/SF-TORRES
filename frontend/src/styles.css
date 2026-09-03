@@ -598,7 +598,9 @@ a:hover{text-decoration:underline}
 }
 .multi-filter summary::-webkit-details-marker{display:none}
 .multi-filter summary::after{
-  content:'▾';position:absolute;right:4px;top:0;color:var(--c-text-muted);font-size:11px;
+  content:'';position:absolute;right:5px;top:50%;
+  width:6px;height:6px;border-right:1.5px solid var(--c-text);border-bottom:1.5px solid var(--c-text);
+  transform:translateY(-65%) rotate(45deg);
 }
 .multi-filter-menu{
   position:absolute;top:calc(100% + 8px);left:-8px;z-index:30;
