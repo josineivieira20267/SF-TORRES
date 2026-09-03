@@ -48,6 +48,10 @@ function safeText(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }
 
+function uppercaseText(value) {
+  return safeText(value).toLocaleUpperCase('pt-BR');
+}
+
 function splitEquipment(equipment) {
   const parts = safeText(equipment).split(' - ');
   return {
@@ -119,6 +123,16 @@ function leftText(page, font, text, x, y, width, size = 8, options = {}) {
     font,
     color: options.color || rgb(0, 0, 0)
   });
+}
+
+function leftTextShrink(page, font, text, x, y, width, size = 8, options = {}) {
+  const value = safeText(text);
+  if (!value) return;
+  let nextSize = size;
+  while (nextSize > 6 && font.widthOfTextAtSize(value, nextSize) > width - 6) {
+    nextSize -= 0.5;
+  }
+  leftText(page, font, value, x, y, width, nextSize, options);
 }
 
 function line(page, x1, y1, x2, y2, width = 0.8) {
@@ -204,10 +218,10 @@ async function buildComandaPdf(order, templateKey) {
 
   rect(page, left, 650, width, 19, 1);
   leftText(page, font, 'TRANSPORTADOR:', left, 656, 110, 9);
-  leftText(page, font, order.carrier, 172, 656, 380, 8);
+  leftText(page, font, uppercaseText(order.carrier), 172, 656, 380, 9);
   rect(page, left, 631, width, 19, 1);
   leftText(page, font, 'RESPONSAVEL OPERACIONAL:', left, 637, 165, 9);
-  leftText(page, font, order.responsible, 218, 637, 334, 8);
+  leftText(page, font, uppercaseText(order.responsible), 218, 637, 334, 9);
 
   sectionTitle(page, font, 'TIPO DE SERVICO', left, 612, width, 17);
   rect(page, left, 548, width, 64, 1);
@@ -222,19 +236,19 @@ async function buildComandaPdf(order, templateKey) {
   checkbox(page, font, 'M3', 300, 555, false);
   centerText(page, font, 'QUANTIDADE DE PRODUTO', 352, 555, 145, 8);
   rect(page, 512, 550, 48, 18, 0.8);
-  centerText(page, font, order.product, 512, 556, 48, 7);
+  centerText(page, font, uppercaseText(order.product), 512, 556, 48, 8);
 
   sectionTitle(page, font, 'EQUIPAMENTO', left, 523, width, 17);
   rect(page, left, 477, width, 46, 1.4);
   line(page, left, 500, right, 500, 0.8);
   leftText(page, bold, 'CONTEINER Nº:', left, 509, 120, 10);
-  leftText(page, bold, order.containerNumber, 176, 509, 240, 8);
+  leftText(page, bold, uppercaseText(order.containerNumber), 176, 509, 240, 10);
   leftText(page, bold, 'TIPO:', 466, 509, 42, 10);
-  leftText(page, bold, equipment.type, 503, 509, 56, 7);
+  leftTextShrink(page, bold, uppercaseText(equipment.type), 503, 509, 56, 10);
   leftText(page, bold, 'PLACA Nº:', left, 486, 100, 10);
-  leftText(page, bold, order.trailerPlate, 135, 486, 270, 8);
+  leftText(page, bold, uppercaseText(order.trailerPlate), 135, 486, 270, 10);
   leftText(page, bold, 'FROTA:', 466, 486, 48, 10);
-  leftText(page, bold, equipment.code, 510, 486, 48, 8);
+  leftText(page, bold, uppercaseText(equipment.code), 510, 486, 48, 10);
   sideArrow(page, 60, 568, 500, 500);
   sideArrow(page, 54, 548, 477, 477);
 
@@ -256,11 +270,11 @@ async function buildComandaPdf(order, templateKey) {
   const members = Array.isArray(order.teamMembers) ? order.teamMembers.slice(0, 7) : [];
   members.forEach((member, index) => {
     const y = 429 - (index * 17.4);
-    leftText(page, font, member, left, y, nameW, 6.8);
-    leftText(page, font, roleText(order, member), left + nameW, y, roleW, 6.8);
+    leftText(page, font, uppercaseText(member), left, y, nameW, 8);
+    leftText(page, font, uppercaseText(roleText(order, member)), left + nameW, y, roleW, 8);
   });
   leftText(page, font, 'OBS:', left, 310, 45, 8);
-  leftText(page, font, order.teamNote, 100, 310, 455, 7);
+  leftText(page, font, uppercaseText(order.teamNote), 100, 310, 455, 8);
 
   rect(page, left, 237, width, 28, 1.2);
   leftText(page, font, 'LEGENDA DO CONTEINER OU CARRETA', left + 12, 247, 230, 8);
