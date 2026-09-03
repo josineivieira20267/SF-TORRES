@@ -922,10 +922,26 @@ function wrapCanvasText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 2) {
   lines.slice(0, maxLines).forEach((item, index) => ctx.fillText(index === maxLines - 1 && lines.length > maxLines ? `${item.slice(0, 22)}...` : item, x, y + (index * lineHeight)));
 }
 
-async function buildAttendanceReportImage({ dateValue, leader, employees = [] }) {
-  const rows = employees
+function markedByUser(item, user) {
+  const userId = String(user?.id || '').trim();
+  const userName = normalize(user?.name);
+  const userEmail = normalize(user?.email);
+  return Boolean(
+    (userId && String(item.markedById || '').trim() === userId)
+    || (userName && normalize(item.markedByName) === userName)
+    || (userEmail && normalize(item.markedByEmail) === userEmail)
+  );
+}
+
+function attendanceReportRows(employees = [], user, onlyMarkedByUser = false) {
+  return employees
     .filter((item) => ['presente', 'falta'].includes(normalize(item.status)))
+    .filter((item) => !onlyMarkedByUser || markedByUser(item, user))
     .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+}
+
+async function buildAttendanceReportImage({ dateValue, leader, employees = [], onlyMarkedByUser = false }) {
+  const rows = attendanceReportRows(employees, leader, onlyMarkedByUser);
   const present = rows.filter((item) => normalize(item.status) === 'presente').length;
   const absences = rows.filter((item) => normalize(item.status) === 'falta').length;
   const width = 1080;
@@ -960,7 +976,7 @@ async function buildAttendanceReportImage({ dateValue, leader, employees = [] })
   ctx.fillStyle = '#0F2447';
   ctx.font = '800 22px Arial, sans-serif';
   ctx.fillText('COLABORADOR', 76, 326);
-  ctx.fillText('FUNCAO', 570, 326);
+  ctx.fillText('LOCAL', 570, 326);
   ctx.fillText('STATUS', 850, 326);
   ctx.strokeStyle = '#0F2447';
   ctx.lineWidth = 3;
@@ -978,7 +994,7 @@ async function buildAttendanceReportImage({ dateValue, leader, employees = [] })
     wrapCanvasText(ctx, String(item.name || '').toUpperCase(), 94, y + 4, 430, 24, 2);
     ctx.fillStyle = '#35465F';
     ctx.font = '700 18px Arial, sans-serif';
-    wrapCanvasText(ctx, String(item.role || item.team || '-').toUpperCase(), 570, y + 4, 230, 22, 2);
+    wrapCanvasText(ctx, String(item.location || '-').toUpperCase(), 570, y + 4, 230, 22, 2);
     ctx.fillStyle = isAbsence ? '#B3261E' : '#1F8A4C';
     ctx.fillRect(850, y - 8, 140, 34);
     ctx.fillStyle = '#FFFFFF';
@@ -2836,8 +2852,11 @@ function LeaderAttendance({ notify, editable = true }) {
   const finishAttendance = async () => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     const filename = `relatorio-chamada-${dateValue}.png`;
-    const message = `Relatorio de chamada ${date(dateValue)} - Presentes: ${attendanceCounts.present} - Faltas: ${attendanceCounts.absences}`;
-    const blob = await withBusy(() => buildAttendanceReportImage({ dateValue, leader: user, employees }));
+    const reportRows = attendanceReportRows(employees, user, leaderProfile);
+    const reportPresent = reportRows.filter((item) => normalize(item.status) === 'presente').length;
+    const reportAbsences = reportRows.filter((item) => normalize(item.status) === 'falta').length;
+    const message = `Relatorio de chamada ${date(dateValue)} - Presentes: ${reportPresent} - Faltas: ${reportAbsences}`;
+    const blob = await withBusy(() => buildAttendanceReportImage({ dateValue, leader: user, employees, onlyMarkedByUser: leaderProfile }));
     const file = typeof File !== 'undefined' ? new File([blob], filename, { type: 'image/png' }) : null;
     if (file && navigator.canShare?.({ files: [file] }) && navigator.share) {
       try {

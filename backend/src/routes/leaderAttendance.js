@@ -47,6 +47,9 @@ function employeeRow(employee, attendance = {}, correctionRequests = {}) {
     location: employee.location || '-',
     status: saved.status || '',
     note: saved.note || '',
+    markedById: saved.markedById || '',
+    markedByName: saved.markedByName || '',
+    markedByEmail: saved.markedByEmail || '',
     correctionRequest: correction && correction.status !== 'Cancelada' ? correction : null
   };
 }
@@ -132,7 +135,13 @@ async function readSavedAttendance(key) {
 
 function attendanceObject(rows = []) {
   return rows.reduce((acc, row) => {
-    acc[row.employeeName] = { status: row.status || '', note: row.note || '' };
+    acc[row.employeeName] = {
+      status: row.status || '',
+      note: row.note || '',
+      markedById: row.markedById || '',
+      markedByName: row.markedByName || '',
+      markedByEmail: row.markedByEmail || ''
+    };
     return acc;
   }, {});
 }
@@ -371,7 +380,12 @@ router.put('/', async (req, res, next) => {
       const attendance = { ...(saved?.attendance || {}) };
       Object.entries(incoming).forEach(([name, item]) => {
         if (item?.clear) delete attendance[name];
-        else attendance[name] = item;
+        else attendance[name] = {
+          ...(typeof item === 'object' ? item : { status: item }),
+          markedById: req.user.id || '',
+          markedByName: req.user.name || req.user.email || '',
+          markedByEmail: req.user.email || ''
+        };
       });
       await saveLegacyAttendanceValue(attendanceKey(date), {
         date,
