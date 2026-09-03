@@ -3464,9 +3464,19 @@ function Settings({ notify, settings, setSettings, editable = true }) {
 }
 
 function ClientMultiFilter({ value = [], options = [], onChange }) {
+  const detailsRef = useRef(null);
   const selected = Array.isArray(value) ? value : (value && value !== 'Todos' ? [value] : []);
   const clients = options.filter((option) => option && option !== 'Todos');
   const label = selected.length === 0 ? 'Todos' : selected.length === 1 ? selected[0] : `${selected.length} clientes`;
+  useEffect(() => {
+    const closeOnOutsideClick = (event) => {
+      if (detailsRef.current && !detailsRef.current.contains(event.target)) {
+        detailsRef.current.open = false;
+      }
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    return () => document.removeEventListener('mousedown', closeOnOutsideClick);
+  }, []);
   const toggle = (client) => {
     if (selected.includes(client)) return onChange?.(selected.filter((item) => item !== client));
     return onChange?.([...selected, client]);
@@ -3475,7 +3485,7 @@ function ClientMultiFilter({ value = [], options = [], onChange }) {
   return (
     <div className="filter multi-filter">
       <label>Cliente</label>
-      <details>
+      <details ref={detailsRef}>
         <summary>{label}</summary>
         <div className="multi-filter-menu">
           <button type="button" className={!selected.length ? 'active' : ''} onClick={() => onChange?.([])}>Todos</button>
