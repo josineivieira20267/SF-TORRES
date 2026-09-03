@@ -3463,6 +3463,34 @@ function Settings({ notify, settings, setSettings, editable = true }) {
   </>;
 }
 
+function ClientMultiFilter({ value = [], options = [], onChange }) {
+  const selected = Array.isArray(value) ? value : (value && value !== 'Todos' ? [value] : []);
+  const clients = options.filter((option) => option && option !== 'Todos');
+  const label = selected.length === 0 ? 'Todos' : selected.length === 1 ? selected[0] : `${selected.length} clientes`;
+  const toggle = (client) => {
+    if (selected.includes(client)) return onChange?.(selected.filter((item) => item !== client));
+    return onChange?.([...selected, client]);
+  };
+
+  return (
+    <div className="filter multi-filter">
+      <label>Cliente</label>
+      <details>
+        <summary>{label}</summary>
+        <div className="multi-filter-menu">
+          <button type="button" className={!selected.length ? 'active' : ''} onClick={() => onChange?.([])}>Todos</button>
+          {clients.map((client) => (
+            <label key={client}>
+              <input type="checkbox" checked={selected.includes(client)} onChange={() => toggle(client)} />
+              <span>{client}</span>
+            </label>
+          ))}
+        </div>
+      </details>
+    </div>
+  );
+}
+
 function DailyOps({ notify, editable = true }) {
   const user = currentUser();
   const leaderProfile = isLeaderUser(user);
@@ -3481,7 +3509,7 @@ function DailyOps({ notify, editable = true }) {
   const [comandaModal, setComandaModal] = useState(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('Dados');
-  const [filters, setFilters] = useState({ q: '', status: 'Todos', client: 'Todos', period: 'Este mês', from: monthRange().from.slice(0, 10), to: monthRange().to.slice(0, 10), table: '' });
+  const [filters, setFilters] = useState({ q: '', status: 'Todos', client: [], period: 'Este mês', from: monthRange().from.slice(0, 10), to: monthRange().to.slice(0, 10), table: '' });
   const optionValues = (list, ...keys) => list.map((item) => keys.map((key) => item[key]).find(Boolean)).filter(Boolean);
   const equipmentTypes = ['', ...Array.from(new Set(equipment.map((item) => [item.code, item.type].filter(Boolean).join(' - ')).filter(Boolean)))];
   const fields = [
@@ -3518,7 +3546,8 @@ function DailyOps({ notify, editable = true }) {
     const text = normalize(`${item.number} ${item.client} ${item.equipment} ${item.service} ${item.carrier}`);
     const query = normalize(`${filters.q} ${filters.table}`);
     const statusOk = filters.status === 'Todos' || normalize(item.status) === normalize(filters.status);
-    const clientOk = filters.client === 'Todos' || normalizeLabel(item.client) === normalizeLabel(filters.client);
+    const selectedClients = Array.isArray(filters.client) ? filters.client : (filters.client && filters.client !== 'Todos' ? [filters.client] : []);
+    const clientOk = !selectedClients.length || selectedClients.some((client) => normalizeLabel(item.client) === normalizeLabel(client));
     return text.includes(query.trim()) && statusOk && clientOk;
   });
   const selected = filteredItems.find((i) => i.id === selectedId) || filteredItems[0];
@@ -3669,7 +3698,7 @@ function DailyOps({ notify, editable = true }) {
       <div className="toolbar">
         <div className="filter"><label>Buscar</label><input type="text" value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="OS, cliente, equipamento..." /></div>
         <div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Programado</option><option>Em execucao</option><option>Finalizado</option><option>Cancelado</option></select></div>
-        <div className="filter"><label>Cliente</label><select value={filters.client} onChange={(event) => setFilters((old) => ({ ...old, client: event.target.value }))}>{clientOptions.map((client) => <option key={client}>{client}</option>)}</select></div>
+        <ClientMultiFilter value={filters.client} options={clientOptions} onChange={(client) => setFilters((old) => ({ ...old, client }))} />
         <div className="filter"><label>Período</label><select value={filters.period} onChange={(event) => setFilters((old) => ({ ...old, period: event.target.value }))}><option>Hoje</option><option>Esta semana</option><option>Este mês</option><option>Personalizado</option></select></div>
         {filters.period === 'Personalizado' && <><div className="filter"><label>De</label><input type="date" value={filters.from} onChange={(event) => setFilters((old) => ({ ...old, from: event.target.value || old.from }))} /></div><div className="filter"><label>Até</label><input type="date" value={filters.to} onChange={(event) => setFilters((old) => ({ ...old, to: event.target.value || old.to }))} /></div></>}
         <span className="spacer" />
