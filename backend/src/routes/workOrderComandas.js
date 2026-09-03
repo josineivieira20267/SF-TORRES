@@ -140,6 +140,15 @@ function checkbox(page, font, label, x, y, checked = false, size = 8) {
   page.drawText(`( ${checked ? 'X' : ' '} )`, { x: boxX, y, size, font, color: rgb(0, 0, 0) });
 }
 
+function sideArrow(page, x, yTop, yBottom, yPoint) {
+  const color = rgb(0.28, 0.55, 0.84);
+  page.drawLine({ start: { x, y: yTop }, end: { x, y: yBottom }, thickness: 1.8, color });
+  page.drawLine({ start: { x, y: yTop }, end: { x: x + 12, y: yTop }, thickness: 1.8, color });
+  page.drawLine({ start: { x, y: yBottom }, end: { x: x + 12, y: yBottom }, thickness: 1.8, color });
+  page.drawLine({ start: { x: x + 2, y: yPoint + 5 }, end: { x: x + 10, y: yPoint }, thickness: 1.8, color });
+  page.drawLine({ start: { x: x + 2, y: yPoint - 5 }, end: { x: x + 10, y: yPoint }, thickness: 1.8, color });
+}
+
 async function findWorkOrder(id) {
   if (hasDatabaseUrl) return prisma.workOrder.findUnique({ where: { id } });
   const db = await readDb();
@@ -150,8 +159,8 @@ async function drawLogo(pdf, page) {
   try {
     const bytes = await fs.readFile(logoPath);
     const image = await pdf.embedPng(bytes);
-    const scale = Math.min(42 / image.width, 28 / image.height);
-    page.drawImage(image, { x: 62, y: 750, width: image.width * scale, height: image.height * scale });
+    const scale = Math.min(42 / image.width, 25 / image.height);
+    page.drawImage(image, { x: 90, y: 754, width: image.width * scale, height: image.height * scale });
   } catch {
     page.drawCircle({ x: 75, y: 750, size: 12, borderWidth: 1, borderColor: rgb(0, 0, 0.5) });
     page.drawText('ST', { x: 68, y: 727, size: 14, color: rgb(0, 0, 0.5) });
@@ -169,123 +178,129 @@ async function buildComandaPdf(order, templateKey) {
   const end = parseDateTime(order.operationEnd);
   const equipment = splitEquipment(order.equipment);
   const marks = serviceMarks(order);
-  const left = 44;
-  const width = 507;
+  const left = 70;
+  const width = 492;
+  const right = left + width;
+  const dateSplit = 294;
+  const templateSplit = 474;
 
   await drawLogo(pdf, page);
 
-  rect(page, left, 722, width, 62, 1.4);
-  line(page, left, 744, left + width, 744, 1);
-  line(page, 458, 722, 458, 784, 1);
-  line(page, 275, 722, 275, 744, 1);
-  centerText(page, bold, 'PROVEDOR : SF TORRES - ME', 110, 756, 330, 10);
-  centerText(page, bold, templateLabels[templateKey], 458, 758, 93, 9);
+  rect(page, left, 728, width, 58, 1.4);
+  line(page, left, 751, right, 751, 1);
+  line(page, templateSplit, 728, templateSplit, 786, 1);
+  line(page, dateSplit, 728, dateSplit, 751, 1);
+  centerText(page, bold, 'PROVEDOR : SF TORRES - ME', 150, 762, 260, 10);
+  centerText(page, bold, templateLabels[templateKey], templateSplit, 762, right - templateSplit, 9);
   leftText(page, font, 'DATA:', left, 730, 48, 9);
-  leftText(page, font, scheduled.date, 78, 730, 90, 8);
-  leftText(page, font, 'ORDEM DE SERVICO No:', 275, 730, 150, 8);
-  centerText(page, font, order.number, 458, 730, 93, 10, { color: rgb(0, 0, 0.85) });
+  leftText(page, font, scheduled.date, 104, 731, 90, 8);
+  leftText(page, font, 'ORDEM DE SERVICO No:', dateSplit, 730, 150, 8);
+  centerText(page, font, order.number, templateSplit, 730, right - templateSplit, 10, { color: rgb(0, 0, 0.85) });
 
-  sectionTitle(page, font, 'DADOS DO CLIENTE', left, 696, width, 18);
-  rect(page, left, 656, width, 40, 1);
-  leftText(page, font, 'SEMP TCL INDUSTRIAL E COMERCIO DE ELETROELETRONICOS S.A', left, 678, width, 9);
-  leftText(page, font, 'Rua Ica, 500 Anexo B - Distrito Industrial I , Manaus - AM, 69075-090', left, 661, width, 9);
+  sectionTitle(page, font, 'DADOS DO CLIENTE', left, 709, width, 16);
+  rect(page, left, 672, width, 37, 1);
+  leftText(page, font, 'SEMP TCL INDUSTRIAL E COMERCIO DE ELETROELETRONICOS S.A', left, 692, width, 9);
+  leftText(page, font, 'Rua Ica, 500 Anexo B - Distrito Industrial I , Manaus - AM, 69075-090', left, 676, width, 9);
 
-  rect(page, left, 634, width, 20, 1);
-  leftText(page, font, 'TRANSPORTADOR:', left, 641, 110, 9);
-  leftText(page, font, order.carrier, 144, 641, 400, 8);
-  rect(page, left, 614, width, 20, 1);
-  leftText(page, font, 'RESPONSAVEL OPERACIONAL:', left, 621, 165, 9);
-  leftText(page, font, order.responsible, 207, 621, 335, 8);
+  rect(page, left, 650, width, 19, 1);
+  leftText(page, font, 'TRANSPORTADOR:', left, 656, 110, 9);
+  leftText(page, font, order.carrier, 172, 656, 380, 8);
+  rect(page, left, 631, width, 19, 1);
+  leftText(page, font, 'RESPONSAVEL OPERACIONAL:', left, 637, 165, 9);
+  leftText(page, font, order.responsible, 218, 637, 334, 8);
 
-  sectionTitle(page, font, 'TIPO DE SERVICO', left, 592, width, 18);
-  rect(page, left, 542, width, 50, 1);
-  line(page, left, 567, left + width, 567, 0.8);
-  checkbox(page, font, 'OVA', 54, 577, marks.ova);
-  checkbox(page, font, 'DESOVA', 150, 577, marks.desova);
-  checkbox(page, font, 'TRANSBORDO', 278, 577, marks.transbordo);
-  checkbox(page, font, 'DIARIA', 448, 577, marks.diaria);
-  checkbox(page, font, 'CONTEINER', 54, 552, normalize(order.equipment).includes('container'));
-  checkbox(page, font, 'CARRETA', 54, 527, isPlateEquipment(order));
-  checkbox(page, font, 'M3', 275, 527, false);
-  leftText(page, font, 'QUANTIDADE DE PRODUTO', 352, 527, 145, 8);
-  rect(page, 495, 519, 48, 18, 0.8);
-  centerText(page, font, order.product, 495, 525, 48, 7);
+  sectionTitle(page, font, 'TIPO DE SERVICO', left, 612, width, 17);
+  rect(page, left, 548, width, 64, 1);
+  line(page, left, 589, right, 589, 0.8);
+  line(page, left, 568, right, 568, 0.8);
+  checkbox(page, font, 'OVA', 80, 597, marks.ova);
+  checkbox(page, font, 'DESOVA', 170, 597, marks.desova);
+  checkbox(page, font, 'TRANSBORDO', 310, 597, marks.transbordo);
+  checkbox(page, font, 'DIARIA', 472, 597, marks.diaria);
+  checkbox(page, font, 'CONTEINER', 80, 576, normalize(order.equipment).includes('container'));
+  checkbox(page, font, 'CARRETA', 80, 555, isPlateEquipment(order));
+  checkbox(page, font, 'M3', 300, 555, false);
+  centerText(page, font, 'QUANTIDADE DE PRODUTO', 352, 555, 145, 8);
+  rect(page, 512, 550, 48, 18, 0.8);
+  centerText(page, font, order.product, 512, 556, 48, 7);
 
-  sectionTitle(page, font, 'EQUIPAMENTO', left, 500, width, 18);
-  rect(page, left, 454, width, 46, 1.4);
-  line(page, left, 477, left + width, 477, 0.8);
-  leftText(page, bold, 'CONTEINER No:', left, 486, 120, 10);
-  leftText(page, bold, order.containerNumber, 155, 486, 240, 8);
-  leftText(page, bold, 'TIPO:', 426, 486, 50, 10);
-  leftText(page, bold, equipment.type, 463, 486, 85, 7);
-  leftText(page, bold, 'PLACA No:', left, 463, 100, 10);
-  leftText(page, bold, order.trailerPlate, 125, 463, 250, 8);
-  leftText(page, bold, 'FROTA:', 426, 463, 55, 10);
-  leftText(page, bold, equipment.code, 466, 463, 82, 8);
+  sectionTitle(page, font, 'EQUIPAMENTO', left, 523, width, 17);
+  rect(page, left, 477, width, 46, 1.4);
+  line(page, left, 500, right, 500, 0.8);
+  leftText(page, bold, 'CONTEINER No:', left, 509, 120, 10);
+  leftText(page, bold, order.containerNumber, 176, 509, 240, 8);
+  leftText(page, bold, 'TIPO:', 466, 509, 42, 10);
+  leftText(page, bold, equipment.type, 503, 509, 56, 7);
+  leftText(page, bold, 'PLACA No:', left, 486, 100, 10);
+  leftText(page, bold, order.trailerPlate, 135, 486, 270, 8);
+  leftText(page, bold, 'FROTA:', 466, 486, 48, 10);
+  leftText(page, bold, equipment.code, 510, 486, 48, 8);
+  sideArrow(page, 60, 568, 500, 500);
+  sideArrow(page, 54, 548, 477, 477);
 
-  sectionTitle(page, font, 'INTEGRANTE DA EQUIPE', left, 432, width, 18);
-  rect(page, left, 262, width, 170, 1.4);
-  const nameW = 275;
-  const roleW = 155;
+  sectionTitle(page, font, 'INTEGRANTE DA EQUIPE', left, 457, width, 16);
+  rect(page, left, 302, width, 155, 1.4);
+  const nameW = 224;
+  const roleW = 151;
   const percentW = 28;
   const valueW = width - nameW - roleW - percentW;
-  line(page, left + nameW, 262, left + nameW, 432, 1);
-  line(page, left + nameW + roleW, 262, left + nameW + roleW, 432, 1);
-  line(page, left + nameW + roleW + percentW, 262, left + nameW + roleW + percentW, 432, 1);
-  line(page, left, 414, left + width, 414, 0.8);
-  leftText(page, font, 'Nome:', left, 420, nameW, 8);
-  centerText(page, font, 'Funcao', left + nameW, 420, roleW, 8);
-  centerText(page, font, '%', left + nameW + roleW, 420, percentW, 8);
-  centerText(page, font, 'Valor R$', left + nameW + roleW + percentW, 420, valueW, 8);
-  for (let i = 0; i < 7; i += 1) line(page, left, 396 - (i * 18), left + width, 396 - (i * 18), 0.8);
+  line(page, left + nameW, 302, left + nameW, 457, 1);
+  line(page, left + nameW + roleW, 302, left + nameW + roleW, 457, 1);
+  line(page, left + nameW + roleW + percentW, 302, left + nameW + roleW + percentW, 457, 1);
+  line(page, left, 441, right, 441, 0.8);
+  leftText(page, font, 'Nome:', left, 446, nameW, 8);
+  centerText(page, font, 'Funcao', left + nameW, 446, roleW, 8);
+  centerText(page, font, '%', left + nameW + roleW, 446, percentW, 8);
+  centerText(page, font, 'Valor R$', left + nameW + roleW + percentW, 446, valueW, 8);
+  for (let i = 0; i < 7; i += 1) line(page, left, 423 - (i * 17.4), right, 423 - (i * 17.4), 0.8);
   const members = Array.isArray(order.teamMembers) ? order.teamMembers.slice(0, 7) : [];
   members.forEach((member, index) => {
-    const y = 402 - (index * 18);
+    const y = 429 - (index * 17.4);
     leftText(page, font, member, left, y, nameW, 6.8);
     leftText(page, font, roleText(order, member), left + nameW, y, roleW, 6.8);
   });
-  leftText(page, font, 'OBS:', left, 270, 45, 8);
-  leftText(page, font, order.teamNote, 75, 270, 470, 7);
+  leftText(page, font, 'OBS:', left, 310, 45, 8);
+  leftText(page, font, order.teamNote, 100, 310, 455, 7);
 
-  rect(page, left, 240, width, 28, 1.2);
-  leftText(page, font, 'LEGENDA DO CONTEINER OU CARRETA', left + 12, 250, 230, 8);
+  rect(page, left, 237, width, 28, 1.2);
+  leftText(page, font, 'LEGENDA DO CONTEINER OU CARRETA', left + 12, 247, 230, 8);
   const progress = progressMark(order.progress);
-  [['25', 276], ['50', 323], ['75', 369], ['100', 415]].forEach(([label, x]) => {
-    rect(page, x, 246, 16, 16, 0.8);
-    if (progress === label) centerText(page, bold, 'X', x, 250, 16, 9);
-    leftText(page, bold, `${label}%`, x + 20, 251, 34, 7);
+  [['25', 274], ['50', 323], ['75', 366], ['100', 410]].forEach(([label, x]) => {
+    rect(page, x, 242, 17, 17, 0.8);
+    if (progress === label) centerText(page, bold, 'X', x, 246, 17, 9);
+    leftText(page, bold, `${label}%`, x + 20, 247, 34, 7);
   });
 
-  sectionTitle(page, font, 'REGISTRO OPERACIONAL', left, 218, width, 18);
+  sectionTitle(page, font, 'REGISTRO OPERACIONAL', left, 218, width, 17);
   sectionTitle(page, font, 'SEPARACAO', left, 198, width, 20);
   rect(page, left, 158, width, 40, 1);
-  line(page, 275, 158, 275, 198, 0.8);
+  line(page, dateSplit, 158, dateSplit, 198, 0.8);
   leftText(page, font, 'INICIO:', left, 180, 52, 8);
-  leftText(page, font, marks.separacao ? start.date : '', 84, 180, 110, 8);
-  leftText(page, font, 'TERMINO:', 275, 180, 65, 8);
-  leftText(page, font, marks.separacao ? end.date : '', 330, 180, 110, 8);
+  leftText(page, font, marks.separacao ? start.date : '', 108, 180, 110, 8);
+  leftText(page, font, 'TERMINO:', dateSplit, 180, 65, 8);
+  leftText(page, font, marks.separacao ? end.date : '', 350, 180, 110, 8);
   leftText(page, font, 'HORA:', left, 164, 45, 8);
-  leftText(page, font, marks.separacao ? start.time : '', 84, 164, 80, 8);
-  leftText(page, font, 'HORA:', 275, 164, 45, 8);
-  leftText(page, font, marks.separacao ? end.time : '', 330, 164, 80, 8);
+  leftText(page, font, marks.separacao ? start.time : '', 108, 164, 80, 8);
+  leftText(page, font, 'HORA:', dateSplit, 164, 45, 8);
+  leftText(page, font, marks.separacao ? end.time : '', 350, 164, 80, 8);
 
   sectionTitle(page, font, 'OVA OU DESOVA', left, 138, width, 20);
   rect(page, left, 98, width, 40, 1);
-  line(page, 275, 98, 275, 138, 0.8);
+  line(page, dateSplit, 98, dateSplit, 138, 0.8);
   const fillOvaDates = marks.ova || marks.desova || !marks.separacao;
   leftText(page, font, 'INICIO:', left, 120, 52, 8);
-  leftText(page, font, fillOvaDates ? start.date : '', 84, 120, 110, 8);
-  leftText(page, font, 'TERMINO:', 275, 120, 65, 8);
-  leftText(page, font, fillOvaDates ? end.date : '', 330, 120, 110, 8);
+  leftText(page, font, fillOvaDates ? start.date : '', 108, 120, 110, 8);
+  leftText(page, font, 'TERMINO:', dateSplit, 120, 65, 8);
+  leftText(page, font, fillOvaDates ? end.date : '', 350, 120, 110, 8);
   leftText(page, font, 'HORA:', left, 104, 45, 8);
-  leftText(page, font, fillOvaDates ? start.time : '', 84, 104, 80, 8);
-  leftText(page, font, 'HORA:', 275, 104, 45, 8);
-  leftText(page, font, fillOvaDates ? end.time : '', 330, 104, 80, 8);
+  leftText(page, font, fillOvaDates ? start.time : '', 108, 104, 80, 8);
+  leftText(page, font, 'HORA:', dateSplit, 104, 45, 8);
+  leftText(page, font, fillOvaDates ? end.time : '', 350, 104, 80, 8);
 
   rect(page, left, 36, width, 62, 1.2);
-  line(page, 275, 36, 275, 98, 0.8);
+  line(page, dateSplit, 36, dateSplit, 98, 0.8);
   leftText(page, font, 'CARIMBO E ASSINATURA', left, 86, 180, 8);
-  leftText(page, font, 'CARIMBO E ASSINATURA', 275, 86, 180, 8);
+  leftText(page, font, 'CARIMBO E ASSINATURA', dateSplit, 86, 180, 8);
 
   return pdf.save();
 }
