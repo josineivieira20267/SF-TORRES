@@ -194,7 +194,7 @@ async function buildComandaPdf(order, templateKey) {
   centerText(page, bold, templateLabels[templateKey], templateSplit, 762, right - templateSplit, 9);
   leftText(page, font, 'DATA:', left, 730, 48, 9);
   leftText(page, font, scheduled.date, 104, 731, 90, 8);
-  leftText(page, font, 'ORDEM DE SERVICO No:', dateSplit, 730, 150, 8);
+  leftText(page, font, 'ORDEM DE SERVICO Nº:', dateSplit, 730, 150, 8);
   centerText(page, font, order.number, templateSplit, 730, right - templateSplit, 10, { color: rgb(0, 0, 0.85) });
 
   sectionTitle(page, font, 'DADOS DO CLIENTE', left, 709, width, 16);
@@ -227,11 +227,11 @@ async function buildComandaPdf(order, templateKey) {
   sectionTitle(page, font, 'EQUIPAMENTO', left, 523, width, 17);
   rect(page, left, 477, width, 46, 1.4);
   line(page, left, 500, right, 500, 0.8);
-  leftText(page, bold, 'CONTEINER No:', left, 509, 120, 10);
+  leftText(page, bold, 'CONTEINER Nº:', left, 509, 120, 10);
   leftText(page, bold, order.containerNumber, 176, 509, 240, 8);
   leftText(page, bold, 'TIPO:', 466, 509, 42, 10);
   leftText(page, bold, equipment.type, 503, 509, 56, 7);
-  leftText(page, bold, 'PLACA No:', left, 486, 100, 10);
+  leftText(page, bold, 'PLACA Nº:', left, 486, 100, 10);
   leftText(page, bold, order.trailerPlate, 135, 486, 270, 8);
   leftText(page, bold, 'FROTA:', 466, 486, 48, 10);
   leftText(page, bold, equipment.code, 510, 486, 48, 8);
