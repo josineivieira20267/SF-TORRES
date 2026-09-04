@@ -976,12 +976,16 @@ function attendanceReportRows(employees = [], user, onlyMarkedByUser = false) {
     .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
 }
 
-async function buildAttendanceReportImage({ dateValue, leader, rows = [], page = 1, pageCount = 1, totalPresent = 0, totalAbsences = 0 }) {
+async function buildAttendanceReportImage({ dateValue, leader, rows = [] }) {
   const present = rows.filter((item) => normalize(item.status) === 'presente').length;
   const absences = rows.filter((item) => normalize(item.status) === 'falta').length;
-  const width = 1080;
-  const rowHeight = 74;
-  const height = Math.max(820, 430 + (rows.length * rowHeight) + 120);
+  const rowHeight = 60;
+  const rowsPerColumn = 24;
+  const columnWidth = 880;
+  const columns = Math.max(1, Math.ceil(rows.length / rowsPerColumn));
+  const width = 64 + (columns * columnWidth) + ((columns - 1) * 28) + 64;
+  const visibleRows = Math.min(rowsPerColumn, Math.max(rows.length, 1));
+  const height = Math.max(820, 360 + (visibleRows * rowHeight) + 120);
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
@@ -999,49 +1003,50 @@ async function buildAttendanceReportImage({ dateValue, leader, rows = [], page =
   ctx.font = '700 24px Arial, sans-serif';
   ctx.fillText(`DATA: ${date(dateValue)}`, 76, 152);
   ctx.fillText(`LIDER: ${String(leader?.name || leader?.email || '-').toUpperCase()}`, 76, 188);
-  if (pageCount > 1) {
-    ctx.textAlign = 'right';
-    ctx.fillText(`PARTE ${page}/${pageCount}`, width - 76, 152);
-    ctx.textAlign = 'left';
-  }
+  if (columns > 1) ctx.fillText(`COLABORADORES: ${rows.length}`, width - 330, 152);
   ctx.fillStyle = '#1F8A4C';
   ctx.fillRect(76, 220, 220, 54);
   ctx.fillStyle = '#FFFFFF';
   ctx.font = '800 24px Arial, sans-serif';
-  ctx.fillText(`PRESENTES: ${totalPresent || present}`, 96, 255);
+  ctx.fillText(`PRESENTES: ${present}`, 96, 255);
   ctx.fillStyle = '#B3261E';
   ctx.fillRect(316, 220, 180, 54);
   ctx.fillStyle = '#FFFFFF';
-  ctx.fillText(`FALTAS: ${totalAbsences || absences}`, 336, 255);
-  ctx.fillStyle = '#0F2447';
-  ctx.font = '800 22px Arial, sans-serif';
-  ctx.fillText('COLABORADOR', 76, 326);
-  ctx.fillText('LOCAL', 530, 326);
-  ctx.fillText('TURNO', 700, 326);
-  ctx.fillText('STATUS', 860, 326);
-  ctx.strokeStyle = '#0F2447';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(76, 342);
-  ctx.lineTo(width - 76, 342);
-  ctx.stroke();
-  rows.forEach((item, index) => {
-    const y = 370 + (index * rowHeight);
-    const isAbsence = normalize(item.status) === 'falta';
-    ctx.fillStyle = index % 2 ? '#F8FAFD' : '#FFFFFF';
-    ctx.fillRect(76, y - 24, width - 152, rowHeight);
-    ctx.fillStyle = '#071D44';
-    ctx.font = '800 22px Arial, sans-serif';
-    wrapCanvasText(ctx, String(item.name || '').toUpperCase(), 94, y + 4, 380, 24, 2);
-    ctx.fillStyle = '#35465F';
-    ctx.font = '700 18px Arial, sans-serif';
-    wrapCanvasText(ctx, String(item.location || '-').toUpperCase(), 530, y + 4, 140, 22, 2);
-    wrapCanvasText(ctx, String(item.shift || '-').toUpperCase(), 700, y + 4, 130, 22, 2);
-    ctx.fillStyle = isAbsence ? '#B3261E' : '#1F8A4C';
-    ctx.fillRect(860, y - 8, 140, 34);
-    ctx.fillStyle = '#FFFFFF';
+  ctx.fillText(`FALTAS: ${absences}`, 336, 255);
+  Array.from({ length: columns }).forEach((_, columnIndex) => {
+    const chunk = rows.slice(columnIndex * rowsPerColumn, (columnIndex + 1) * rowsPerColumn);
+    const x = 76 + (columnIndex * (columnWidth + 28));
+    const headerY = 326;
+    ctx.fillStyle = '#0F2447';
     ctx.font = '800 18px Arial, sans-serif';
-    ctx.fillText(isAbsence ? 'FALTA' : 'PRESENTE', 878, y + 15);
+    ctx.fillText('COLABORADOR', x, headerY);
+    ctx.fillText('LOCAL', x + 390, headerY);
+    ctx.fillText('TURNO', x + 520, headerY);
+    ctx.fillText('STATUS', x + 690, headerY);
+    ctx.strokeStyle = '#0F2447';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x, headerY + 16);
+    ctx.lineTo(x + columnWidth - 18, headerY + 16);
+    ctx.stroke();
+    chunk.forEach((item, index) => {
+      const y = 370 + (index * rowHeight);
+      const isAbsence = normalize(item.status) === 'falta';
+      ctx.fillStyle = index % 2 ? '#F8FAFD' : '#FFFFFF';
+      ctx.fillRect(x, y - 24, columnWidth - 18, rowHeight);
+      ctx.fillStyle = '#071D44';
+      ctx.font = '800 17px Arial, sans-serif';
+      wrapCanvasText(ctx, String(item.name || '').toUpperCase(), x + 14, y, 330, 19, 2);
+      ctx.fillStyle = '#35465F';
+      ctx.font = '700 14px Arial, sans-serif';
+      wrapCanvasText(ctx, String(item.location || '-').toUpperCase(), x + 390, y, 105, 17, 2);
+      wrapCanvasText(ctx, String(item.shift || '-').toUpperCase(), x + 520, y, 135, 17, 2);
+      ctx.fillStyle = isAbsence ? '#B3261E' : '#1F8A4C';
+      ctx.fillRect(x + 690, y - 14, 140, 30);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '800 15px Arial, sans-serif';
+      ctx.fillText(isAbsence ? 'FALTA' : 'PRESENTE', x + 710, y + 6);
+    });
   });
   if (!rows.length) {
     ctx.fillStyle = '#69778D';
@@ -1056,19 +1061,11 @@ async function buildAttendanceReportImage({ dateValue, leader, rows = [], page =
 
 async function buildAttendanceReportImages({ dateValue, leader, employees = [], onlyMarkedByUser = false }) {
   const rows = attendanceReportRows(employees, leader, onlyMarkedByUser);
-  const totalPresent = rows.filter((item) => normalize(item.status) === 'presente').length;
-  const totalAbsences = rows.filter((item) => normalize(item.status) === 'falta').length;
-  const rowsPerImage = 28;
-  const chunks = rows.length ? Array.from({ length: Math.ceil(rows.length / rowsPerImage) }, (_, index) => rows.slice(index * rowsPerImage, (index + 1) * rowsPerImage)) : [[]];
-  return Promise.all(chunks.map((chunk, index) => buildAttendanceReportImage({
+  return [await buildAttendanceReportImage({
     dateValue,
     leader,
-    rows: chunk,
-    page: index + 1,
-    pageCount: chunks.length,
-    totalPresent,
-    totalAbsences
-  })));
+    rows
+  })];
 }
 
 async function openProtectedFile(path, filename, download = false) {
