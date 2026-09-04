@@ -2555,11 +2555,12 @@ function Schedules({ notify, editable = true }) {
   const [statusCounts, setStatusCounts] = useState({ abertos: 0, finalizados: 0, todos: 0 });
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ q: '', status: 'Abertos' });
+  const [memberSummaryName, setMemberSummaryName] = useState('Todos');
   const [operationModal, setOperationModal] = useState(null);
   const [occurrenceModal, setOccurrenceModal] = useState(null);
   const load = (nextFilters = filters) => {
     setLoading(true);
-    api(workOrdersEndpoint(currentMonthValue(), { mine: true, statusGroup: nextFilters.status, q: nextFilters.q, limit: 80 }))
+    api(workOrdersEndpoint(currentMonthValue(), { mine: true, statusGroup: nextFilters.status, q: nextFilters.q, limit: 500 }))
       .then((p) => {
         setItems(listData(p));
         setStatusCounts(p.meta?.statusCounts || { abertos: 0, finalizados: 0, todos: 0 });
@@ -2581,18 +2582,37 @@ function Schedules({ notify, editable = true }) {
     return haystack.includes(normalize(user.name)) || haystack.includes(normalize(user.email));
   };
   const visibleOrders = items.filter(belongsToLeader);
+  const orderMembers = (order) => Array.isArray(order.teamMembers) ? order.teamMembers.filter(Boolean) : [];
+  const scheduledDateValue = (order) => {
+    const raw = String(order.date || '').slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    const parsed = new Date(order.date || Date.now());
+    return Number.isNaN(parsed.getTime()) ? localDateValue(new Date()) : localDateValue(parsed);
+  };
+  const memberOptions = ['Todos', ...Array.from(new Set(visibleOrders.flatMap(orderMembers))).sort((a, b) => a.localeCompare(b))];
+  const ordersForMember = (name) => visibleOrders.filter((order) => orderMembers(order).includes(name));
+  const selectedSummaryName = memberOptions.includes(memberSummaryName) ? memberSummaryName : 'Todos';
+  const memberSummaryRows = (selectedSummaryName === 'Todos' ? memberOptions.slice(1) : [selectedSummaryName].filter(Boolean)).map((name) => {
+    const memberOrders = ordersForMember(name);
+    const today = localDateValue(new Date());
+    const uniqueOrders = new Set(memberOrders.map((order) => workOrderIdentity(order)));
+    const clients = new Set(memberOrders.map((order) => order.client).filter(Boolean));
+    return [
+      name,
+      memberOrders.filter((order) => scheduledDateValue(order) === today).length,
+      uniqueOrders.size,
+      memberOrders.filter((order) => order.status === 'Programado').length,
+      memberOrders.filter((order) => order.status === 'Em execucao').length,
+      memberOrders.filter((order) => isFinalStatus(order.status)).length,
+      clients.size
+    ];
+  }).sort((a, b) => Number(b[2]) - Number(a[2]) || String(a[0]).localeCompare(String(b[0])));
   const updateOrder = async (order, patch, message) => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     await withBusy(() => api(`/api/workOrders/${order.id}`, { method: 'PUT', body: JSON.stringify({ ...order, ...patch }) }));
     notify(message);
     setOperationModal(null);
     load();
-  };
-  const scheduledDateValue = (order) => {
-    const raw = String(order.date || '').slice(0, 10);
-    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-    const parsed = new Date(order.date || Date.now());
-    return Number.isNaN(parsed.getTime()) ? localDateValue(new Date()) : localDateValue(parsed);
   };
   const missingLeaderOperationFields = (order) => {
     const required = [['carrier', 'Transportador'], ['equipment', 'Equipamento'], ['product', 'Produto'], ['progress', 'Percentual']];
@@ -2721,6 +2741,9 @@ function Schedules({ notify, editable = true }) {
         <Kpi icon="home" label="Em campo" value={visibleOrders.filter((item) => item.status === 'Em execucao').length} delta="em execucao" />
         <Kpi icon="check" label="Finalizadas" value={visibleOrders.filter((item) => item.status === 'Finalizado').length} delta="finalizadas" success />
       </div>
+      <Panel title="Resumo por colaborador" padded actions={<div className="filter panel-select"><label>Colaborador</label><select value={selectedSummaryName} onChange={(event) => setMemberSummaryName(event.target.value)}>{memberOptions.map((name) => <option key={name}>{name}</option>)}</select></div>}>
+        <DataTable columns={['Colaborador', 'Hoje', 'No filtro', 'Programadas', 'Em campo', 'Finalizadas', 'Clientes']} rows={memberSummaryRows} loading={loading} />
+      </Panel>
       <div className="schedule-mobile-list">
         {loading ? <LoadingBlock /> : visibleOrders.map(scheduleCard)}
         {!loading && !visibleOrders.length && <div className="empty-chart">Nenhuma OS encontrada</div>}
