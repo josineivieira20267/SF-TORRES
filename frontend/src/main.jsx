@@ -976,8 +976,7 @@ function attendanceReportRows(employees = [], user, onlyMarkedByUser = false) {
     .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
 }
 
-async function buildAttendanceReportImage({ dateValue, leader, employees = [], onlyMarkedByUser = false }) {
-  const rows = attendanceReportRows(employees, leader, onlyMarkedByUser);
+async function buildAttendanceReportImage({ dateValue, leader, rows = [], page = 1, pageCount = 1, totalPresent = 0, totalAbsences = 0 }) {
   const present = rows.filter((item) => normalize(item.status) === 'presente').length;
   const absences = rows.filter((item) => normalize(item.status) === 'falta').length;
   const width = 1080;
@@ -1000,15 +999,20 @@ async function buildAttendanceReportImage({ dateValue, leader, employees = [], o
   ctx.font = '700 24px Arial, sans-serif';
   ctx.fillText(`DATA: ${date(dateValue)}`, 76, 152);
   ctx.fillText(`LIDER: ${String(leader?.name || leader?.email || '-').toUpperCase()}`, 76, 188);
+  if (pageCount > 1) {
+    ctx.textAlign = 'right';
+    ctx.fillText(`PARTE ${page}/${pageCount}`, width - 76, 152);
+    ctx.textAlign = 'left';
+  }
   ctx.fillStyle = '#1F8A4C';
   ctx.fillRect(76, 220, 220, 54);
   ctx.fillStyle = '#FFFFFF';
   ctx.font = '800 24px Arial, sans-serif';
-  ctx.fillText(`PRESENTES: ${present}`, 96, 255);
+  ctx.fillText(`PRESENTES: ${totalPresent || present}`, 96, 255);
   ctx.fillStyle = '#B3261E';
   ctx.fillRect(316, 220, 180, 54);
   ctx.fillStyle = '#FFFFFF';
-  ctx.fillText(`FALTAS: ${absences}`, 336, 255);
+  ctx.fillText(`FALTAS: ${totalAbsences || absences}`, 336, 255);
   ctx.fillStyle = '#0F2447';
   ctx.font = '800 22px Arial, sans-serif';
   ctx.fillText('COLABORADOR', 76, 326);
@@ -1048,6 +1052,23 @@ async function buildAttendanceReportImage({ dateValue, leader, employees = [], o
   ctx.font = '600 16px Arial, sans-serif';
   ctx.fillText('SF TORRES - chamada diaria', 76, height - 78);
   return canvasBlob(canvas, 'image/png');
+}
+
+async function buildAttendanceReportImages({ dateValue, leader, employees = [], onlyMarkedByUser = false }) {
+  const rows = attendanceReportRows(employees, leader, onlyMarkedByUser);
+  const totalPresent = rows.filter((item) => normalize(item.status) === 'presente').length;
+  const totalAbsences = rows.filter((item) => normalize(item.status) === 'falta').length;
+  const rowsPerImage = 28;
+  const chunks = rows.length ? Array.from({ length: Math.ceil(rows.length / rowsPerImage) }, (_, index) => rows.slice(index * rowsPerImage, (index + 1) * rowsPerImage)) : [[]];
+  return Promise.all(chunks.map((chunk, index) => buildAttendanceReportImage({
+    dateValue,
+    leader,
+    rows: chunk,
+    page: index + 1,
+    pageCount: chunks.length,
+    totalPresent,
+    totalAbsences
+  })));
 }
 
 async function openProtectedFile(path, filename, download = false) {
@@ -2889,25 +2910,24 @@ function LeaderAttendance({ notify, editable = true }) {
   };
   const finishAttendance = async () => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
-    const filename = `relatorio-chamada-${dateValue}.png`;
     const reportRows = attendanceReportRows(employees, user, leaderProfile);
     const reportPresent = reportRows.filter((item) => normalize(item.status) === 'presente').length;
     const reportAbsences = reportRows.filter((item) => normalize(item.status) === 'falta').length;
     const message = `Relatorio de chamada ${date(dateValue)} - Presentes: ${reportPresent} - Faltas: ${reportAbsences}`;
-    const blob = await withBusy(() => buildAttendanceReportImage({ dateValue, leader: user, employees, onlyMarkedByUser: leaderProfile }));
-    const file = typeof File !== 'undefined' ? new File([blob], filename, { type: 'image/png' }) : null;
-    if (file && navigator.canShare?.({ files: [file] }) && navigator.share) {
+    const blobs = await withBusy(() => buildAttendanceReportImages({ dateValue, leader: user, employees, onlyMarkedByUser: leaderProfile }));
+    const files = typeof File !== 'undefined' ? blobs.map((blob, index) => new File([blob], `relatorio-chamada-${dateValue}${blobs.length > 1 ? `-parte-${index + 1}` : ''}.png`, { type: 'image/png' })) : [];
+    if (files.length && navigator.canShare?.({ files }) && navigator.share) {
       try {
-        await navigator.share({ title: 'Relatorio da chamada', text: message, files: [file] });
+        await navigator.share({ title: 'Relatorio da chamada', text: message, files });
         notify('Relatorio enviado para compartilhamento');
         return;
       } catch (error) {
         if (error?.name === 'AbortError') return;
       }
     }
-    downloadBlob(blob, filename);
-    window.open(`https://wa.me/?text=${encodeURIComponent(`${message}\nImagem gerada: ${filename}`)}`, '_blank', 'noopener,noreferrer');
-    notify('Imagem baixada. Anexe a imagem no WhatsApp aberto.');
+    blobs.forEach((blob, index) => downloadBlob(blob, `relatorio-chamada-${dateValue}${blobs.length > 1 ? `-parte-${index + 1}` : ''}.png`));
+    window.open(`https://wa.me/?text=${encodeURIComponent(`${message}\nImagens geradas: ${blobs.length}`)}`, '_blank', 'noopener,noreferrer');
+    notify(blobs.length > 1 ? 'Imagens baixadas em partes. Anexe no WhatsApp aberto.' : 'Imagem baixada. Anexe a imagem no WhatsApp aberto.');
   };
   const decideCorrection = async (item, approved = true) => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
