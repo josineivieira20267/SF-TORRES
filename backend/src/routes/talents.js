@@ -128,7 +128,8 @@ function normalizeCandidate(data, req) {
   const cpf = cpfDigits(data.cpf);
   return {
     ...data,
-    cpf,
+    cpf: cpf || null,
+    resume: normalizeResume(data.resume),
     fullName: String(data.fullName || '').trim(),
     email: data.email || null,
     status: data.status || 'Novo cadastro',

@@ -1933,7 +1933,7 @@ function TalentBank({ notify, editable = true, mode = 'list' }) {
   }, []);
   const save = async (form) => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
-    if (!isValidCpf(form.cpf)) return notify('Informe um CPF valido');
+    if (form.cpf?.trim() && !isValidCpf(form.cpf)) return notify('Informe um CPF valido');
     await withBusy(() => api(editing?.id ? `/api/talents/${editing.id}` : '/api/talents', { method: editing?.id ? 'PUT' : 'POST', body: JSON.stringify(talentPayload(form)) }));
     notify(editing?.id ? 'Cadastro atualizado' : 'Candidato cadastrado');
     setFormOpen(false);
@@ -2015,7 +2015,32 @@ function TalentBank({ notify, editable = true, mode = 'list' }) {
 function TalentForm({ initial, onCancel, onSave }) {
   const [form, setForm] = useState(initial);
   const [submitting, setSubmitting] = useState(false);
+  const [readingResume, setReadingResume] = useState(false);
+  const [resumeError, setResumeError] = useState('');
   const change = (key, value) => setForm((old) => ({ ...old, [key]: value }));
+  const fileChange = async (event) => {
+    const input = event.target;
+    const file = input.files?.[0];
+    if (!file) return;
+    setResumeError('');
+    const extension = file.name.split('.').pop().toLowerCase();
+    const types = { pdf: 'application/pdf', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
+    if (!types[extension] || file.size > 4 * 1024 * 1024) {
+      input.value = '';
+      setResumeError(!types[extension] ? 'Envie o curriculo em PDF, DOC ou DOCX.' : 'O curriculo deve ter no maximo 4 MB.');
+      return;
+    }
+    setReadingResume(true);
+    try {
+      const content = await fileToDataUrl(file);
+      change('resume', { name: file.name, size: file.size, type: types[extension], content, uploadedAt: new Date().toISOString() });
+    } catch {
+      setResumeError('Nao foi possivel ler o curriculo. Selecione o arquivo novamente.');
+    } finally {
+      input.value = '';
+      setReadingResume(false);
+    }
+  };
   const toggleSchedule = (value) => setForm((old) => {
     const selected = new Set(old.scheduleAvailability || []);
     selected.has(value) ? selected.delete(value) : selected.add(value);
@@ -2023,7 +2048,7 @@ function TalentForm({ initial, onCancel, onSave }) {
   });
   const submit = async (event) => {
     event.preventDefault();
-    if (submitting) return;
+    if (submitting || readingResume) return;
     setSubmitting(true);
     try {
       await onSave(form);
@@ -2039,11 +2064,22 @@ function TalentForm({ initial, onCancel, onSave }) {
           <h4>Dados pessoais</h4>
           <div className="form-grid">
             <div className="form-field full"><label>Nome completo *</label><input value={form.fullName} required onChange={(e) => change('fullName', formatPersonNameInput(e.target.value))} /></div>
-            <div className="form-field"><label>CPF *</label><input value={form.cpf} required maxLength={14} onChange={(e) => change('cpf', formatCpf(e.target.value))} /></div>
+            <div className="form-field"><label>CPF (opcional)</label><input value={form.cpf} maxLength={14} onChange={(e) => change('cpf', formatCpf(e.target.value))} /></div>
             <div className="form-field"><label>RG / Identidade</label><input value={form.rg || ''} onChange={(e) => change('rg', e.target.value)} /></div>
             <div className="form-field"><label>Data de nascimento</label><input type="date" value={form.birthDate || ''} onChange={(e) => change('birthDate', e.target.value)} /></div>
             <div className="form-field"><label>Telefone / WhatsApp</label><input value={form.phone || ''} onChange={(e) => change('phone', formatPhone(e.target.value))} /></div>
             <div className="form-field"><label>E-mail</label><input type="email" value={form.email || ''} onChange={(e) => change('email', e.target.value)} /></div>
+          </div>
+          <h4>Curriculo</h4>
+          <div className="form-grid">
+            <div className="form-field full">
+              <label htmlFor="candidate-resume">Anexar curriculo (opcional)</label>
+              <input id="candidate-resume" type="file" accept=".pdf,.doc,.docx" disabled={submitting || readingResume} onChange={fileChange} />
+              <small className="soft">PDF, DOC ou DOCX, ate 4 MB.</small>
+              {readingResume && <small role="status">Carregando curriculo...</small>}
+              {resumeError && <small role="alert">{resumeError}</small>}
+              {form.resume?.name && <div className="resume-box"><div><b>{form.resume.name}</b><span>{formatFileSize(form.resume.size)}</span></div><button type="button" className="btn btn-sm" disabled={submitting || readingResume} onClick={() => change('resume', null)}>Remover</button></div>}
+            </div>
           </div>
           <h4>Endereco</h4>
           <div className="form-grid">
@@ -2080,7 +2116,7 @@ function TalentForm({ initial, onCancel, onSave }) {
             <div className="form-field"><label>Data do consentimento</label><input type="date" value={form.consentDate || ''} onChange={(e) => change('consentDate', e.target.value)} /></div>
             <div className="form-field full"><label>Observacoes internas</label><textarea value={form.internalNotes || ''} onChange={(e) => change('internalNotes', e.target.value)} /></div>
           </div>
-          <div className="modal-actions"><button type="button" className="btn" onClick={onCancel} disabled={submitting}>Cancelar</button><button className="btn btn-primary" disabled={submitting}>{submitting ? <LoadingSpinner small /> : 'Salvar candidato'}</button></div>
+          <div className="modal-actions"><button type="button" className="btn" onClick={onCancel} disabled={submitting}>Cancelar</button><button className="btn btn-primary" disabled={submitting || readingResume}>{submitting ? <LoadingSpinner small /> : 'Salvar candidato'}</button></div>
         </form>
       </div>
     </div>
@@ -2110,6 +2146,7 @@ function TalentProfile({ id, onClose, onEdit, onStatus, editable }) {
         <div className="modal-body">
           <div className="talent-profile-head"><div><div className="eyebrow">Perfil do candidato</div><h2>{candidate.fullName}</h2><Pill value={candidate.status} /></div><div className="actions">{editable && <button className="btn" onClick={() => onEdit(candidate)}>Editar cadastro</button>}{editable && <button className="btn btn-primary" onClick={() => onStatus(candidate)}>Alterar status</button>}</div></div>
           <Panel title="Dados do candidato" padded><div className="profile-info-grid">{info.map(([label, value]) => <div key={label} className="field-row"><b>{label}</b><span>{displayValue(value)}</span></div>)}</div></Panel>
+          <Panel title="Curriculo" padded>{candidate.resume?.content ? <div className="resume-box"><div><b>{candidate.resume.name}</b><span>{formatFileSize(candidate.resume.size)}</span></div><button className="btn btn-sm btn-primary" onClick={() => downloadDataFile(candidate.resume)}>Baixar curriculo</button></div> : <p className="soft">Nenhum curriculo anexado.</p>}</Panel>
           <div className="talent-profile-grid">
             <Panel title="Cursos e qualificacoes" padded>{Array.isArray(candidate.courses) && candidate.courses.length ? candidate.courses.map((item, index) => <p key={index}><b>{item.name}</b><br /><span className="soft">{[item.institution, item.year].filter(Boolean).join(' - ')}</span></p>) : <p className="soft">Nenhum curso registrado.</p>}</Panel>
             <Panel title="Experiencia profissional" padded>{Array.isArray(candidate.experiences) && candidate.experiences.length ? candidate.experiences.map((item, index) => <p key={index}><b>{item.role}</b><br /><span className="soft">{[item.company, item.period].filter(Boolean).join(' - ')}</span></p>) : <p className="soft">Nenhuma experiencia registrada.</p>}</Panel>
