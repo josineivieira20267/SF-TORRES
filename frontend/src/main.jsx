@@ -2967,11 +2967,11 @@ function LeaderAttendance({ notify, editable = true }) {
   };
   const finishAttendance = async () => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
-    const reportRows = attendanceReportRows(employees, user, leaderProfile);
+    const reportRows = attendanceReportRows(filteredEmployees, user, leaderProfile);
     const reportPresent = reportRows.filter((item) => normalize(item.status) === 'presente').length;
     const reportAbsences = reportRows.filter((item) => normalize(item.status) === 'falta').length;
     const message = `Relatorio de chamada ${date(dateValue)} - Presentes: ${reportPresent} - Faltas: ${reportAbsences}`;
-    const blobs = await withBusy(() => buildAttendanceReportImages({ dateValue, leader: user, employees, onlyMarkedByUser: leaderProfile }));
+    const blobs = await withBusy(() => buildAttendanceReportImages({ dateValue, leader: user, employees: filteredEmployees, onlyMarkedByUser: leaderProfile }));
     const files = typeof File !== 'undefined' ? blobs.map((blob, index) => new File([blob], `relatorio-chamada-${dateValue}${blobs.length > 1 ? `-parte-${index + 1}` : ''}.png`, { type: 'image/png' })) : [];
     if (files.length && navigator.canShare?.({ files }) && navigator.share) {
       try {
