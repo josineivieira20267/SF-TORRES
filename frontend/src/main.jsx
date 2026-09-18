@@ -3609,7 +3609,7 @@ function DailyOps({ notify, editable = true }) {
     ['number', 'Número da OS', 'text', null, null, true],
     ['client', 'Cliente', 'select', ['', ...optionValues(clients, 'name', 'legalName')], null, true],
     ['equipment', 'Equipamento', 'select', equipmentTypes],
-    ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')],
+    ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container'), (form) => normalize(form.equipment).includes('container')],
     ['trailerPlate', 'Placa', 'text', null, (form) => isPlateEquipment(form.equipment)],
     ['status', 'Status', 'select', ['Programado', 'Em execucao', 'Finalizado', 'Cancelado']],
     ['date', 'Data programada', 'datetime-local', null, null, true],

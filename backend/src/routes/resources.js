@@ -127,6 +127,14 @@ function duplicateWorkOrderError() {
   return error;
 }
 
+function validateWorkOrderContainer(data) {
+  if (normalize(data.equipment).includes('container') && !String(data.containerNumber || '').trim()) {
+    const error = new Error('Preencha o campo obrigatorio: Numero do container');
+    error.status = 400;
+    throw error;
+  }
+}
+
 async function ensureUniqueWorkOrderByClient(data, req) {
   const { readDb } = require('../db/jsonStore');
   let candidate = data;
@@ -141,6 +149,8 @@ async function ensureUniqueWorkOrderByClient(data, req) {
       if (current) candidate = { ...current, ...data };
     }
   }
+
+  validateWorkOrderContainer(candidate);
 
   const number = normalizedUniqueValue(candidate.number);
   const client = normalizedUniqueValue(candidate.client);
