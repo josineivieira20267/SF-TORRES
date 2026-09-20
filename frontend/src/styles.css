@@ -1130,6 +1130,21 @@ table.dtbl .right{text-align:right;font-variant-numeric:tabular-nums}
 }
 .empty-state b{color:var(--c-text)}
 .talent-modal{width:min(940px,100%)}
+.talent-ad-modal{width:min(720px,100%)}
+.talent-ad-preview{position:relative;overflow:hidden;min-height:620px;padding:36px;background:linear-gradient(145deg,#071D44,#173E78);color:#fff;border-radius:16px;border-left:8px solid #C8102E}
+.talent-ad-preview::after{content:"";position:absolute;width:320px;height:320px;border-radius:50%;right:-150px;top:-145px;background:rgba(255,255,255,.05)}
+.talent-ad-brand{display:flex;align-items:center;gap:14px;position:relative;z-index:1}
+.talent-ad-brand img{width:68px;height:68px;object-fit:contain;background:#fff;border-radius:14px;padding:6px}
+.talent-ad-brand b,.talent-ad-brand span{display:block}.talent-ad-brand b{font-size:20px}.talent-ad-brand span{margin-top:3px;font-size:11px;letter-spacing:1.2px;color:#BCD0EF}
+.talent-ad-label{margin-top:54px;color:#FF525D;font-size:15px;font-weight:900;letter-spacing:1px}
+.talent-ad-preview h2{max-width:600px;margin:12px 0 16px;font-size:42px;line-height:1.05;text-transform:uppercase}
+.talent-ad-preview>p{max-width:590px;color:#DCE8F8;font-size:17px;line-height:1.5}
+.talent-ad-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}.talent-ad-tags span{padding:8px 13px;border-radius:999px;background:rgba(255,255,255,.12);font-size:12px;font-weight:800}
+.talent-ad-apply{position:absolute;left:36px;right:36px;bottom:34px;display:flex;align-items:center;gap:22px;padding:20px;background:#fff;color:#071D44;border-radius:16px}
+.talent-ad-apply img{width:126px;height:126px}.talent-ad-apply .loading-spinner{margin:45px}
+.talent-ad-apply b,.talent-ad-apply span{display:block}.talent-ad-apply b{font-size:23px}.talent-ad-apply span{max-width:300px;margin-top:8px;color:#52647D;line-height:1.45}
+.talent-ad-link{display:flex;align-items:center;gap:10px;margin-top:12px;padding:10px 12px;background:#F5F7FA;border:1px solid var(--c-border);border-radius:8px}.talent-ad-link span{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--c-text-muted);font-size:12px}
+@media(max-width:640px){.talent-ad-preview{min-height:570px;padding:24px}.talent-ad-preview h2{font-size:31px}.talent-ad-label{margin-top:34px}.talent-ad-apply{left:24px;right:24px;bottom:24px;gap:12px;padding:14px}.talent-ad-apply img{width:100px;height:100px}.talent-ad-apply b{font-size:17px}.talent-ad-apply span{font-size:12px}.talent-ad-link{align-items:stretch;flex-direction:column}.talent-ad-link .btn{justify-content:center}}
 .talent-profile-modal{width:min(1020px,100%)}
 .talent-application-modal{width:min(980px,100%)}
 .talent-form h4{

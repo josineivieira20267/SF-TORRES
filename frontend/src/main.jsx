@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import QRCode from 'qrcode';
 import './styles.css';
 import './system.css';
 import stLogoTransparent from './assets/sf-torres-logo-transparent.png';
@@ -1388,7 +1389,7 @@ function App() {
     setRoute(nextRoute);
   };
 
-  if (publicRoute === 'trabalhe-conosco') {
+  if (publicRoute.startsWith('trabalhe-conosco')) {
     return <PublicJobs settings={settings} />;
   }
 
@@ -1494,8 +1495,9 @@ function PublicJobs({ settings }) {
   useEffect(() => {
     fetch(`${API_URL}/api/talents/public/jobs`).then((response) => response.json()).then((payload) => {
       const list = listData(payload);
+      const requestedJobId = new URLSearchParams(String(window.location.hash).split('?')[1] || '').get('job');
       setJobs(list);
-      setSelectedId(list[0]?.id || '');
+      setSelectedId(list.some((job) => job.id === requestedJobId) ? requestedJobId : list[0]?.id || '');
     }).catch(() => setMessage('Nao foi possivel carregar as vagas publicadas.')).finally(() => setLoading(false));
   }, []);
   const selected = jobs.find((job) => job.id === selectedId);
@@ -2164,6 +2166,7 @@ function TalentJobs({ notify, editable = true }) {
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ q: '', status: 'Todos' });
   const [modal, setModal] = useState(null);
+  const [adJob, setAdJob] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const load = () => {
     const query = new URLSearchParams();
@@ -2186,20 +2189,164 @@ function TalentJobs({ notify, editable = true }) {
     notify('Vaga apagada');
     load();
   };
-  const publicJobsUrl = () => `${location.origin}${location.pathname}#/trabalhe-conosco`;
-  const copyPublicJobsUrl = () => {
-    navigator.clipboard?.writeText(publicJobsUrl());
-    notify('Link publico copiado');
+  const publicJobsUrl = (job) => `${location.origin}${location.pathname}#/trabalhe-conosco${job?.id ? `?job=${encodeURIComponent(job.id)}` : ''}`;
+  const copyPublicJobsUrl = async (job) => {
+    await navigator.clipboard?.writeText(publicJobsUrl(job));
+    notify(job ? 'Link direto da vaga copiado' : 'Link publico copiado');
   };
   return (
     <>
       <PageHead title="Vagas" subtitle="Cadastro interno de vagas publicadas na pagina Trabalhe Conosco." action={editable ? 'Nova vaga' : null} onAction={() => setModal({ status: 'Rascunho', companyUnit: 'SF TORRES', workMode: 'Presencial', contractType: 'CLT' })} ghostAction="Abrir pagina publica" onGhostAction={() => { window.location.hash = '#/trabalhe-conosco'; }} />
       <div className="toolbar"><div className="filter"><label>Buscar</label><input value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="Funcao, setor, local..." /></div><div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Rascunho</option><option>Publicada</option><option>Pausada</option><option>Encerrada</option></select></div><span className="spacer" /><span className="soft">{jobs.length} vagas</span></div>
-      <Panel title="Vagas cadastradas"><DataTable columns={['Vaga', 'Status', 'Contrato', 'Modelo', 'Candidaturas', 'Publicacao', 'Acoes']} rows={jobs.map((job) => [<><b>{job.title}</b><div className="soft">{[job.department, job.location].filter(Boolean).join(' - ')}</div></>, <Pill value={job.status} />, job.contractType || '-', job.workMode || '-', job._count?.applications || 0, date(job.publishedAt), editable ? <div className="table-action-row"><button className="btn btn-sm" onClick={() => setModal(job)}>Editar</button><ActionMenu actions={[{ label: 'Copiar link publico', onClick: copyPublicJobsUrl }, { label: 'Apagar vaga', danger: true, disabled: (job._count?.applications || 0) > 0, onClick: () => setConfirmDelete(job) }]} /></div> : '-'])} loading={loading} /></Panel>
+      <Panel title="Vagas cadastradas"><DataTable columns={['Vaga', 'Status', 'Contrato', 'Modelo', 'Candidaturas', 'Publicacao', 'Acoes']} rows={jobs.map((job) => [<><b>{job.title}</b><div className="soft">{[job.department, job.location].filter(Boolean).join(' - ')}</div></>, <Pill value={job.status} />, job.contractType || '-', job.workMode || '-', job._count?.applications || 0, date(job.publishedAt), editable ? <div className="table-action-row"><button className="btn btn-sm" onClick={() => setModal(job)}>Editar</button><button className="btn btn-sm btn-primary" disabled={normalize(job.status) !== 'publicada'} onClick={() => setAdJob(job)}>Gerar anúncio</button><ActionMenu actions={[{ label: 'Copiar link da vaga', disabled: normalize(job.status) !== 'publicada', onClick: () => copyPublicJobsUrl(job) }, { label: 'Apagar vaga', danger: true, disabled: (job._count?.applications || 0) > 0, onClick: () => setConfirmDelete(job) }]} /></div> : '-'])} loading={loading} /></Panel>
       {modal && <TalentJobForm initial={modal} onCancel={() => setModal(null)} onSave={save} />}
+      {adJob && <TalentJobAdModal job={adJob} url={publicJobsUrl(adJob)} notify={notify} onClose={() => setAdJob(null)} />}
       {confirmDelete && <ConfirmModal title="Apagar vaga" text={`Deseja apagar a vaga "${confirmDelete.title}"? Essa acao nao pode ser desfeita.`} confirmLabel="Apagar vaga" danger onCancel={() => setConfirmDelete(null)} onConfirm={() => deleteJob(confirmDelete)} />}
     </>
   );
+}
+
+function loadCanvasImage(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = src;
+  });
+}
+
+function drawWrappedText(context, text, x, y, maxWidth, lineHeight, maxLines = 3) {
+  const words = String(text || '').trim().split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = '';
+  words.forEach((word) => {
+    const candidate = line ? `${line} ${word}` : word;
+    if (context.measureText(candidate).width <= maxWidth) line = candidate;
+    else {
+      if (line) lines.push(line);
+      line = word;
+    }
+  });
+  if (line) lines.push(line);
+  const visible = lines.slice(0, maxLines);
+  if (lines.length > maxLines) visible[maxLines - 1] = `${visible[maxLines - 1].replace(/[.,;:]?$/, '')}…`;
+  visible.forEach((item, index) => context.fillText(item, x, y + index * lineHeight));
+  return y + visible.length * lineHeight;
+}
+
+async function downloadTalentJobAd(job, url, qrDataUrl) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1080;
+  canvas.height = 1350;
+  const context = canvas.getContext('2d');
+  const gradient = context.createLinearGradient(0, 0, 1080, 1350);
+  gradient.addColorStop(0, '#071D44');
+  gradient.addColorStop(1, '#173E78');
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, 1080, 1350);
+  context.fillStyle = '#C8102E';
+  context.fillRect(0, 0, 18, 1350);
+  context.beginPath();
+  context.arc(980, 110, 280, 0, Math.PI * 2);
+  context.fillStyle = 'rgba(255,255,255,.05)';
+  context.fill();
+
+  const logo = await loadCanvasImage(stLogoTransparent);
+  context.fillStyle = '#FFFFFF';
+  context.beginPath();
+  context.roundRect(70, 58, 120, 120, 24);
+  context.fill();
+  context.drawImage(logo, 82, 70, 96, 96);
+  context.fillStyle = '#FFFFFF';
+  context.font = '800 34px Arial';
+  context.fillText('SF TORRES', 220, 104);
+  context.font = '500 22px Arial';
+  context.fillStyle = '#BCD0EF';
+  context.fillText('BANCO DE TALENTOS', 220, 140);
+
+  context.fillStyle = '#EF3340';
+  context.font = '800 27px Arial';
+  context.fillText('ESTAMOS CONTRATANDO', 70, 270);
+  context.fillStyle = '#FFFFFF';
+  context.font = '900 66px Arial';
+  let cursorY = drawWrappedText(context, String(job.title || '').toUpperCase(), 70, 350, 900, 76, 3) + 26;
+  context.font = '500 29px Arial';
+  context.fillStyle = '#DCE8F8';
+  cursorY = drawWrappedText(context, job.summary || 'Venha fazer parte da equipe SF Torres.', 70, cursorY, 900, 42, 3) + 34;
+
+  const tags = [job.location || 'Local a definir', job.contractType, job.workMode].filter(Boolean);
+  context.font = '700 23px Arial';
+  let tagX = 70;
+  tags.forEach((tag) => {
+    const width = context.measureText(tag).width + 42;
+    context.fillStyle = 'rgba(255,255,255,.12)';
+    context.beginPath();
+    context.roundRect(tagX, cursorY, width, 54, 27);
+    context.fill();
+    context.fillStyle = '#FFFFFF';
+    context.fillText(tag, tagX + 21, cursorY + 35);
+    tagX += width + 14;
+  });
+
+  context.fillStyle = '#FFFFFF';
+  context.beginPath();
+  context.roundRect(70, 960, 940, 300, 28);
+  context.fill();
+  const qr = await loadCanvasImage(qrDataUrl);
+  context.drawImage(qr, 105, 995, 230, 230);
+  context.fillStyle = '#071D44';
+  context.font = '900 38px Arial';
+  context.fillText('CANDIDATE-SE AGORA', 380, 1048);
+  context.font = '600 26px Arial';
+  context.fillStyle = '#334D70';
+  context.fillText('Aponte a câmera para o QR Code', 380, 1096);
+  context.fillText('e envie seu currículo.', 380, 1134);
+  context.font = '500 18px Arial';
+  context.fillStyle = '#64748B';
+  drawWrappedText(context, url, 380, 1190, 560, 24, 2);
+
+  const anchor = document.createElement('a');
+  anchor.download = `vaga-${String(job.title || 'sf-torres').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}.png`;
+  anchor.href = canvas.toDataURL('image/png');
+  anchor.click();
+}
+
+function TalentJobAdModal({ job, url, notify, onClose }) {
+  const [qrDataUrl, setQrDataUrl] = useState('');
+  const [downloading, setDownloading] = useState(false);
+  useEffect(() => {
+    QRCode.toDataURL(url, { width: 360, margin: 2, color: { dark: '#071D44', light: '#FFFFFF' }, errorCorrectionLevel: 'H' })
+      .then(setQrDataUrl)
+      .catch(() => notify('Nao foi possivel gerar o QR Code'));
+  }, [url]);
+  const download = async () => {
+    if (!qrDataUrl || downloading) return;
+    try {
+      setDownloading(true);
+      await downloadTalentJobAd(job, url, qrDataUrl);
+      notify('Anuncio baixado em PNG');
+    } catch {
+      notify('Nao foi possivel baixar o anuncio');
+    } finally {
+      setDownloading(false);
+    }
+  };
+  const copy = async () => {
+    await navigator.clipboard?.writeText(url);
+    notify('Link direto da vaga copiado');
+  };
+  return <div className="modal-backdrop"><div className="modal talent-ad-modal"><div className="modal-head"><h3>Anúncio da vaga</h3><button className="btn btn-sm" onClick={onClose}>Fechar</button></div><div className="modal-body">
+    <div className="talent-ad-preview">
+      <div className="talent-ad-brand"><img src={stLogoTransparent} alt="SF Torres" /><div><b>SF TORRES</b><span>BANCO DE TALENTOS</span></div></div>
+      <div className="talent-ad-label">ESTAMOS CONTRATANDO</div>
+      <h2>{job.title}</h2>
+      <p>{job.summary || 'Venha fazer parte da equipe SF Torres.'}</p>
+      <div className="talent-ad-tags">{[job.location || 'Local a definir', job.contractType, job.workMode].filter(Boolean).map((tag) => <span key={tag}>{tag}</span>)}</div>
+      <div className="talent-ad-apply">{qrDataUrl ? <img src={qrDataUrl} alt="QR Code para candidatura" /> : <LoadingSpinner />}<div><b>CANDIDATE-SE AGORA</b><span>Aponte a câmera para o QR Code e envie seu currículo.</span></div></div>
+    </div>
+    <div className="talent-ad-link"><span>{url}</span><button className="btn btn-sm" onClick={copy}>Copiar link</button></div>
+    <div className="modal-actions"><button className="btn" onClick={onClose}>Fechar</button><button className="btn btn-primary" disabled={!qrDataUrl || downloading} onClick={download}>{downloading ? <LoadingSpinner small /> : 'Baixar anúncio PNG'}</button></div>
+  </div></div></div>;
 }
 
 function TalentJobForm({ initial, onCancel, onSave }) {
