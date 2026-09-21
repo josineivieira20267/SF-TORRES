@@ -2,6 +2,7 @@ const express = require('express');
 const { requireAuth } = require('../middlewares/auth');
 const { readDb } = require('../db/jsonStore');
 const { prisma, hasDatabaseUrl } = require('../db/prisma');
+const { createProductivityReport } = require('../utils/productivityReport');
 
 const router = express.Router();
 
@@ -562,6 +563,68 @@ router.get('/summary', async (req, res, next) => {
       productivityRules: mergeProductivityRules(productivitySetting?.value),
       attendanceRows: db.employeeAttendances || []
     }) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get('/productivity', async (req, res, next) => {
+  try {
+    const range = rangeFromQuery(req.query);
+    const role = normalize(req.user?.role);
+    const restricted = role.includes('lider') && !role.includes('administrador');
+    const terms = [req.user?.name, req.user?.email].filter(Boolean);
+    const helpers = { normalize, specialBonusForEntry, rulesForAssignment, bonusDiscountFor };
+    if (hasDatabaseUrl) {
+      const [employees, setting, calls] = await Promise.all([
+        prisma.employee.findMany({ select: { name: true, role: true, team: true } }),
+        prisma.setting.findUnique({ where: { key: 'productivityRules' } }),
+        prisma.employeeAttendance.findMany({
+          where: { date: { gte: range.from.slice(0, 10), lte: range.to.slice(0, 10) } },
+          select: { employeeName: true, status: true }
+        })
+      ]);
+      const absences = {};
+      for (const row of calls) if (normalize(row.status) === 'falta') {
+        const key = normalize(row.employeeName);
+        absences[key] = (absences[key] || 0) + 1;
+      }
+      const report = createProductivityReport({ employees, absences, rules: mergeProductivityRules(setting?.value), query: req.query, helpers });
+      const where = { date: { gte: range.from, lte: range.to } };
+      if (restricted) where.AND = [terms.length ? { OR: terms.map((term) => ({ responsible: { contains: term, mode: 'insensitive' } })) } : { id: '__none__' }];
+      let cursor;
+      while (true) {
+        const batch = await prisma.workOrder.findMany({
+          where, take: 500, orderBy: [{ date: 'desc' }, { id: 'desc' }],
+          ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+          select: { id: true, number: true, date: true, client: true, service: true, equipment: true, product: true, responsible: true, teamMembers: true, teamRoles: true }
+        });
+        batch.forEach((order) => report.add(order));
+        if (batch.length < 500) break;
+        cursor = batch[batch.length - 1].id;
+      }
+      return res.json({ data: report.finish() });
+    }
+    const db = await readDb();
+    const absences = {};
+    for (const setting of db.settings || []) {
+      if (!String(setting.key).startsWith('leaderAttendance:')) continue;
+      const date = setting.key.slice('leaderAttendance:'.length, 'leaderAttendance:'.length + 10);
+      if (date < range.from.slice(0, 10) || date > range.to.slice(0, 10)) continue;
+      for (const [name, value] of Object.entries(setting.value?.attendance || {})) {
+        if (normalize(value?.status || value) === 'falta') {
+          const key = normalize(name);
+          absences[key] = (absences[key] || 0) + 1;
+        }
+      }
+    }
+    const report = createProductivityReport({ employees: db.employees || [], absences,
+      rules: mergeProductivityRules((db.settings || []).find((item) => item.key === 'productivityRules')?.value), query: req.query, helpers });
+    (db.workOrders || []).filter((order) => inRange(order, 'date', range)
+      && (!restricted || terms.some((term) => normalize(order.responsible).includes(normalize(term)))))
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.id).localeCompare(String(a.id)))
+      .forEach((order) => report.add(order));
+    return res.json({ data: report.finish() });
   } catch (error) {
     return next(error);
   }

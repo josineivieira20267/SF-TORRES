@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import QRCode from 'qrcode';
+import { fetchAllPages } from './pagination';
+import { usePagedList } from './usePagedList';
 import './styles.css';
 import './system.css';
 import stLogoTransparent from './assets/sf-torres-logo-transparent.png';
@@ -2681,34 +2683,22 @@ function OperationsDashboard() {
   );
 }
 
+function ListPagination({ offset, total, onChange, loading = false }) {
+  return <div className="pagination-bar"><span>{total} resultados ? P?gina {Math.floor(offset / 50) + 1} de {Math.max(1, Math.ceil(total / 50))}</span><div>
+    <button className="btn btn-sm" disabled={loading || offset === 0} onClick={() => onChange(Math.max(0, offset - 50))}>Anterior</button>
+    <button className="btn btn-sm" disabled={loading || offset + 50 >= total} onClick={() => onChange(offset + 50)}>Pr?xima</button>
+  </div></div>;
+}
+
 function Tower() {
-  const [orders, setOrders] = useState([]);
   const [statusFilter, setStatusFilter] = useState('Fila');
   const [month, setMonth] = useState(currentMonthValue());
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const load = () => {
-    setLoading(true);
-    setError('');
-    api(workOrdersEndpoint(month))
-      .then((payload) => setOrders(listData(payload)))
-      .catch((error) => {
-        setOrders([]);
-        setError(error.message);
-      })
-      .finally(() => setLoading(false));
-  };
-  useEffect(() => { load(); }, [month]);
-  const safeOrders = Array.isArray(orders) ? orders : [];
-  const visible = statusFilter === 'Todos'
-    ? safeOrders
-    : safeOrders.filter((order) => isOpenQueueStatus(order.status) || order.status === 'Em execucao');
-  const active = safeOrders.filter((order) => normalize(order.status).includes('exec')).length;
-  const done = safeOrders.filter((order) => isFinalStatus(order.status)).length;
-  const queue = safeOrders.filter((order) => isOpenQueueStatus(order.status)).length;
-  const alertCount = safeOrders.filter((order) => ['Paralisada', 'Cancelada', 'Cancelado'].includes(order.status)).length;
+  const { items: visible, meta, offset, setOffset, loading, error, load } = usePagedList(api,
+    workOrdersEndpoint(month, { statusGroup: statusFilter, overview: 'tower' }));
+  const { active = 0, done = 0, queue = 0, alerts: alertCount = 0 } = meta.totals || {};
   const assignTeam = async () => {
-    const order = visible.find((item) => isOpenQueueStatus(item.status));
+    const payload = await api(workOrdersEndpoint(month, { statusGroup: 'Aguardando', limit: 1 }));
+    const order = listData(payload)[0];
     if (!order) return triggerAction('Nenhuma OS na fila');
     await withBusy(() => api(`/api/workOrders/${order.id}`, { method: 'PUT', body: JSON.stringify({ ...order, status: 'Em execucao', carrier: order.carrier || 'Equipe acionada pela torre', progress: Math.max(Number(order.progress || 0), 10) }) }));
     triggerAction(`Equipe acionada para OS ${order.number}`);
@@ -2728,69 +2718,42 @@ function Tower() {
     dateTime(order.operationEnd),
     <Pill value={order.status} />
   ]);
-  return <><PageHead title="Torre Operacional" subtitle="Painel em tempo real das operações em andamento e fila de execução." ghostAction="Tempo real" onGhostAction={() => setStatusFilter((value) => value === 'Todos' ? 'Fila' : 'Todos')} action="Atualizar" onAction={load} /><div className="toolbar"><div className="filter"><label>Período</label><input type="month" value={month} onChange={(event) => setMonth(event.target.value || currentMonthValue())} /></div><span className="spacer" /><span className="soft">Dados filtrados no banco pelo mês selecionado</span></div>{error ? <Panel title="Banco indisponível" padded actions={<button className="btn btn-sm btn-primary" onClick={load}>Tentar novamente</button>}><p className="soft">{error}</p></Panel> : <><div className="kpi-grid"><Kpi icon="pulse" label="Operações ativas" value={active} delta="em campo agora" /><Kpi icon="clock" label="Na fila" value={queue} delta="próximas 24h" warning /><Kpi icon="check" label="Concluídas" value={done} delta="ordens no sistema" success /><Kpi icon="alert" label="Alertas" value={alertCount} delta="atenção da torre" danger /></div><Panel title="Fila de execução" actions={<><button className="btn btn-sm" onClick={() => setStatusFilter((value) => value === 'Todos' ? 'Fila' : 'Todos')}>{statusFilter === 'Todos' ? 'Ver fila' : 'Ver todas'}</button><button className="btn btn-sm btn-primary" onClick={assignTeam}>Acionar equipe</button></>}><DataTable columns={['OS', 'Cliente', 'Percentual', 'Responsável', 'Equipamento', 'Produto', 'Serviço', 'Transportadora', 'Data programada', 'Início', 'Término', 'Status']} rows={rows} loading={loading} /></Panel></>}</>;
+  return <><PageHead title="Torre Operacional" subtitle="Painel em tempo real das operações em andamento e fila de execução." ghostAction="Tempo real" onGhostAction={() => setStatusFilter((value) => value === 'Todos' ? 'Fila' : 'Todos')} action="Atualizar" onAction={() => load()} /><div className="toolbar"><div className="filter"><label>Período</label><input type="month" value={month} onChange={(event) => setMonth(event.target.value || currentMonthValue())} /></div><span className="spacer" /><span className="soft">Dados filtrados no banco pelo mês selecionado</span></div>{error ? <Panel title="Banco indisponível" padded actions={<button className="btn btn-sm btn-primary" onClick={() => load()}>Tentar novamente</button>}><p className="soft">{error}</p></Panel> : <><div className="kpi-grid"><Kpi icon="pulse" label="Operações ativas" value={active} delta="em campo agora" /><Kpi icon="clock" label="Na fila" value={queue} delta="próximas 24h" warning /><Kpi icon="check" label="Concluídas" value={done} delta="ordens no sistema" success /><Kpi icon="alert" label="Alertas" value={alertCount} delta="atenção da torre" danger /></div><Panel title="Fila de execução" actions={<><button className="btn btn-sm" onClick={() => setStatusFilter((value) => value === 'Todos' ? 'Fila' : 'Todos')}>{statusFilter === 'Todos' ? 'Ver fila' : 'Ver todas'}</button><button className="btn btn-sm btn-primary" disabled={loading} onClick={assignTeam}>Acionar equipe</button></>}><DataTable columns={['OS', 'Cliente', 'Percentual', 'Responsável', 'Equipamento', 'Produto', 'Serviço', 'Transportadora', 'Data programada', 'Início', 'Término', 'Status']} rows={rows} loading={loading} /><ListPagination offset={offset} total={meta.total} onChange={setOffset} loading={loading} /></Panel></>}</>;
 }
 
 function Schedules({ notify, editable = true }) {
   const user = currentUser();
-  const [items, setItems] = useState([]);
   const [equipment, setEquipment] = useState([]);
   const [productivityRules, setProductivityRules] = useState(defaultProductivityRules);
-  const [statusCounts, setStatusCounts] = useState({ abertos: 0, finalizados: 0, todos: 0 });
-  const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ q: '', status: 'Abertos' });
   const [memberSummaryName, setMemberSummaryName] = useState('Todos');
   const [operationModal, setOperationModal] = useState(null);
   const [occurrenceModal, setOccurrenceModal] = useState(null);
-  const load = (nextFilters = filters) => {
-    setLoading(true);
-    api(workOrdersEndpoint(currentMonthValue(), { mine: true, statusGroup: nextFilters.status, q: nextFilters.q, limit: 500 }))
-      .then((p) => {
-        setItems(listData(p));
-        setStatusCounts(p.meta?.statusCounts || { abertos: 0, finalizados: 0, todos: 0 });
-      })
-      .catch((error) => { setItems([]); notify(error.message); })
-      .finally(() => setLoading(false));
-  };
+  const endpoint = workOrdersEndpoint(currentMonthValue(), { mine: true, statusGroup: filters.status, q: filters.q, overview: 'schedules', today: localDateValue(new Date()) });
+  const { items: visibleOrders, meta, offset, setOffset, loading, error, load } = usePagedList(api, endpoint);
+  const statusCounts = meta.statusCounts || {};
+  const [summaryOffset, setSummaryOffset] = useState(0);
+  useEffect(() => { setSummaryOffset(0); }, [filters.q, filters.status, memberSummaryName]);
+  useEffect(() => { if (error) notify(error); }, [error]);
   useEffect(() => {
-    const timer = window.setTimeout(() => load(filters), filters.q && filters.q.trim().length < 2 ? 0 : 250);
-    return () => window.clearTimeout(timer);
-  }, [filters.q, filters.status]);
+    if (!operationModal) return;
+    const controller = new AbortController();
+    fetchAllPages(api, '/api/lookups/equipment', { signal: controller.signal }).then((payload) => setEquipment(listData(payload))).catch((error) => { if (!controller.signal.aborted) notify(error.message); });
+    return () => controller.abort();
+  }, [Boolean(operationModal)]);
   useEffect(() => {
-    api('/api/equipment').then((payload) => setEquipment(listData(payload))).catch(() => {});
     api('/api/settings/productivityRules').then((payload) => setProductivityRules(mergeProductivityRules(payload.data))).catch(() => {});
   }, []);
-  const belongsToLeader = (order) => {
-    if (user.role === 'Administrador') return true;
-    const haystack = normalize(`${order.responsible} ${order.carrier}`);
-    return haystack.includes(normalize(user.name)) || haystack.includes(normalize(user.email));
-  };
-  const visibleOrders = items.filter(belongsToLeader);
-  const orderMembers = (order) => Array.isArray(order.teamMembers) ? order.teamMembers.filter(Boolean) : [];
   const scheduledDateValue = (order) => {
     const raw = String(order.date || '').slice(0, 10);
     if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
     const parsed = new Date(order.date || Date.now());
     return Number.isNaN(parsed.getTime()) ? localDateValue(new Date()) : localDateValue(parsed);
   };
-  const memberOptions = ['Todos', ...Array.from(new Set(visibleOrders.flatMap(orderMembers))).sort((a, b) => a.localeCompare(b))];
-  const ordersForMember = (name) => visibleOrders.filter((order) => orderMembers(order).includes(name));
+  const memberOptions = ['Todos', ...(meta.members || []).map((item) => item.name).sort((a, b) => a.localeCompare(b))];
   const selectedSummaryName = memberOptions.includes(memberSummaryName) ? memberSummaryName : 'Todos';
-  const memberSummaryRows = (selectedSummaryName === 'Todos' ? memberOptions.slice(1) : [selectedSummaryName].filter(Boolean)).map((name) => {
-    const memberOrders = ordersForMember(name);
-    const today = localDateValue(new Date());
-    const uniqueOrders = new Set(memberOrders.map((order) => workOrderIdentity(order)));
-    const clients = new Set(memberOrders.map((order) => order.client).filter(Boolean));
-    return [
-      name,
-      memberOrders.filter((order) => scheduledDateValue(order) === today).length,
-      uniqueOrders.size,
-      memberOrders.filter((order) => order.status === 'Programado').length,
-      memberOrders.filter((order) => order.status === 'Em execucao').length,
-      memberOrders.filter((order) => isFinalStatus(order.status)).length,
-      clients.size
-    ];
-  }).sort((a, b) => Number(b[2]) - Number(a[2]) || String(a[0]).localeCompare(String(b[0])));
+  const memberSummaryRows = (meta.members || []).filter((item) => selectedSummaryName === 'Todos' || item.name === selectedSummaryName)
+    .map((item) => [item.name, item.today, item.total, item.programmed, item.active, item.done, item.clients]);
   const updateOrder = async (order, patch, message) => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     await withBusy(() => api(`/api/workOrders/${order.id}`, { method: 'PUT', body: JSON.stringify({ ...order, ...patch }) }));
@@ -2834,7 +2797,10 @@ function Schedules({ notify, editable = true }) {
     notify('Ocorrência lançada na OS');
     setOccurrenceModal(null);
   };
-  const exportRows = () => downloadCsv('programacao-os-lider.csv', [['OS', 'Cliente', 'Servico', 'Equipamento', 'Local', 'Lider', 'Status', 'Data'], ...visibleOrders.map((item) => [item.number, item.client, item.service, item.equipment, item.location, item.responsible, item.status, item.date])]);
+  const exportRows = () => withBusy(async () => {
+    const payload = await fetchAllPages(api, workOrdersEndpoint(currentMonthValue(), { mine: true, statusGroup: filters.status, q: filters.q }));
+    downloadCsv('programacao-os-lider.csv', [['OS', 'Cliente', 'Servico', 'Equipamento', 'Local', 'Lider', 'Status', 'Data'], ...listData(payload).map((item) => [item.number, item.client, item.service, item.equipment, item.location, item.responsible, item.status, item.date])]);
+  });
   const equipmentOptions = ['', ...Array.from(new Set(equipment.map((item) => [item.code, item.type].filter(Boolean).join(' - ')).filter(Boolean)))];
   const saveOperationEdit = (data) => {
     const required = [['carrier', 'Transportador'], ['equipment', 'Equipamento'], ['product', 'Produto'], ['progress', 'Percentual']];
@@ -2910,7 +2876,7 @@ function Schedules({ notify, editable = true }) {
       <div className="toolbar schedule-toolbar">
         <div className="filter"><label>Buscar</label><input type="text" value={filters.q} onChange={(event) => setFilters((old) => ({ ...old, q: event.target.value }))} placeholder="OS, cliente, equipamento..." /></div>
         <div className="filter"><label>Status</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Abertos</option><option>Finalizados</option><option>Todos</option></select></div>
-        <span className="spacer" /><span className="soft">{visibleOrders.length} OS para este usuario</span>
+        <span className="spacer" /><span className="soft">{meta.total} OS para este usuario</span>
       </div>
       <div className="leader-filter-tabs schedule-status-tabs">
         {[
@@ -2920,14 +2886,15 @@ function Schedules({ notify, editable = true }) {
         ].map(([label, count]) => <button type="button" key={label} className={filters.status === label ? 'active' : ''} onClick={() => setFilters((old) => ({ ...old, status: label }))}>{label} <span>{count}</span></button>)}
       </div>
       <div className="kpi-grid">
-        <Kpi icon="file" label="OS recebidas" value={visibleOrders.length} delta="vinculadas ao lider" />
-        <Kpi icon="clock" label="Programadas" value={visibleOrders.filter((item) => item.status === 'Programado').length} delta="aguardando inicio" warning />
-        <Kpi icon="home" label="Em campo" value={visibleOrders.filter((item) => item.status === 'Em execucao').length} delta="em execucao" />
-        <Kpi icon="check" label="Finalizadas" value={visibleOrders.filter((item) => item.status === 'Finalizado').length} delta="finalizadas" success />
+        <Kpi icon="file" label="OS recebidas" value={meta.total} delta="vinculadas ao lider" />
+        <Kpi icon="clock" label="Programadas" value={meta.totals?.programmed || 0} delta="aguardando inicio" warning />
+        <Kpi icon="home" label="Em campo" value={meta.totals?.active || 0} delta="em execucao" />
+        <Kpi icon="check" label="Finalizadas" value={meta.totals?.done || 0} delta="finalizadas" success />
       </div>
       <Panel title="Resumo por colaborador" padded actions={<div className="filter panel-select"><label>Colaborador</label><select value={selectedSummaryName} onChange={(event) => setMemberSummaryName(event.target.value)}>{memberOptions.map((name) => <option key={name}>{name}</option>)}</select></div>}>
-        <DataTable columns={['Colaborador', 'Hoje', 'No filtro', 'Programadas', 'Em campo', 'Finalizadas', 'Clientes']} rows={memberSummaryRows} loading={loading} />
+        <DataTable columns={['Colaborador', 'Hoje', 'No filtro', 'Programadas', 'Em campo', 'Finalizadas', 'Clientes']} rows={memberSummaryRows.slice(summaryOffset, summaryOffset + 50)} loading={loading} /><ListPagination offset={summaryOffset} total={memberSummaryRows.length} onChange={setSummaryOffset} loading={loading} />
       </Panel>
+      <ListPagination offset={offset} total={meta.total} onChange={setOffset} loading={loading} />
       <div className="schedule-mobile-list">
         {loading ? <LoadingBlock /> : visibleOrders.map(scheduleCard)}
         {!loading && !visibleOrders.length && <div className="empty-chart">Nenhuma OS encontrada</div>}
@@ -2965,7 +2932,7 @@ function LeaderAttendance({ notify, editable = true }) {
     setLoading(true);
     Promise.all([
       api(`/api/leader-attendance?date=${encodeURIComponent(date)}&q=${encodeURIComponent(q)}`),
-      api(`/api/occurrences?attendanceDate=${encodeURIComponent(date)}&limit=500`).catch(() => ({ data: [] }))
+      fetchAllPages(api, `/api/occurrences?attendanceDate=${encodeURIComponent(date)}`)
     ])
       .then(([attendanceResponse, occurrenceResponse]) => {
         setPayload(attendanceResponse.data);
@@ -3328,10 +3295,11 @@ function LeaderAttendance({ notify, editable = true }) {
 }
 
 function Productivity() {
-  const [orders, setOrders] = useState([]);
-  const [employees, setEmployees] = useState([]);
+  const [report, setReport] = useState(null);
+  const [pageOffset, setPageOffset] = useState(0);
+  const [detailOffset, setDetailOffset] = useState(0);
+  const requestRef = useRef(null);
   const [productivityRules, setProductivityRules] = useState(defaultProductivityRules);
-  const [attendanceSummary, setAttendanceSummary] = useState({ employees: [] });
   const [compare, setCompare] = useState(false);
   const [showOsLaunches, setShowOsLaunches] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -3350,95 +3318,56 @@ function Productivity() {
     const range = monthRange(currentMonthValue());
     return { from: range.from.slice(0, 10), to: range.to.slice(0, 10) };
   };
-  const loadProductivity = () => {
-    const range = productivityRange();
-    setLoading(true);
-    api(workOrdersRangeEndpoint(range.from, range.to, { client: filters.client, service: filters.service, limit: 500 }))
-      .then((payload) => setOrders(listData(payload)))
-      .catch((error) => { setOrders([]); triggerAction(error.message); })
-      .finally(() => setLoading(false));
-    api(`/api/leader-attendance/summary?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`).then((payload) => setAttendanceSummary(payload.data || { employees: [] })).catch(() => {});
-  };
+  const filterKey = JSON.stringify(filters);
+  const previousFilterKey = useRef(filterKey);
   useEffect(() => {
-    api('/api/employees?limit=500').then((payload) => setEmployees(listData(payload))).catch((error) => triggerAction(error.message));
-    api('/api/settings/productivityRules').then((payload) => setProductivityRules(mergeProductivityRules(payload.data))).catch(() => {});
+    requestRef.current?.abort();
+    setLoading(true);
+    if (previousFilterKey.current !== filterKey) {
+      previousFilterKey.current = filterKey;
+      if (pageOffset || detailOffset) { setPageOffset(0); setDetailOffset(0); return; }
+    }
+    const controller = new AbortController();
+    requestRef.current = controller;
+    const timer = setTimeout(async () => {
+      try {
+        const range = productivityRange();
+        const query = new URLSearchParams({ ...filters, from: range.from, to: range.to,
+          offset: String(pageOffset), detailOffset: String(detailOffset), details: String(showOsLaunches) });
+        const payload = await api(`/api/dashboard/productivity?${query}`, { signal: controller.signal });
+        if (controller.signal.aborted) return;
+        const data = payload.data;
+        const lastPage = (total) => Math.max(0, Math.floor((total - 1) / 50) * 50);
+        if (pageOffset > lastPage(data.totals.employees) || detailOffset > lastPage(data.totals.entries)) {
+          setPageOffset(Math.min(pageOffset, lastPage(data.totals.employees)));
+          setDetailOffset(Math.min(detailOffset, lastPage(data.totals.entries)));
+          return;
+        }
+        setReport(data);
+      } catch (error) {
+        if (!controller.signal.aborted) { setReport(null); triggerAction(error.message); }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }, 300);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [filterKey, pageOffset, detailOffset, showOsLaunches]);
+  useEffect(() => {
+    api('/api/settings/productivityRules').then((payload) => setProductivityRules(mergeProductivityRules(payload.data))).catch((error) => triggerAction(error.message));
   }, []);
-  useEffect(() => { loadProductivity(); }, [filters.period, filters.from, filters.to, filters.client, filters.service]);
-  const employeeByName = Object.fromEntries(employees.map((item) => [normalize(item.name), item]));
-  const attendanceByName = Object.fromEntries((attendanceSummary.employees || []).map((item) => [normalize(item.name), item]));
-  const discountFor = (absences) => absences <= 0 ? 1 : absences === 1 ? 0.75 : absences === 2 ? 0.5 : absences === 3 ? 0.25 : 0;
+  const totals = report?.totals || { employees: 0, orders: 0, entries: 0, absences: 0, pending: 0, bonus: 0 };
+  const optionList = (key, selected) => ['Todos', ...new Set([...(report?.options?.[key] || []), ...(selected !== 'Todos' ? [selected] : [])])];
+  const employeeOptions = optionList('employees', filters.employee);
+  const clientOptions = optionList('clients', filters.client);
+  const serviceOptions = optionList('services', filters.service);
   const ruleRow = (rule) => [rule.name, money(rule.base), money(rule.base * 0.75), money(rule.base * 0.5), money(rule.base * 0.25), money(0)];
-  const memberEntries = orders.flatMap((order) => {
-    const members = Array.isArray(order.teamMembers) ? order.teamMembers : [];
-    return members.flatMap((name) => {
-      const special = specialBonusForEntry(order, name, employeeByName, productivityRules);
-      if (special) return [{ order, name, criterion: { key: special.key, name: special.name, base: 0, mode: 'per-os', match: special.key }, status: 'Presente' }];
-      const assignedRules = rulesForAssignment(order.teamRoles?.[name], productivityRules);
-      const roles = assignedRules.length ? assignedRules : [{ key: 'none', name: 'Sem critério', base: 0, mode: 'per-os', match: '' }];
-      return roles.map((criterion) => ({ order, name, criterion, status: 'Presente' }));
-    });
-  });
-  const employeeOptions = ['Todos', ...Array.from(new Set(memberEntries.map((entry) => entry.name).filter(Boolean))).sort((a, b) => a.localeCompare(b))];
-  const clientOptions = ['Todos', ...Array.from(new Set(orders.map((order) => order.client).filter(Boolean))).sort((a, b) => a.localeCompare(b))];
-  const serviceOptions = ['Todos', ...Array.from(new Set(orders.map((order) => order.service).filter(Boolean))).sort((a, b) => a.localeCompare(b))];
-  const filteredEntries = memberEntries.filter((entry) => {
-    const employee = employeeByName[normalize(entry.name)] || { name: entry.name, role: '-', team: '-' };
-    const special = specialBonusForEntry(entry.order, entry.name, employeeByName, productivityRules);
-    const criterion = special ? { key: special.key, name: special.name, base: special.share, mode: 'per-os', match: special.key } : entry.criterion;
-    const text = normalize(`${entry.order.number} ${entry.order.client} ${entry.order.service} ${entry.order.date} ${entry.name} ${entry.criterion.name}`);
-    const queryOk = !filters.q || text.includes(normalize(filters.q));
-    const employeeOk = filters.employee === 'Todos' || entry.name === filters.employee;
-    const clientOk = filters.client === 'Todos' || entry.order.client === filters.client;
-    const serviceOk = filters.service === 'Todos' || entry.order.service === filters.service;
-    const criterionOk = filters.criterion === 'Todos' || normalize(criterion.name).includes(normalize(filters.criterion));
-    const statusOk = filters.status === 'Todos' || normalize(entry.status) === normalize(filters.status);
-    return queryOk && employeeOk && clientOk && serviceOk && criterionOk && statusOk;
-  });
-  const byEmployee = Object.values(filteredEntries.reduce((acc, entry) => {
-    const key = normalize(entry.name);
-    const employee = employeeByName[key] || { name: entry.name, role: '-', team: '-' };
-    const special = specialBonusForEntry(entry.order, entry.name, employeeByName, productivityRules);
-    const criterion = entry.criterion;
-    acc[key] = acc[key] || { employee, criterion, criteria: new Set(), osSet: new Set(), michelinSet: new Set(), os: 0, present: 0, standardPresent: 0, absences: attendanceByName[key]?.absences || 0, pending: 0, customBonus: 0, standardBonus: 0 };
-    acc[key].criteria.add(criterion.name);
-    acc[key].osSet.add(workOrderIdentity(entry.order));
-    acc[key].os += 1;
-    acc[key].present += 1;
-    const michelinKey = `${special?.key || 'standard'}:${workOrderIdentity(entry.order)}:${entry.name}`;
-    if (special && !acc[key].michelinSet.has(michelinKey)) {
-      acc[key].customBonus += special.share;
-      acc[key].michelinSet.add(michelinKey);
-    }
-    if (!special) {
-      acc[key].standardPresent += 1;
-      acc[key].standardBonus += criterion.mode === 'monthly' ? 0 : criterion.base;
-    }
-    return acc;
-  }, {})).map((item) => ({ ...item, os: item.osSet.size, criterion: { ...item.criterion, name: Array.from(item.criteria).join(' + ') } })).sort((a, b) => a.employee.name.localeCompare(b.employee.name));
-  const productivityRows = byEmployee.map((item) => {
-    const factor = discountFor(item.absences);
-    const adjustedValue = item.standardBonus * factor;
-    const monthlyBonus = item.criteria.has?.('Equipe PA') && item.present > 0 ? ((productivityRules.standard || []).find((rule) => rule.name === 'Equipe PA')?.base || 0) * factor : 0;
-    const total = item.customBonus + adjustedValue + monthlyBonus;
-    const criterionName = item.criterion.name;
-    return [item.employee.name, item.employee.role || '-', item.employee.team || '-', criterionName, item.os, item.present, item.absences, money(adjustedValue), `${Math.round(factor * 100)}%`, money(total)];
-  });
-  const osRows = filteredEntries.map(({ order, name, status, criterion: assignedCriterion }) => {
-    const employee = employeeByName[normalize(name)] || { name, role: '-', team: '-' };
-    const special = specialBonusForEntry(order, name, employeeByName, productivityRules);
-    const criterion = assignedCriterion || { name: 'Sem critério', base: 0, mode: 'per-os' };
-    const employeeSummary = byEmployee.find((item) => normalize(item.employee.name) === normalize(name));
-    const payable = normalize(status) === 'falta' || normalize(status) === 'pendente' || criterion.mode === 'monthly' ? 0 : (special?.share ?? (criterion.base * discountFor(employeeSummary?.absences || 0)));
-    const label = special?.name || criterion.name;
-    return [order.number, dateTime(order.date), order.client, name, employee.team || '-', label, <Pill value={status} />, money(payable)];
-  });
-  const totalAbsences = byEmployee.reduce((sum, item) => sum + item.absences, 0);
-  const pendingCalls = byEmployee.reduce((sum, item) => sum + item.pending, 0);
-  const totalBonus = byEmployee.reduce((sum, item) => {
-    const factor = discountFor(item.absences);
-    const monthlyBonus = item.criteria.has?.('Equipe PA') && item.present > 0 ? ((productivityRules.standard || []).find((rule) => rule.name === 'Equipe PA')?.base || 0) * factor : 0;
-    return sum + item.customBonus + (item.standardBonus * factor) + monthlyBonus;
-  }, 0);
+  const productivityRows = (report?.rows || []).map((item) => [item.name, item.role, item.team, item.criterion, item.os, item.present, item.absences, money(item.adjustedValue), `${Math.round(item.factor * 100)}%`, money(item.total)]);
+  const osRows = (report?.details || []).map((item) => [item.number, dateTime(item.date), item.client, item.name, item.team, item.criterion, <Pill value={item.status} />, money(item.payable)]);
+  const pagination = (offset, total, onChange) => <div className="table-tools">
+    <button className="btn btn-sm" disabled={loading || offset === 0} onClick={() => onChange(Math.max(0, offset - 50))}>Anterior</button>
+    <span className="soft">P?gina {Math.floor(offset / 50) + 1} de {Math.max(1, Math.ceil(total / 50))} ? {total} resultados</span>
+    <button className="btn btn-sm" disabled={loading || offset + 50 >= total} onClick={() => onChange(offset + 50)}>Pr?xima</button>
+  </div>;
   const range = productivityRange();
   const exportProductivityWorkbook = async () => {
     const query = new URLSearchParams({
@@ -3468,14 +3397,14 @@ function Productivity() {
         <span className="spacer" /><span className="soft">{filteredEntries.length} lançamentos · {date(range.from)} a {date(range.to)}</span>
       </div>
       <div className="kpi-grid">
-        <Kpi icon="users" label="Colaboradores avaliados" value={byEmployee.length} delta="com OS no filtro" success />
-        <Kpi icon="file" label="OS apuradas" value={new Set(filteredEntries.map((entry) => workOrderIdentity(entry.order))).size} delta="filtradas no banco pelo período" />
-        <Kpi icon="alert" label="Faltas registradas" value={totalAbsences} delta={`${pendingCalls} chamadas pendentes`} warning />
-        <Kpi icon="money" label="Bônus previsto" value={money(totalBonus)} delta="conforme critérios" />
+        <Kpi icon="users" label="Colaboradores avaliados" value={loading ? '...' : totals.employees} delta="com OS no filtro" success />
+        <Kpi icon="file" label="OS apuradas" value={loading ? '...' : totals.orders} delta="filtradas no banco pelo período" />
+        <Kpi icon="alert" label="Faltas registradas" value={loading ? '...' : totals.absences} delta={`${totals.pending} chamadas pendentes`} warning />
+        <Kpi icon="money" label="Bônus previsto" value={loading ? '...' : money(totals.bonus)} delta="conforme critérios" />
       </div>
       {compare && <Panel title="Critérios de bonificação" padded><DataTable columns={['Equipe/Função', 'Valor integral', '1 ausência', '2 ausências', '3 ausências', '4+ ausências']} rows={(productivityRules.standard || []).map(ruleRow)} /></Panel>}
-      <Panel title="Produtividade por colaborador" padded><DataTable columns={['Colaborador', 'Função', 'Equipe cadastro', 'Critério', 'OS', 'Pres.', 'Faltas', 'Valor base', '%', 'Total']} rows={productivityRows} loading={loading} /></Panel>
-      {showOsLaunches && <Panel title="Lançamentos por OS" padded><DataTable columns={['OS', 'Data', 'Cliente', 'Colaborador', 'Equipe', 'Critério', 'Chamada', 'Valor']} rows={osRows} loading={loading} /></Panel>}
+      <Panel title="Produtividade por colaborador" padded><DataTable columns={['Colaborador', 'Função', 'Equipe cadastro', 'Critério', 'OS', 'Pres.', 'Faltas', 'Valor base', '%', 'Total']} rows={productivityRows} loading={loading} />{pagination(pageOffset, totals.employees, setPageOffset)}</Panel>
+      {showOsLaunches && <Panel title="Lançamentos por OS" padded><DataTable columns={['OS', 'Data', 'Cliente', 'Colaborador', 'Equipe', 'Critério', 'Chamada', 'Valor']} rows={osRows} loading={loading} />{pagination(detailOffset, totals.entries, setDetailOffset)}</Panel>}
     </>
   );
 }
@@ -3586,7 +3515,7 @@ function Reports() {
     }
   };
   const generate = async (card = selected) => {
-    const payload = await withBusy(() => api(card[2] === '/api/workOrders' ? workOrdersEndpoint() : card[2]));
+    const payload = await withBusy(() => fetchAllPages(api, card[2] === '/api/workOrders' ? workOrdersEndpoint() : card[2]));
     const rows = listData(payload);
     const model = reportModels[card[0]];
     const headers = model.columns.map(([label]) => label);
@@ -3736,6 +3665,10 @@ function DailyOps({ notify, editable = true }) {
   const leaderProfile = isLeaderUser(user);
   const leaderResponsibleName = user.name || user.email || '';
   const [items, setItems] = useState([]);
+  const [pageOffset, setPageOffset] = useState(0);
+  const [meta, setMeta] = useState({ total: 0, clients: [] });
+  const requestRef = useRef(null);
+  const pageSize = 50;
   const [clients, setClients] = useState([]);
   const [equipment, setEquipment] = useState([]);
   const [services, setServices] = useState([]);
@@ -3769,7 +3702,7 @@ function DailyOps({ notify, editable = true }) {
     ['operationEnd', 'Fim da operação', 'datetime-local'],
     ['progress', 'Percentual', 'number']
   ];
-  const clientOptions = ['Todos', ...Array.from(new Map(items.map((item) => [normalizeLabel(item.client), item.client]).filter(([key]) => key)).values())];
+  const clientOptions = ['Todos', ...(meta.clients || [])];
   const periodRange = () => {
     const today = new Date();
     const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -3782,28 +3715,77 @@ function DailyOps({ notify, editable = true }) {
     if (filters.period === 'Personalizado') return { from: filters.from, to: filters.to };
     return { from: monthRange().from.slice(0, 10), to: monthRange().to.slice(0, 10) };
   };
-  const filteredItems = items.filter((item) => {
-    const text = normalize(`${item.number} ${item.client} ${item.equipment} ${item.service} ${item.carrier}`);
-    const query = normalize(`${filters.q} ${filters.table}`);
-    const statusOk = filters.status === 'Todos' || normalize(item.status) === normalize(filters.status);
-    const selectedClients = Array.isArray(filters.client) ? filters.client : (filters.client && filters.client !== 'Todos' ? [filters.client] : []);
-    const clientOk = !selectedClients.length || selectedClients.some((client) => normalizeLabel(item.client) === normalizeLabel(client));
-    return text.includes(query.trim()) && statusOk && clientOk;
-  });
-  const selected = filteredItems.find((i) => i.id === selectedId) || filteredItems[0];
-  const load = () => {
+  const filteredItems = items;
+  const selected = !loading && (items.find((i) => i.id === selectedId) || items[0]);
+  const endpoint = (offset = 0, limit = pageSize) => {
     const range = periodRange();
-    setLoading(true);
-    api(workOrdersRangeEndpoint(range.from, range.to, { mine: leaderProfile ? true : '' })).then((p) => { const data = listData(p); setItems(data); setSelectedId((old) => old || data[0]?.id || ''); }).catch((error) => { setItems([]); notify(error.message); }).finally(() => setLoading(false));
+    return workOrdersRangeEndpoint(range.from, range.to, {
+      mine: leaderProfile ? true : '', limit, offset,
+      clients: JSON.stringify(filters.client),
+      dailyStatus: filters.status === 'Todos' ? '' : filters.status,
+      search: filters.q, tableSearch: filters.table
+    }).replace('/api/workOrders?', '/api/dailyWorkOrders?');
   };
-  const loadOccurrences = () => api('/api/occurrences').then((p) => setOccurrences(listData(p))).catch(() => setOccurrences([]));
-  useEffect(() => { load(); }, [filters.period, filters.from, filters.to]);
-  useEffect(() => { loadOccurrences(); }, []);
+  const load = (offset = pageOffset) => {
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
+    setLoading(true);
+    return api(endpoint(offset), { signal: controller.signal }).then((payload) => {
+      if (controller.signal.aborted) return;
+      const data = listData(payload);
+      const total = payload.meta.total;
+      if (offset > 0 && offset >= total) {
+        setPageOffset(Math.max(0, Math.floor((total - 1) / pageSize) * pageSize));
+        return;
+      }
+      setItems(data);
+      setMeta(payload.meta);
+      setSelectedId((old) => data.some((item) => item.id === old) ? old : data[0]?.id || '');
+    }).catch((error) => {
+      if (controller.signal.aborted) return;
+      setItems([]); setMeta({ total: 0, clients: [] }); notify(error.message);
+    }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+  };
+  const occurrenceRequest = useRef(null);
+  const occurrenceScope = JSON.stringify([...new Set(items.map((item) => item.number))]);
+  const loadOccurrences = () => {
+    occurrenceRequest.current?.abort();
+    const controller = new AbortController();
+    occurrenceRequest.current = controller;
+    if (!items.length) { setOccurrences([]); return Promise.resolve(); }
+    return fetchAllPages(api, `/api/occurrences?workOrders=${encodeURIComponent(occurrenceScope)}`, { signal: controller.signal })
+      .then((payload) => { if (!controller.signal.aborted) setOccurrences(listData(payload)); })
+      .catch((error) => { if (!controller.signal.aborted) { setOccurrences([]); notify(error.message); } });
+  };
+  const filterKey = JSON.stringify(filters);
+  const previousFilterKey = useRef(filterKey);
   useEffect(() => {
-    api('/api/clients').then((payload) => setClients(listData(payload))).catch(() => {});
-    api('/api/equipment').then((payload) => setEquipment(listData(payload))).catch(() => {});
-    api('/api/services').then((payload) => setServices(listData(payload))).catch(() => {});
-    api('/api/employees?limit=500').then((payload) => setLeaders(listData(payload).filter((item) => normalize(item.role).includes('lider')))).catch(() => {});
+    requestRef.current?.abort();
+    setLoading(true);
+    if (previousFilterKey.current !== filterKey) {
+      previousFilterKey.current = filterKey;
+      if (pageOffset !== 0) { setPageOffset(0); return; }
+    }
+    const timer = setTimeout(() => load(pageOffset), 300);
+    return () => { clearTimeout(timer); requestRef.current?.abort(); };
+  }, [filterKey, pageOffset]);
+  useEffect(() => { setOccurrences([]); loadOccurrences(); return () => occurrenceRequest.current?.abort(); }, [occurrenceScope]);
+  useEffect(() => {
+    if (!modal) return;
+    const controller = new AbortController();
+    Promise.all([
+      fetchAllPages(api, '/api/lookups/clients', { signal: controller.signal }),
+      fetchAllPages(api, '/api/lookups/equipment', { signal: controller.signal }),
+      fetchAllPages(api, '/api/lookups/services', { signal: controller.signal }),
+      fetchAllPages(api, '/api/lookups/leaders', { signal: controller.signal })
+    ]).then(([clients, equipment, services, leaders]) => {
+      if (controller.signal.aborted) return;
+      setClients(listData(clients)); setEquipment(listData(equipment)); setServices(listData(services)); setLeaders(listData(leaders));
+    }).catch((error) => { if (!controller.signal.aborted) notify(error.message); });
+    return () => controller.abort();
+  }, [Boolean(modal)]);
+  useEffect(() => {
     api('/api/settings/productivityRules').then((payload) => setProductivityRules(mergeProductivityRules(payload.data))).catch(() => {});
   }, []);
   useEffect(() => {
@@ -3825,7 +3807,22 @@ function DailyOps({ notify, editable = true }) {
     await withBusy(() => api(`/api/workOrders/${selected.id}`, { method: 'DELETE' }));
     notify('OS apagada'); setSelectedId(''); load();
   };
-  const exportFiltered = () => downloadCsv('operacao-diaria.csv', [
+  const exportFiltered = async () => withBusy(async () => {
+    const rows = [];
+    let offset = 0;
+    let total;
+    const exportEndpoint = endpoint(0, 500);
+    do {
+      const url = new URL(exportEndpoint, window.location.origin);
+      url.searchParams.set('offset', String(offset));
+      const payload = await api(`${url.pathname}${url.search}`);
+      const batch = listData(payload);
+      rows.push(...batch);
+      total = payload.meta.total;
+      offset += batch.length;
+      if (!batch.length) break;
+    } while (offset < total);
+    downloadCsv('operacao-diaria.csv', [
     [
       'OS',
       'Cliente',
@@ -3847,7 +3844,7 @@ function DailyOps({ notify, editable = true }) {
       'Prioridade',
       'Observacao da equipe'
     ],
-    ...filteredItems.map((item) => [
+    ...rows.map((item) => [
       item.number,
       item.client,
       item.status,
@@ -3869,6 +3866,7 @@ function DailyOps({ notify, editable = true }) {
       item.teamNote
     ])
   ]);
+  });
   const releaseCorrection = async () => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     if (!selected) return;
@@ -3930,7 +3928,7 @@ function DailyOps({ notify, editable = true }) {
   return (
     <>
       <PageHead title="Operação Diária" subtitle="Gestão detalhada das OS com filtros, confirmação de equipe, horários e ocorrências." ghostActions={['Histórico', 'Exportar planilha']} onGhostAction={(label) => label === 'Histórico' ? setHistoryOpen(true) : exportFiltered()} action="Nova OS" onAction={() => setModal({ status: 'Programado', responsible: leaderResponsibleName })} />
-      <LeaderMobileNav active="dailyOps" title="Operação Diária" onRefresh={load} />
+      <LeaderMobileNav active="dailyOps" title="Operação Diária" onRefresh={() => load()} />
       <div className="dailyops-mobile-primary">
         <button type="button" className="btn btn-primary" onClick={() => setModal({ status: 'Programado', responsible: leaderResponsibleName })}><Icon name="box" />Nova OS</button>
         <button type="button" className="btn" onClick={() => setHistoryOpen(true)}><Icon name="clock" />Histórico</button>
@@ -3942,7 +3940,12 @@ function DailyOps({ notify, editable = true }) {
         <div className="filter"><label>Período</label><select value={filters.period} onChange={(event) => setFilters((old) => ({ ...old, period: event.target.value }))}><option>Hoje</option><option>Esta semana</option><option>Este mês</option><option>Personalizado</option></select></div>
         {filters.period === 'Personalizado' && <><div className="filter"><label>De</label><input type="date" value={filters.from} onChange={(event) => setFilters((old) => ({ ...old, from: event.target.value || old.from }))} /></div><div className="filter"><label>Até</label><input type="date" value={filters.to} onChange={(event) => setFilters((old) => ({ ...old, to: event.target.value || old.to }))} /></div></>}
         <span className="spacer" />
-        <span className="soft">{filteredItems.length} resultados</span>
+        <span className="soft">{loading ? 'Carregando...' : `${meta.total} resultados`}</span>
+      </div>
+      <div className="table-tools" aria-label="Pagina??o das ordens de servi?o">
+        <button className="btn btn-sm" disabled={loading || pageOffset === 0} onClick={() => setPageOffset(Math.max(0, pageOffset - pageSize))}>Anterior</button>
+        <span className="soft">P?gina {Math.floor(pageOffset / pageSize) + 1} de {Math.max(1, Math.ceil(meta.total / pageSize))}</span>
+        <button className="btn btn-sm" disabled={loading || pageOffset + pageSize >= meta.total} onClick={() => setPageOffset(pageOffset + pageSize)}>Pr?xima</button>
       </div>
       <div className="dailyops-mobile-list">
         {loading ? <LoadingBlock /> : filteredItems.length ? filteredItems.map((item) => {
@@ -4340,6 +4343,10 @@ function ActionPanel({ type, setRoute, onClose }) {
       return [];
     }
   };
+  const [notificationOffset, setNotificationOffset] = useState(0);
+  const [notificationLoading, setNotificationLoading] = useState(false);
+  const [notificationError, setNotificationError] = useState('');
+  useEffect(() => { setNotificationOffset((old) => Math.min(old, Math.max(0, Math.floor((notifications.length - 1) / 50) * 50))); }, [notifications.length]);
   const notificationId = (item) => item.id || `${item.workOrder}-${item.type}-${item.description}-${item.createdAt || item.updatedAt || ''}`;
   const dismissNotification = (id) => {
     const next = [...new Set([...readDismissed(), id])];
@@ -4357,24 +4364,17 @@ function ActionPanel({ type, setRoute, onClose }) {
       setNotifications([]);
       return;
     }
+    const controller = new AbortController();
+    setNotificationLoading(true);
+    setNotificationError('');
     Promise.all([
-      api('/api/occurrences').catch(() => ({ data: [] })),
-      api(workOrdersEndpoint()).catch(() => ({ data: [] })),
-      canApproveAttendance(user) ? api(`/api/leader-attendance/corrections?date=${encodeURIComponent(localDateValue(new Date()))}`).catch(() => ({ data: [] })) : Promise.resolve({ data: [] })
-    ]).then(([occurrencePayload, orderPayload, correctionPayload]) => {
+      fetchAllPages(api, '/api/notificationOccurrences', { signal: controller.signal }),
+      canApproveAttendance(user) ? api(`/api/leader-attendance/corrections?date=${encodeURIComponent(localDateValue(new Date()))}`, { signal: controller.signal }) : Promise.resolve({ data: [] })
+    ]).then(([occurrencePayload, correctionPayload]) => {
+      if (controller.signal.aborted) return;
       const dismissed = new Set(readDismissed());
-      const orders = listData(orderPayload);
-      const isLeader = normalize(user.role).includes('lider');
-      const belongsToUser = (occurrence) => {
-        if (!isLeader) return true;
-        const order = orders.find((item) => String(item.number) === String(occurrence.workOrder));
-        if (!order) return false;
-        const haystack = normalize(`${order.responsible} ${order.carrier}`);
-        return haystack.includes(normalize(user.name)) || haystack.includes(normalize(user.email));
-      };
       const occurrenceAlerts = listData(occurrencePayload)
         .filter((item) => !['resolvida', 'aprovada'].includes(normalize(item.status)))
-        .filter(belongsToUser)
         .map((item) => {
           const pointOccurrence = item.attendanceDate && item.employeeName;
           return {
@@ -4393,8 +4393,10 @@ function ActionPanel({ type, setRoute, onClose }) {
           text: `${item.requestedBy?.name || 'Líder'} solicitou liberação · ${date(item.date)}${item.reason ? ` · ${item.reason}` : ''}`
         }))
         .filter((item) => !dismissed.has(item.id));
-      setNotifications([...attendanceAlerts, ...occurrenceAlerts].slice(0, 50));
-    });
+      setNotifications([...attendanceAlerts, ...occurrenceAlerts]);
+    }).catch((error) => { if (!controller.signal.aborted) { setNotifications([]); setNotificationError(error.message); } })
+      .finally(() => { if (!controller.signal.aborted) setNotificationLoading(false); });
+    return () => controller.abort();
   }, [type, dismissedKey]);
   const openRoute = (key) => {
     window.location.hash = `#/${key}`;
@@ -4406,7 +4408,7 @@ function ActionPanel({ type, setRoute, onClose }) {
       <div className="form-field"><label>Pesquisar módulo</label><input value={q} onChange={(e) => setQ(e.target.value)} autoFocus placeholder="Digite cliente, OS, usuário, relatório..." /></div>
       <div className="section-list compact-list">{routeEntries.map(([key, item]) => <div className="section-card" key={key} onClick={() => openRoute(key)}><div className="ico"><Icon name="grid" /></div><div><h4>{item.title}</h4><p>{item.group}</p></div></div>)}</div>
     </>,
-    notifications: <><div className="notification-tools"><span className="soft">{notifications.length} notificação(ões)</span>{notifications.length > 0 && <button className="btn btn-sm" onClick={clearNotifications}>Limpar minhas notificações</button>}</div><ul className="activity">{notifications.length ? notifications.map((item) => <li key={item.id}><Pill value={item.tag} /><div><b>{item.title}</b><span>{item.text}</span></div><button className="btn btn-sm" onClick={() => dismissNotification(item.id)}>Excluir</button></li>) : <li><Pill value="OK" /><div><b>Nenhuma notificação pendente</b><span>Solicitações de correção e ocorrências aparecerão aqui.</span></div></li>}</ul></>,
+    notifications: <>{notificationLoading && <LoadingBlock />}{notificationError && <p role="alert">{notificationError}</p>}<div className="notification-tools"><span className="soft">{notifications.length} notificação(ões)</span>{notifications.length > 0 && <button className="btn btn-sm" onClick={clearNotifications}>Limpar minhas notificações</button>}</div><ul className="activity">{notifications.length ? notifications.slice(notificationOffset, notificationOffset + 50).map((item) => <li key={item.id}><Pill value={item.tag} /><div><b>{item.title}</b><span>{item.text}</span></div><button className="btn btn-sm" onClick={() => dismissNotification(item.id)}>Excluir</button></li>) : <li><Pill value="OK" /><div><b>Nenhuma notificação pendente</b><span>Solicitações de correção e ocorrências aparecerão aqui.</span></div></li>}</ul><ListPagination offset={notificationOffset} total={notifications.length} onChange={setNotificationOffset} loading={notificationLoading} /></>,
     messages: <ul className="activity"><li><Pill value="Torre" /><div><b>Equipe de campo solicitou correção</b><span>Abra Operação Diária para tratar ocorrência.</span></div></li><li><Pill value="Financeiro" /><div><b>Relatório mensal disponível</b><span>Gere CSV em Relatórios.</span></div></li></ul>,
     help: <div className="panel-body"><p><b>Fluxos principais:</b></p><p className="soft">Cadastros gravam no banco. Configurações aplicam marca/cores e salvam no Postgres. Relatórios exportam CSV. Operação diária cria OS e registra ocorrências.</p><p className="soft">Use o menu lateral ou a pesquisa para trocar de tela sem recarregar.</p></div>
   };

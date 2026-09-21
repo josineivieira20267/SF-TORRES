@@ -2,11 +2,14 @@ const express = require('express');
 const { requireAuth } = require('../middlewares/auth');
 const { prisma, hasDatabaseUrl } = require('../db/prisma');
 const { createController, buildWhere, normalize } = require('../utils/crud');
+const { createOverview } = require('../utils/operationOverview');
+const { readDb } = require('../db/jsonStore');
+const { dailyFilters, dailyJsonFilters } = require('../utils/dailyWorkOrders');
 
 const router = express.Router();
 
 const workOrderSearchFields = ['number', 'client', 'equipment', 'service', 'status', 'carrier', 'responsible', 'product'];
-const workOrderFilterKeys = ['mine', 'statusGroup'];
+const workOrderFilterKeys = ['mine', 'statusGroup', 'overview', 'today'];
 
 const finalStatusWhere = [
   { status: { contains: 'finaliz', mode: 'insensitive' } },
@@ -37,6 +40,8 @@ function workOrderMineWhere(query, req) {
 }
 
 function workOrderStatusWhere(statusGroup) {
+  if (statusGroup === 'Aguardando') return { OR: ['Programado', 'Rascunho', 'Enviada', 'Aprovada'].map((status) => ({ status: { equals: status, mode: 'insensitive' } })) };
+  if (statusGroup === 'Fila') return { OR: ['Programado', 'Rascunho', 'Enviada', 'Aprovada', 'Em execucao'].map((status) => ({ status: { equals: status, mode: 'insensitive' } })) };
   if (statusGroup === 'Finalizados') return { OR: finalStatusWhere };
   if (statusGroup === 'Abertos') return { NOT: { OR: [...finalStatusWhere, ...canceledStatusWhere] } };
   return null;
@@ -54,6 +59,8 @@ function applyWorkOrderJsonFilters(items, query, req) {
     const terms = [req.user?.name, req.user?.email].map(normalize).filter(Boolean);
     result = result.filter((item) => terms.some((term) => normalize(item.responsible).includes(term)));
   }
+  if (query.statusGroup === 'Aguardando') result = result.filter((item) => ['programado', 'rascunho', 'enviada', 'aprovada'].includes(normalize(item.status)));
+  if (query.statusGroup === 'Fila') result = result.filter((item) => ['programado', 'rascunho', 'enviada', 'aprovada', 'em execucao'].includes(normalize(item.status)));
   if (query.statusGroup === 'Finalizados') {
     result = result.filter((item) => normalize(item.status).includes('finaliz') || normalize(item.status).includes('conclu'));
   } else if (query.statusGroup === 'Abertos') {
@@ -85,8 +92,25 @@ async function workOrderMetaPrisma(query, req) {
     baseQuery,
     req
   );
-  const rows = await prisma.workOrder.findMany({ where: baseWhere, select: { status: true } });
-  return { statusCounts: workOrderStatusCountsFromItems(rows) };
+  if (query.overview) {
+    const overview = createOverview(query);
+    let cursor;
+    while (true) {
+      const rows = await prisma.workOrder.findMany({ where: baseWhere, take: 500, orderBy: { id: 'asc' },
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        select: { id: true, status: true, date: true, client: true, teamMembers: true } });
+      rows.forEach((row) => overview.add(row));
+      if (rows.length < 500) break;
+      cursor = rows[rows.length - 1].id;
+    }
+    return overview.finish();
+  }
+  const groups = await prisma.workOrder.groupBy({ by: ['status'], where: baseWhere, _count: { _all: true } });
+  return { statusCounts: groups.reduce((counts, group) => {
+    const row = workOrderStatusCountsFromItems([group]);
+    for (const key of Object.keys(counts)) counts[key] += row[key] * group._count._all;
+    return counts;
+  }, { abertos: 0, finalizados: 0, todos: 0 }) };
 }
 
 async function workOrderMetaJson(items, query, req) {
@@ -106,6 +130,11 @@ async function workOrderMetaJson(items, query, req) {
     });
   }
   filtered = applyWorkOrderJsonFilters(filtered, baseQuery, req);
+  if (query.overview) {
+    const overview = createOverview(query);
+    filtered.forEach((item) => overview.add(item));
+    return overview.finish();
+  }
   return { statusCounts: workOrderStatusCountsFromItems(filtered) };
 }
 
@@ -207,12 +236,67 @@ const resources = {
     prepareUpdate: ensureUniqueWorkOrderByClient
   }),
   measurements: createController('measurements', ['number', 'client', 'workOrder', 'status'], 'measurement'),
-  occurrences: createController('occurrences', ['workOrder', 'employeeName', 'attendanceDate', 'type', 'description', 'status'], 'occurrence'),
+  occurrences: createController('occurrences', ['workOrder', 'employeeName', 'attendanceDate', 'type', 'description', 'status'], 'occurrence', {
+    filterKeys: ['workOrders'],
+    applyPrismaWhere: (where, query) => query.workOrders ? { ...where, workOrder: { in: JSON.parse(query.workOrders) } } : where,
+    applyJsonFilters: (items, query) => query.workOrders ? items.filter((item) => JSON.parse(query.workOrders).includes(item.workOrder)) : items
+  }),
   schedules: createController('schedules', ['employee', 'role', 'base', 'status'], 'schedule'),
   settings: createController('settings', ['key'], 'setting')
 };
 
 router.use(requireAuth);
+
+// Compact option lists: no employee personal details or full customer records.
+for (const [route, collection, model, fields] of [
+  ['clients', 'clients', 'client', ['id', 'name', 'legalName']],
+  ['equipment', 'equipment', 'equipment', ['id', 'code', 'type']],
+  ['services', 'services', 'service', ['id', 'description', 'code']],
+  ['leaders', 'employees', 'employee', ['id', 'name']]
+]) {
+  router.get(`/lookups/${route}`, createController(collection, ['name'], model, {
+    select: Object.fromEntries(fields.map((key) => [key, true])),
+    ...(route === 'leaders' ? {
+      applyPrismaWhere: (where) => appendAnd(where, { OR: ['lider', 'l?der'].map((term) => ({ role: { contains: term, mode: 'insensitive' } })) }),
+      applyJsonFilters: (items) => items.filter((item) => normalize(item.role).includes('lider'))
+    } : {})
+  }).list);
+}
+
+router.get('/notificationOccurrences', async (req, res, next) => {
+  try {
+    if (!hasDatabaseUrl && normalize(req.user?.role).includes('lider')) {
+      const db = await readDb();
+      req.notificationNumbers = new Set(applyWorkOrderJsonFilters(db.workOrders || [], { mine: true }, req).map((order) => order.number));
+    }
+    next();
+  } catch (error) { next(error); }
+}, createController('occurrences', [], 'occurrence', {
+  applyPrismaWhere: async (where, query, req) => {
+    const pending = { ...where, NOT: { OR: ['Resolvida', 'Aprovada'].map((status) => ({ status: { equals: status, mode: 'insensitive' } })) } };
+    if (!normalize(req.user?.role).includes('lider')) return pending;
+    const terms = [req.user?.name, req.user?.email].filter(Boolean);
+    const orders = terms.length ? await prisma.workOrder.findMany({ where: { OR: terms.map((term) => ({ responsible: { contains: term, mode: 'insensitive' } })) }, select: { number: true } }) : [];
+    return { ...pending, workOrder: { in: orders.map((order) => order.number) } };
+  },
+  applyJsonFilters: (items, query, req) => items.filter((item) => !['resolvida', 'aprovada'].includes(normalize(item.status)) && (!req.notificationNumbers || req.notificationNumbers.has(item.workOrder))),
+}).list);
+
+
+// Apply daily-operation filters before pagination; keep permission restrictions.
+router.get('/dailyWorkOrders', createController('workOrders', workOrderSearchFields, 'workOrder', {
+  dateField: 'date',
+  filterKeys: [...workOrderFilterKeys, 'clients', 'dailyStatus', 'search', 'tableSearch'],
+  orderBy: [{ date: 'desc' }, { id: 'desc' }],
+  sortJson: (a, b) => String(b.date).localeCompare(String(a.date)) || String(b.id).localeCompare(String(a.id)),
+  applyPrismaWhere: (where, query, req) => dailyFilters(applyWorkOrderPrismaWhere(where, query, req), query),
+  applyJsonFilters: (items, query, req) => dailyJsonFilters(applyWorkOrderJsonFilters(items, query, req), query),
+  metaPrisma: async (query, req) => {
+    const rows = await prisma.workOrder.groupBy({ by: ['client'], where: workOrderMineWhere(query, req) || {} });
+    return { clients: rows.map((row) => row.client).filter(Boolean).sort() };
+  },
+  metaJson: async (items, query, req) => ({ clients: [...new Set(applyWorkOrderJsonFilters(items, { mine: query.mine }, req).map((item) => item.client).filter(Boolean))].sort() })
+}).list);
 
 for (const [route, controller] of Object.entries(resources)) {
   router.get(`/${route}`, controller.list);

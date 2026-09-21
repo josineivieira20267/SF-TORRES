@@ -37,6 +37,7 @@ function applyQuery(items, query, searchableFields, options = {}) {
     result = result.filter((item) => normalize(item[key]) === normalize(value));
   }
 
+  if (options.sortJson) result.sort(options.sortJson);
   const total = result.length;
   const offset = Math.max(Number(query.offset || 0), 0);
   const limit = Math.min(Math.max(Number(query.limit || 100), 1), 500);
@@ -76,11 +77,11 @@ function createController(collection, searchableFields = ['name', 'code', 'descr
       try {
         if (hasDatabaseUrl) {
           let where = buildWhere(req.query, searchableFields, options);
-          if (options.applyPrismaWhere) where = options.applyPrismaWhere(where, req.query, req) || where;
+          if (options.applyPrismaWhere) where = await options.applyPrismaWhere(where, req.query, req) || where;
           const skip = Math.max(Number(req.query.offset || 0), 0);
           const take = Math.min(Math.max(Number(req.query.limit || 100), 1), 500);
           const [data, total] = await Promise.all([
-            prisma[prismaModel].findMany({ where, skip, take, orderBy: { createdAt: 'desc' } }),
+            prisma[prismaModel].findMany({ where, skip, take, orderBy: options.orderBy || [{ createdAt: 'desc' }, { id: 'desc' }], ...(options.select ? { select: options.select } : {}) }),
             prisma[prismaModel].count({ where })
           ]);
           const extraMeta = options.metaPrisma ? await options.metaPrisma(req.query, req) : {};
@@ -89,6 +90,7 @@ function createController(collection, searchableFields = ['name', 'code', 'descr
 
         const db = await readDb();
         const result = applyQuery(db[collection] || [], req.query, searchableFields, { ...options, request: req });
+        if (options.select) result.data = result.data.map((item) => Object.fromEntries(Object.keys(options.select).map((key) => [key, item[key]])));
         const extraMeta = options.metaJson ? await options.metaJson(db[collection] || [], req.query, req) : {};
         res.json({ ...result, meta: { ...result.meta, ...extraMeta } });
       } catch (error) {
