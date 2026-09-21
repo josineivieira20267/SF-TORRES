@@ -257,7 +257,7 @@ for (const [route, collection, model, fields] of [
   router.get(`/lookups/${route}`, createController(collection, ['name'], model, {
     select: Object.fromEntries(fields.map((key) => [key, true])),
     ...(route === 'leaders' ? {
-      applyPrismaWhere: (where) => appendAnd(where, { OR: ['lider', 'l?der'].map((term) => ({ role: { contains: term, mode: 'insensitive' } })) }),
+      applyPrismaWhere: (where) => appendAnd(where, { OR: ['lider', 'líder'].map((term) => ({ role: { contains: term, mode: 'insensitive' } })) }),
       applyJsonFilters: (items) => items.filter((item) => normalize(item.role).includes('lider'))
     } : {})
   }).list);

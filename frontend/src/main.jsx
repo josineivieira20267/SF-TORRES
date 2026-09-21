@@ -2684,9 +2684,9 @@ function OperationsDashboard() {
 }
 
 function ListPagination({ offset, total, onChange, loading = false }) {
-  return <div className="pagination-bar"><span>{total} resultados ? P?gina {Math.floor(offset / 50) + 1} de {Math.max(1, Math.ceil(total / 50))}</span><div>
+  return <div className="pagination-bar"><span>{total} resultados · Página {Math.floor(offset / 50) + 1} de {Math.max(1, Math.ceil(total / 50))}</span><div>
     <button className="btn btn-sm" disabled={loading || offset === 0} onClick={() => onChange(Math.max(0, offset - 50))}>Anterior</button>
-    <button className="btn btn-sm" disabled={loading || offset + 50 >= total} onClick={() => onChange(offset + 50)}>Pr?xima</button>
+    <button className="btn btn-sm" disabled={loading || offset + 50 >= total} onClick={() => onChange(offset + 50)}>Próxima</button>
   </div></div>;
 }
 
@@ -3365,8 +3365,8 @@ function Productivity() {
   const osRows = (report?.details || []).map((item) => [item.number, dateTime(item.date), item.client, item.name, item.team, item.criterion, <Pill value={item.status} />, money(item.payable)]);
   const pagination = (offset, total, onChange) => <div className="table-tools">
     <button className="btn btn-sm" disabled={loading || offset === 0} onClick={() => onChange(Math.max(0, offset - 50))}>Anterior</button>
-    <span className="soft">P?gina {Math.floor(offset / 50) + 1} de {Math.max(1, Math.ceil(total / 50))} ? {total} resultados</span>
-    <button className="btn btn-sm" disabled={loading || offset + 50 >= total} onClick={() => onChange(offset + 50)}>Pr?xima</button>
+    <span className="soft">Página {Math.floor(offset / 50) + 1} de {Math.max(1, Math.ceil(total / 50))} · {total} resultados</span>
+    <button className="btn btn-sm" disabled={loading || offset + 50 >= total} onClick={() => onChange(offset + 50)}>Próxima</button>
   </div>;
   const range = productivityRange();
   const exportProductivityWorkbook = async () => {
@@ -3394,7 +3394,7 @@ function Productivity() {
         <div className="filter"><label>Colaborador</label><select value={filters.employee} onChange={(event) => setFilters((old) => ({ ...old, employee: event.target.value }))}>{employeeOptions.map((name) => <option key={name}>{name}</option>)}</select></div>
         <div className="filter"><label>Critério</label><select value={filters.criterion} onChange={(event) => setFilters((old) => ({ ...old, criterion: event.target.value }))}><option>Todos</option>{(productivityRules.standard || []).map((rule) => <option key={rule.key}>{rule.name}</option>)}<option>MICHELIN</option><option>DAIKIN</option><option>Sem critério</option></select></div>
         <div className="filter"><label>Chamada</label><select value={filters.status} onChange={(event) => setFilters((old) => ({ ...old, status: event.target.value }))}><option>Todos</option><option>Presente</option><option>Falta</option><option>Pendente</option></select></div>
-        <span className="spacer" /><span className="soft">{filteredEntries.length} lançamentos · {date(range.from)} a {date(range.to)}</span>
+        <span className="spacer" /><span className="soft">{loading ? 'Carregando...' : `${totals.entries} lançamentos`} · {date(range.from)} a {date(range.to)}</span>
       </div>
       <div className="kpi-grid">
         <Kpi icon="users" label="Colaboradores avaliados" value={loading ? '...' : totals.employees} delta="com OS no filtro" success />
@@ -3942,10 +3942,10 @@ function DailyOps({ notify, editable = true }) {
         <span className="spacer" />
         <span className="soft">{loading ? 'Carregando...' : `${meta.total} resultados`}</span>
       </div>
-      <div className="table-tools" aria-label="Pagina??o das ordens de servi?o">
+      <div className="table-tools" aria-label="Paginação das ordens de serviço">
         <button className="btn btn-sm" disabled={loading || pageOffset === 0} onClick={() => setPageOffset(Math.max(0, pageOffset - pageSize))}>Anterior</button>
-        <span className="soft">P?gina {Math.floor(pageOffset / pageSize) + 1} de {Math.max(1, Math.ceil(meta.total / pageSize))}</span>
-        <button className="btn btn-sm" disabled={loading || pageOffset + pageSize >= meta.total} onClick={() => setPageOffset(pageOffset + pageSize)}>Pr?xima</button>
+        <span className="soft">Página {Math.floor(pageOffset / pageSize) + 1} de {Math.max(1, Math.ceil(meta.total / pageSize))}</span>
+        <button className="btn btn-sm" disabled={loading || pageOffset + pageSize >= meta.total} onClick={() => setPageOffset(pageOffset + pageSize)}>Próxima</button>
       </div>
       <div className="dailyops-mobile-list">
         {loading ? <LoadingBlock /> : filteredItems.length ? filteredItems.map((item) => {
