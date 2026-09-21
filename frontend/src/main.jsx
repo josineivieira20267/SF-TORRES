@@ -3356,7 +3356,11 @@ function Productivity() {
     api('/api/settings/productivityRules').then((payload) => setProductivityRules(mergeProductivityRules(payload.data))).catch((error) => triggerAction(error.message));
   }, []);
   const totals = report?.totals || { employees: 0, orders: 0, entries: 0, absences: 0, pending: 0, bonus: 0 };
-  const optionList = (key, selected) => ['Todos', ...new Set([...(report?.options?.[key] || []), ...(selected !== 'Todos' ? [selected] : [])])];
+  const optionList = (key, selected) => {
+    const values = [...(report?.options?.[key] || []), ...(selected !== 'Todos' ? [selected] : [])];
+    const optionKey = (value) => key === 'clients' ? normalizeLabel(value.replace(/[\u200B-\u200D\uFEFF]/g, '')) : value;
+    return ['Todos', ...new Map(values.map((value) => [optionKey(value), value])).values()];
+  };
   const employeeOptions = optionList('employees', filters.employee);
   const clientOptions = optionList('clients', filters.client);
   const serviceOptions = optionList('services', filters.service);

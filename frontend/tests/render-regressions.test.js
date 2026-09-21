@@ -26,6 +26,10 @@ function component(name, states = new Map()) {
     Pill: ({ value }) => React.createElement('span', null, value),
     DataTable: ({ rows }) => React.createElement('div', null, rows.flat().map((cell, i) => React.createElement('span', { key: i }, cell)))
   };
+  for (const name of ['normalize', 'normalizeLabel']) {
+    const helper = ast.program.body.find((node) => node.type === 'FunctionDeclaration' && node.id.name === name);
+    vm.runInNewContext(source.slice(helper.start, helper.end), sandbox);
+  }
   vm.runInNewContext(code, sandbox);
   return sandbox.module.exports;
 }

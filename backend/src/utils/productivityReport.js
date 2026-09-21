@@ -1,3 +1,4 @@
+const { clientLabel, clientKey } = require('./clientLabel');
 // Keep only employee aggregates and the requested detail page in memory.
 function createProductivityReport({ employees, absences, rules, query, helpers }) {
   const { normalize, specialBonusForEntry, rulesForAssignment, bonusDiscountFor } = helpers;
@@ -10,7 +11,7 @@ function createProductivityReport({ employees, absences, rules, query, helpers }
   const detailOffset = Math.max(0, Math.floor(Number(query.detailOffset) || 0));
   let entryCount = 0;
   let orderCount = 0;
-  const matches = (key, value) => !query[key] || query[key] === 'Todos' || query[key] === value;
+  const matches = (key, value) => !query[key] || query[key] === 'Todos' || (key === 'client' ? clientKey(query[key]) === clientKey(value) : query[key] === value);
   return {
     add(order) {
       if (order.client) options.clients.add(order.client);
@@ -68,7 +69,8 @@ function createProductivityReport({ employees, absences, rules, query, helpers }
       return {
         rows: rows.slice(offset, offset + limit), details,
         totals: { employees: rows.length, orders: orderCount, entries: entryCount, absences: totalAbsences, pending: 0, bonus: totalBonus },
-        options: Object.fromEntries(Object.entries(options).map(([key, values]) => [key, [...values].sort((a, b) => a.localeCompare(b))])),
+        options: Object.fromEntries(Object.entries(options).map(([key, values]) => [key,
+          (key === 'clients' ? [...new Map([...values].map((value) => [clientKey(value), clientLabel(value)])).values()] : [...values]).sort((a, b) => a.localeCompare(b))])),
         meta: { limit, offset, detailOffset }
       };
     }

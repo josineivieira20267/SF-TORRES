@@ -13,6 +13,7 @@ function dashboard(prisma = {}, database = false, db = {}) {
     if (name === '../db/jsonStore') return { readDb: async () => db };
     if (name === '../db/prisma') return { prisma, hasDatabaseUrl: database };
     if (name === '../utils/productivityReport') return { createProductivityReport };
+    if (name === '../utils/clientLabel') return require('../src/utils/clientLabel');
     throw new Error(name);
   } };
   vm.runInNewContext(fs.readFileSync(require.resolve('../src/routes/dashboard'), 'utf8') + '\nmodule.exports = { normalize, specialBonusForEntry, rulesForAssignment, bonusDiscountFor, mergeProductivityRules };', sandbox);
@@ -21,6 +22,16 @@ function dashboard(prisma = {}, database = false, db = {}) {
 
 const baseOrder = { date: '2026-09-01T10:00:00', client: 'OUTRO', teamMembers: ['Ana'], teamRoles: { Ana: ['Batedores'] } };
 const employees = [{ name: 'Ana', role: 'Batedor', team: 'Equipe' }];
+
+test('client variants share one option and include all matching orders without merging distinct clients', () => {
+  const { helpers, rules } = dashboard();
+  const report = createProductivityReport({ employees, absences: {}, rules, helpers, query: { client: 'SEMP TUCUNARÉ' } });
+  ['SEMP TUCUNARÉ ', 'semp  tucunare', 'SEMP\u00a0TUCUNARE\u0301', 'SEMP TUCUNARÉ\u200b', 'SEMP HINES'].forEach((client, i) => report.add({ ...baseOrder, id: String(i), client }));
+  const result = report.finish();
+  assert.equal(result.totals.orders, 4);
+  assert.equal(result.totals.bonus, 32);
+  assert.equal(result.options.clients.length, 2);
+});
 
 test('aggregates 720 orders while returning only the requested 50 details', () => {
   const { helpers, rules } = dashboard();

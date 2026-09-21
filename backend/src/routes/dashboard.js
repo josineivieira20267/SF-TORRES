@@ -3,6 +3,7 @@ const { requireAuth } = require('../middlewares/auth');
 const { readDb } = require('../db/jsonStore');
 const { prisma, hasDatabaseUrl } = require('../db/prisma');
 const { createProductivityReport } = require('../utils/productivityReport');
+const { clientKey } = require('../utils/clientLabel');
 
 const router = express.Router();
 
@@ -398,7 +399,7 @@ function buildProductivityExport({ workOrders, employees, attendanceRows, produc
     const text = normalize(`${entry.order.number} ${entry.order.client} ${entry.order.service} ${entry.order.date} ${entry.name} ${entry.label}`);
     const queryOk = !query.q || text.includes(normalize(query.q));
     const employeeOk = !query.employee || query.employee === 'Todos' || entry.name === query.employee;
-    const clientOk = !query.client || query.client === 'Todos' || entry.order.client === query.client;
+    const clientOk = !query.client || query.client === 'Todos' || clientKey(entry.order.client) === clientKey(query.client);
     const serviceOk = !query.service || query.service === 'Todos' || entry.order.service === query.service;
     const criterionOk = !query.criterion || query.criterion === 'Todos' || normalize(entry.label).includes(normalize(query.criterion));
     const statusOk = !query.status || query.status === 'Todos' || normalize(entry.status) === normalize(query.status);
