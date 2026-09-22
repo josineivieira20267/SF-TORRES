@@ -4002,7 +4002,7 @@ function DailyOps({ notify, editable = true }) {
         </div>
         <div className="pane">{selected && <><div className="pane-head"><div><div className="eyebrow">Ordem de Serviço</div><div className="mono-title">OS {selected.number} · {selected.client}</div></div><div className="meta"><Pill value={selected.status} /></div></div><div className="tabs">{['Dados', 'Equipe', 'Horários', 'Ocorrências'].map((tab) => <div key={tab} className={`tab ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>{tab}</div>)}</div><div className="pane-body">{detailContent().map(([k, v]) => <div className="field-row" key={k}><b>{k}</b><span>{displayValue(v)}</span></div>)}</div><div className="action-strip"><button className="btn" onClick={() => setModal(selected)}>Editar OS</button>{selected.correctionRequested && !selected.correctionApproved && <button className="btn btn-primary" onClick={releaseCorrection}>Liberar correção</button>}<button className="btn" onClick={() => generateComanda(selected)}>Gerar comanda</button><button className="btn btn-success" onClick={registerOccurrence}>Lançar ocorrência</button><button className="btn btn-danger push" onClick={remove}>Apagar</button></div></>}</div>
       </div>
-      {modal && <Editor title={modal.id ? 'Editar OS' : 'Nova OS'} fields={fields} initial={modal} className="operation-modal" onCancel={() => setModal(null)} onSave={save} />}
+      {modal && <Editor title={modal.id ? 'Editar OS' : 'Nova OS'} fields={fields} initial={modal} automaticOperationStatus className="operation-modal" onCancel={() => setModal(null)} onSave={save} />}
       {occurrenceModal && <Editor title={`Lançar ocorrência · OS ${occurrenceModal.number}`} fields={occurrenceFields} initial={{ workOrder: occurrenceModal.number, type: 'Operacional', status: 'Aberta' }} onCancel={() => setOccurrenceModal(null)} onSave={saveOccurrence} />}
       {comandaModal && <Editor title={`Modelo da comanda · OS ${comandaModal.number}`} fields={[['template', 'Modelo', 'select', ['CD TUCUNARE', 'HINES', 'TV/FABRICA'], null, true]]} initial={{ template: 'CD TUCUNARE' }} onCancel={() => setComandaModal(null)} onSave={saveComandaTemplate} />}
       {historyOpen && <div className="modal-backdrop"><div className="modal"><div className="modal-head"><h3>Histórico da operação</h3><button className="btn btn-sm" onClick={() => setHistoryOpen(false)}>Fechar</button></div><div className="modal-body"><DataTable columns={['OS', 'Cliente', 'Status', 'Data', 'Criado por']} rows={items.map((item) => [item.number, item.client, <Pill value={item.status} />, dateTime(item.date), item.createdBy || '-'])} /></div></div></div>}
@@ -4141,19 +4141,30 @@ function panelTitle(config, count) {
   return first === first.toLowerCase() ? `${count} ${config.panelTitle}` : config.panelTitle;
 }
 
-function Editor({ title, fields, initial, onCancel, onSave, uppercase = false, className = '' }) {
+function workOrderStatusFromDates(order) {
+  if (String(order.operationEnd || '').trim()) return 'Finalizado';
+  if (String(order.operationStart || '').trim()) return 'Em execucao';
+  return order.status;
+}
+
+function Editor({ title, fields, initial, onCancel, onSave, uppercase = false, className = '', automaticOperationStatus = false }) {
   const hasEmployeePicker = fields.some(([, , type]) => type === 'employees');
   const permissionField = fields.find(([, , type]) => type === 'permissions');
   const permissionEnvironment = permissionField?.[3]?.environment || currentEnvironment();
   const [form, setForm] = useState(() => ({
     ...Object.fromEntries(fields.map(([name, , type]) => [name, ['permissions', 'employees'].includes(type) ? (initial?.[name] || (type === 'permissions' ? defaultUserPermissionsForEnvironment(initial?.role, permissionEnvironment) : [])) : initial?.[name] ?? ''])),
-    ...(hasEmployeePicker ? { teamRoles: initial?.teamRoles || {} } : {})
+    ...(hasEmployeePicker ? { teamRoles: initial?.teamRoles || {} } : {}),
+    ...(automaticOperationStatus ? { status: workOrderStatusFromDates(initial || {}) || 'Programado' } : {})
   }));
   const [submitting, setSubmitting] = useState(false);
   const change = (name, value, type) => setForm((old) => {
     const shouldUppercase = uppercase && ['text', 'textarea'].includes(type || 'text');
     const formatted = type === 'number' ? Number(value || 0) : type === 'cpf' ? formatCpf(value) : type === 'personName' ? formatPersonNameInput(value) : (shouldUppercase || type === 'uppercaseText') ? String(value || '').toUpperCase() : value;
     const next = { ...old, [name]: formatted };
+    if (automaticOperationStatus) {
+      if (['operationStart', 'operationEnd'].includes(name) && !next.operationStart && !next.operationEnd) next.status = 'Programado';
+      next.status = workOrderStatusFromDates(next);
+    }
     if (name === 'equipment') {
       if (!normalize(value).includes('container')) next.containerNumber = '';
       if (!isPlateEquipment(value)) next.trailerPlate = '';
@@ -4192,7 +4203,7 @@ function Editor({ title, fields, initial, onCancel, onSave, uppercase = false, c
               const employeeSource = typeof options === 'function' ? options(form) : (typeof options?.roles === 'function' ? { ...options, roles: options.roles(form) } : options);
               return <EmployeePicker key={name} label={`${label}${isRequired(required) ? ' *' : ''}`} source={employeeSource} value={form[name]} rolesValue={form.teamRoles || {}} onChange={(value) => change(name, value, type)} onRolesChange={(value) => change('teamRoles', value)} />;
             }
-            return <div className="form-field" key={name}><label>{label}{isRequired(required) ? ' *' : ''}</label>{type === 'select' ? <select value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)}>{options.map((o) => <option key={o || '-'} value={o}>{o || '-'}</option>)}</select> : type === 'textarea' ? <textarea value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)} /> : <input type={['cpf', 'personName', 'uppercaseText'].includes(type) ? 'text' : type} value={form[name]} required={isRequired(required)} maxLength={type === 'cpf' ? 14 : undefined} onFocus={(e) => type === 'number' && String(form[name]) === '0' && e.target.select()} onChange={(e) => change(name, e.target.value, type)} />}</div>;
+            return <div className="form-field" key={name}><label>{label}{isRequired(required) ? ' *' : ''}</label>{type === 'select' ? <select value={form[name]} disabled={automaticOperationStatus && name === 'status' && Boolean(form.operationStart || form.operationEnd)} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)}>{options.map((o) => <option key={o || '-'} value={o}>{o || '-'}</option>)}</select> : type === 'textarea' ? <textarea value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)} /> : <input type={['cpf', 'personName', 'uppercaseText'].includes(type) ? 'text' : type} value={form[name]} required={isRequired(required)} maxLength={type === 'cpf' ? 14 : undefined} onFocus={(e) => type === 'number' && String(form[name]) === '0' && e.target.select()} onChange={(e) => change(name, e.target.value, type)} />}</div>;
           })}</div>
           <div className="modal-actions"><button type="button" className="btn" onClick={onCancel} disabled={submitting}>Cancelar</button><button className="btn btn-primary" disabled={submitting}>{submitting ? <LoadingSpinner small /> : 'Salvar'}</button></div>
         </form>

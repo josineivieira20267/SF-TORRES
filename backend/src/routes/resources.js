@@ -164,6 +164,12 @@ function validateWorkOrderContainer(data) {
   }
 }
 
+function workOrderStatusFromDates(order) {
+  if (String(order.operationEnd || '').trim()) return 'Finalizado';
+  if (String(order.operationStart || '').trim()) return 'Em execucao';
+  return order.status;
+}
+
 async function ensureUniqueWorkOrderByClient(data, req) {
   const { readDb } = require('../db/jsonStore');
   let candidate = data;
@@ -179,6 +185,10 @@ async function ensureUniqueWorkOrderByClient(data, req) {
     }
   }
 
+  const datesChanged = Object.hasOwn(data, 'operationStart') || Object.hasOwn(data, 'operationEnd');
+  if (datesChanged && !candidate.operationStart && !candidate.operationEnd && !Object.hasOwn(data, 'status')) candidate.status = 'Programado';
+  const status = workOrderStatusFromDates(candidate);
+  if (status !== undefined) data = { ...data, status };
   validateWorkOrderContainer(candidate);
 
   const number = normalizedUniqueValue(candidate.number);
