@@ -136,6 +136,7 @@ function isOpenQueueStatus(status) {
 }
 
 const defaultProductivityRules = {
+  absencePercentages: { 1: 75, 2: 50, 3: 25, 4: 0 },
   standard: [
     { key: 'pa', name: 'Equipe PA', base: 150, mode: 'monthly', match: 'equipe pa, pa' },
     { key: 'batedores', name: 'Batedores', base: 8, mode: 'per-os', match: 'batedor, batedores, conferente' },
@@ -171,6 +172,7 @@ function mergeProductivityRules(value) {
   });
   return {
     standard: mergedStandard,
+    absencePercentages: { ...defaultProductivityRules.absencePercentages, ...(saved.absencePercentages || {}) },
     michelin: { ...defaultProductivityRules.michelin, ...(saved.michelin || {}) },
     daikin: { ...defaultProductivityRules.daikin, ...(saved.daikin || {}) }
   };
@@ -213,19 +215,24 @@ function bonusCriterionFor(employee, rules = defaultProductivityRules) {
   return standard.find((rule) => readRuleMatches(rule).some((item) => role.includes(normalize(item)))) || { key: 'none', name: 'Sem criterio', base: 0, mode: 'per-os', match: '' };
 }
 
-function bonusDiscountFor(absences) {
-  return absences <= 0 ? 1 : absences === 1 ? 0.75 : absences === 2 ? 0.5 : absences === 3 ? 0.25 : 0;
+function bonusDiscountFor(absences, rules = defaultProductivityRules) {
+  if (absences <= 0) return 1;
+  const tier = Math.min(4, Math.floor(absences));
+  const value = rules.absencePercentages?.[tier];
+  const percent = typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100
+    ? value : defaultProductivityRules.absencePercentages[tier];
+  return percent / 100;
 }
 
-function bonusAmountFor(summary) {
-  const factor = bonusDiscountFor(summary.absences);
+function bonusAmountFor(summary, rules = defaultProductivityRules) {
+  const factor = bonusDiscountFor(summary.absences, rules);
   const paidUnits = summary.criterion.mode === 'monthly' ? (summary.present > 0 ? 1 : 0) : summary.present;
   return summary.criterion.base * factor * paidUnits;
 }
 
-function productivityTotalFor(summary) {
+function productivityTotalFor(summary, rules = defaultProductivityRules) {
   const standardPresent = Number.isFinite(summary.standardPresent) ? summary.standardPresent : summary.present;
-  return Number(summary.customBonus || 0) + bonusAmountFor({ ...summary, present: standardPresent });
+  return Number(summary.customBonus || 0) + bonusAmountFor({ ...summary, present: standardPresent }, rules);
 }
 
 function timeMinutes(value) {
@@ -3364,7 +3371,7 @@ function Productivity() {
   const employeeOptions = optionList('employees', filters.employee);
   const clientOptions = optionList('clients', filters.client);
   const serviceOptions = optionList('services', filters.service);
-  const ruleRow = (rule) => [rule.name, money(rule.base), money(rule.base * 0.75), money(rule.base * 0.5), money(rule.base * 0.25), money(0)];
+  const ruleRow = (rule) => [rule.name, money(rule.base), ...[1, 2, 3, 4].map((count) => money(rule.base * bonusDiscountFor(count, productivityRules)))];
   const productivityRows = (report?.rows || []).map((item) => [item.name, item.role, item.team, item.criterion, item.os, item.present, item.absences, money(item.adjustedValue), `${Math.round(item.factor * 100)}%`, money(item.total)]);
   const osRows = (report?.details || []).map((item) => [item.number, dateTime(item.date), item.client, item.name, item.team, item.criterion, <Pill value={item.status} />, money(item.payable)]);
   const pagination = (offset, total, onChange) => <div className="table-tools">
@@ -3429,7 +3436,13 @@ function BonusCriteria({ notify, editable = true }) {
   const updateDaikin = (patch) => setForm((old) => ({ ...old, daikin: { ...old.daikin, ...patch } }));
   const save = async () => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
-    await withBusy(() => api('/api/settings/productivityRules', { method: 'PUT', body: JSON.stringify(form) }));
+    if (loading) return notify('Aguarde o carregamento dos critérios');
+    if ([1, 2, 3, 4].some((tier) => {
+      const value = form.absencePercentages[tier];
+      return value === '' || !Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) > 100;
+    })) return notify('Informe percentuais entre 0 e 100 para todas as faixas de faltas');
+    const payload = { ...form, absencePercentages: Object.fromEntries([1, 2, 3, 4].map((tier) => [tier, Number(form.absencePercentages[tier])])) };
+    await withBusy(() => api('/api/settings/productivityRules', { method: 'PUT', body: JSON.stringify(payload) }));
     notify('Critérios de bonificação salvos');
   };
   const standardRows = (form.standard || []).map((rule, index) => [
@@ -3438,7 +3451,7 @@ function BonusCriteria({ notify, editable = true }) {
     <select value={rule.mode} onChange={(event) => updateRule(index, { mode: event.target.value })}><option value="monthly">Mensal</option><option value="per-os">Por OS</option></select>,
     <input value={rule.match} onChange={(event) => updateRule(index, { match: event.target.value })} />
   ]);
-  return <><PageHead title="Critérios de Bonificação" subtitle="Cadastro dos valores usados no cálculo de produtividade." action="Salvar critérios" onAction={save} /><Panel title="Critérios padrão" padded><DataTable columns={['Critério', 'Valor integral', 'Tipo', 'Palavras-chave de equipe/função']} rows={loading ? [] : standardRows} loading={loading} /></Panel><Panel title="Regra MICHELIN" padded><div className="form-grid"><SwitchField label="Ativar regra MICHELIN" text="Usar valores por faixa e veículo" checked={form.michelin.enabled} onChange={(value) => updateMichelin({ enabled: value })} /><SwitchField label="Somente segunda a sexta" text="Ignorar sábados e domingos" checked={form.michelin.weekdayOnly} onChange={(value) => updateMichelin({ weekdayOnly: value })} /><Field label="Cliente" value={form.michelin.client} onChange={(value) => updateMichelin({ client: value })} /><Field label="Início faixa 1" type="time" value={form.michelin.commercialStart} onChange={(value) => updateMichelin({ commercialStart: value })} /><Field label="Fim faixa 1" type="time" value={form.michelin.commercialEnd} onChange={(value) => updateMichelin({ commercialEnd: value })} /><Field label="Container/Carreta faixa 1" type="number" value={form.michelin.commercialContainer} onChange={(value) => updateMichelin({ commercialContainer: Number(value || 0) })} /><Field label="Caminhão faixa 1" type="number" value={form.michelin.commercialTruck} onChange={(value) => updateMichelin({ commercialTruck: Number(value || 0) })} /><Field label="Início faixa 2" type="time" value={form.michelin.afterStart} onChange={(value) => updateMichelin({ afterStart: value })} /><Field label="Fim faixa 2" type="time" value={form.michelin.afterEnd} onChange={(value) => updateMichelin({ afterEnd: value })} /><Field label="Container/Carreta faixa 2" type="number" value={form.michelin.afterContainer} onChange={(value) => updateMichelin({ afterContainer: Number(value || 0) })} /><Field label="Caminhão faixa 2" type="number" value={form.michelin.afterTruck} onChange={(value) => updateMichelin({ afterTruck: Number(value || 0) })} /></div></Panel><Panel title="Regra DAIKIN" padded><div className="form-grid"><SwitchField label="Ativar regra DAIKIN" text="Dividir valor fixo entre os integrantes da OS" checked={form.daikin.enabled} onChange={(value) => updateDaikin({ enabled: value })} /><Field label="Cliente" value={form.daikin.client} onChange={(value) => updateDaikin({ client: value })} /><Field label="Valor por OS" type="number" value={form.daikin.value} onChange={(value) => updateDaikin({ value: Number(value || 0) })} /></div></Panel></>;
+  return <><PageHead title="Critérios de Bonificação" subtitle="Cadastro dos valores usados no cálculo de produtividade." action="Salvar critérios" onAction={save} /><Panel title="Critérios padrão" padded><DataTable columns={['Critério', 'Valor integral', 'Tipo', 'Palavras-chave de equipe/função']} rows={loading ? [] : standardRows} loading={loading} /></Panel><Panel title="Percentual recebido por faltas" padded><p className="soft">Defina quanto do valor integral será pago em cada faixa, de 0% a 100%. Sem faltas, o pagamento é de 100%. Aplica-se aos critérios padrão; MICHELIN e DAIKIN seguem suas regras próprias. Ao salvar, os relatórios consultados passam a usar estes percentuais, inclusive em períodos anteriores.</p><div className="form-grid">{[1, 2, 3, 4].map((tier) => <div className="form-field" key={tier}><label htmlFor={`absence-percent-${tier}`}>{tier === 4 ? '4 ou mais faltas' : `${tier} ${tier === 1 ? 'falta' : 'faltas'}`} - recebido (%)</label><input id={`absence-percent-${tier}`} type="number" min="0" max="100" step="0.01" disabled={loading || !editable} value={form.absencePercentages[tier]} onChange={(event) => { const value = event.target.value; setForm((old) => ({ ...old, absencePercentages: { ...old.absencePercentages, [tier]: value } })); }} /></div>)}</div></Panel><Panel title="Regra MICHELIN" padded><div className="form-grid"><SwitchField label="Ativar regra MICHELIN" text="Usar valores por faixa e veículo" checked={form.michelin.enabled} onChange={(value) => updateMichelin({ enabled: value })} /><SwitchField label="Somente segunda a sexta" text="Ignorar sábados e domingos" checked={form.michelin.weekdayOnly} onChange={(value) => updateMichelin({ weekdayOnly: value })} /><Field label="Cliente" value={form.michelin.client} onChange={(value) => updateMichelin({ client: value })} /><Field label="Início faixa 1" type="time" value={form.michelin.commercialStart} onChange={(value) => updateMichelin({ commercialStart: value })} /><Field label="Fim faixa 1" type="time" value={form.michelin.commercialEnd} onChange={(value) => updateMichelin({ commercialEnd: value })} /><Field label="Container/Carreta faixa 1" type="number" value={form.michelin.commercialContainer} onChange={(value) => updateMichelin({ commercialContainer: Number(value || 0) })} /><Field label="Caminhão faixa 1" type="number" value={form.michelin.commercialTruck} onChange={(value) => updateMichelin({ commercialTruck: Number(value || 0) })} /><Field label="Início faixa 2" type="time" value={form.michelin.afterStart} onChange={(value) => updateMichelin({ afterStart: value })} /><Field label="Fim faixa 2" type="time" value={form.michelin.afterEnd} onChange={(value) => updateMichelin({ afterEnd: value })} /><Field label="Container/Carreta faixa 2" type="number" value={form.michelin.afterContainer} onChange={(value) => updateMichelin({ afterContainer: Number(value || 0) })} /><Field label="Caminhão faixa 2" type="number" value={form.michelin.afterTruck} onChange={(value) => updateMichelin({ afterTruck: Number(value || 0) })} /></div></Panel><Panel title="Regra DAIKIN" padded><div className="form-grid"><SwitchField label="Ativar regra DAIKIN" text="Dividir valor fixo entre os integrantes da OS" checked={form.daikin.enabled} onChange={(value) => updateDaikin({ enabled: value })} /><Field label="Cliente" value={form.daikin.client} onChange={(value) => updateDaikin({ client: value })} /><Field label="Valor por OS" type="number" value={form.daikin.value} onChange={(value) => updateDaikin({ value: Number(value || 0) })} /></div></Panel></>;
 }
 
 function Reports() {

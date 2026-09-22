@@ -23,6 +23,34 @@ function dashboard(prisma = {}, database = false, db = {}) {
 const baseOrder = { date: '2026-09-01T10:00:00', client: 'OUTRO', teamMembers: ['Ana'], teamRoles: { Ana: ['Batedores'] } };
 const employees = [{ name: 'Ana', role: 'Batedor', team: 'Equipe' }];
 
+test('saved percentages apply to monthly bonuses and OS details with four or more absences', () => {
+  const { helpers } = dashboard();
+  const rules = helpers.mergeProductivityRules({ absencePercentages: { 1: 90, 2: 65, 3: 40, 4: 20 } });
+  for (const count of [4, 5, 10]) {
+    const report = createProductivityReport({ employees, absences: { ana: count }, rules, helpers, query: { details: 'true' } });
+    report.add({ ...baseOrder, id: '1', teamRoles: { Ana: ['Equipe PA', 'Batedores'] } });
+    report.add({ ...baseOrder, id: '2', client: 'DAIKIN' });
+    const result = report.finish();
+    assert.equal(result.rows[0].factor, 0.2);
+    assert.equal(result.totals.bonus, 30 + 1.6 + 12);
+    assert.equal(result.details.find((item) => item.criterion === 'Batedores').payable, 1.6);
+    assert.equal(result.details.find((item) => item.criterion === 'DAIKIN').payable, 12);
+  }
+  assert.equal(helpers.bonusDiscountFor(1, rules), 0.9);
+  assert.equal(helpers.bonusDiscountFor(2, rules), 0.65);
+  assert.equal(helpers.bonusDiscountFor(3, rules), 0.4);
+  assert.equal(helpers.bonusDiscountFor(0, rules), 1);
+});
+
+test('legacy settings preserve defaults and explicit zero percentages', () => {
+  const { helpers } = dashboard();
+  const legacy = helpers.mergeProductivityRules({});
+  assert.deepEqual([0, 1, 2, 3, 4, 8].map((n) => helpers.bonusDiscountFor(n, legacy)), [1, 0.75, 0.5, 0.25, 0, 0]);
+  const custom = helpers.mergeProductivityRules({ absencePercentages: { 1: 0, 4: 100 } });
+  assert.equal(helpers.bonusDiscountFor(1, custom), 0);
+  assert.equal(helpers.bonusDiscountFor(4, custom), 1);
+});
+
 test('client variants share one option and include all matching orders without merging distinct clients', () => {
   const { helpers, rules } = dashboard();
   const report = createProductivityReport({ employees, absences: {}, rules, helpers, query: { client: 'SEMP TUCUNARÉ' } });

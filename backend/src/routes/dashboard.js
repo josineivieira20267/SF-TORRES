@@ -10,6 +10,7 @@ const router = express.Router();
 router.use(requireAuth);
 
 const defaultProductivityRules = {
+  absencePercentages: { 1: 75, 2: 50, 3: 25, 4: 0 },
   standard: [
     { key: 'pa', name: 'Equipe PA', base: 150, mode: 'monthly', match: 'equipe pa, pa' },
     { key: 'batedores', name: 'Batedores', base: 8, mode: 'per-os', match: 'batedor, batedores, conferente' },
@@ -45,6 +46,7 @@ function mergeProductivityRules(value) {
   });
   return {
     standard: mergedStandard,
+    absencePercentages: { ...defaultProductivityRules.absencePercentages, ...(saved.absencePercentages || {}) },
     michelin: { ...defaultProductivityRules.michelin, ...(saved.michelin || {}) },
     daikin: { ...defaultProductivityRules.daikin, ...(saved.daikin || {}) }
   };
@@ -124,19 +126,24 @@ function bonusCriterionFor(employee, rules = defaultProductivityRules) {
   return standard.find((rule) => readRuleMatches(rule).some((item) => role.includes(normalize(item)))) || { key: 'none', name: 'Sem criterio', base: 0, mode: 'per-os', match: '' };
 }
 
-function bonusDiscountFor(absences) {
-  return absences <= 0 ? 1 : absences === 1 ? 0.75 : absences === 2 ? 0.5 : absences === 3 ? 0.25 : 0;
+function bonusDiscountFor(absences, rules = defaultProductivityRules) {
+  if (absences <= 0) return 1;
+  const tier = Math.min(4, Math.floor(absences));
+  const value = rules.absencePercentages?.[tier];
+  const percent = typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100
+    ? value : defaultProductivityRules.absencePercentages[tier];
+  return percent / 100;
 }
 
-function bonusAmountFor(summary) {
-  const factor = bonusDiscountFor(summary.absences);
+function bonusAmountFor(summary, rules = defaultProductivityRules) {
+  const factor = bonusDiscountFor(summary.absences, rules);
   const paidUnits = summary.criterion.mode === 'monthly' ? (summary.present > 0 ? 1 : 0) : summary.present;
   return summary.criterion.base * factor * paidUnits;
 }
 
-function productivityTotalFor(summary) {
+function productivityTotalFor(summary, rules = defaultProductivityRules) {
   const standardPresent = Number.isFinite(summary.standardPresent) ? summary.standardPresent : summary.present;
-  return Number(summary.customBonus || 0) + bonusAmountFor({ ...summary, present: standardPresent });
+  return Number(summary.customBonus || 0) + bonusAmountFor({ ...summary, present: standardPresent }, rules);
 }
 
 function displayDate(value) {
@@ -369,7 +376,7 @@ function buildProductivityExport({ workOrders, employees, attendanceRows, produc
         const absences = callsByName[normalize(name)]?.absences || 0;
         const payable = normalize(status) === 'falta' || normalize(status) === 'pendente' || criterion.mode === 'monthly'
           ? 0
-          : Number(special?.share ?? (Number(criterion.base || 0) * bonusDiscountFor(absences)));
+          : Number(special?.share ?? (Number(criterion.base || 0) * bonusDiscountFor(absences, productivityRules)));
         const label = special?.name || criterion.name;
         return {
           order,
@@ -459,7 +466,7 @@ function buildSummary({ workOrders, employees, occurrences, measurements, active
     }
     return acc;
   }, {})).map((item) => {
-    const factor = bonusDiscountFor(item.absences);
+    const factor = bonusDiscountFor(item.absences, productivityRules);
     const monthlyBonus = item.criteria.has('Equipe PA') && item.present > 0 ? Number((productivityRules.standard || []).find((rule) => rule.name === 'Equipe PA')?.base || 0) * factor : 0;
     return { ...item, os: item.osSet.size, criterion: { ...item.criterion, name: Array.from(item.criteria).join(' + ') }, factor, bonus: item.customBonus + (item.standardBonus * factor) + monthlyBonus };
   }).sort((a, b) => b.bonus - a.bonus || b.present - a.present);

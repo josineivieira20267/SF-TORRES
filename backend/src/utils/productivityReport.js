@@ -47,7 +47,7 @@ function createProductivityReport({ employees, absences, rules, query, helpers }
           if (!special && criterion.mode !== 'monthly') summary.standardBonus += Number(criterion.base || 0);
           if (query.details === 'true' && entryCount >= detailOffset && details.length < limit) {
             details.push({ number: order.number, date: order.date, client: order.client, name, team: employee.team || '-', criterion: criterion.name, status,
-              payable: criterion.mode === 'monthly' ? 0 : (special?.share ?? Number(criterion.base || 0) * bonusDiscountFor(summary.absences)) });
+              payable: criterion.mode === 'monthly' ? 0 : (special?.share ?? Number(criterion.base || 0) * bonusDiscountFor(summary.absences, rules)) });
           }
           entryCount += 1;
         }
@@ -58,7 +58,7 @@ function createProductivityReport({ employees, absences, rules, query, helpers }
       let totalBonus = 0;
       let totalAbsences = 0;
       const rows = [...summaries.values()].map((item) => {
-        const factor = bonusDiscountFor(item.absences);
+        const factor = bonusDiscountFor(item.absences, rules);
         const adjustedValue = item.standardBonus * factor;
         const monthly = item.criteria.has('Equipe PA') && item.present > 0 ? Number(rules.standard.find((rule) => rule.name === 'Equipe PA')?.base || 0) * factor : 0;
         const total = item.customBonus + adjustedValue + monthly;

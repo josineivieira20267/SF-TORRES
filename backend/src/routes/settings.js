@@ -36,6 +36,14 @@ router.get('/:key', async (req, res, next) => {
 router.put('/:key', async (req, res, next) => {
   try {
     const key = scopedKey(req.params.key, req.query.environment || req.user?.environment);
+    if (key === 'productivityRules' && req.body?.absencePercentages !== undefined) {
+      const percentages = req.body.absencePercentages;
+      if (!percentages || typeof percentages !== 'object' || Array.isArray(percentages)
+        || [1, 2, 3, 4].some((tier) => typeof percentages[tier] !== 'number'
+          || !Number.isFinite(percentages[tier]) || percentages[tier] < 0 || percentages[tier] > 100)) {
+        return res.status(400).json({ error: 'Informe percentuais entre 0 e 100 para todas as faixas de faltas' });
+      }
+    }
     if (hasDatabaseUrl) {
       const setting = await prisma.setting.upsert({
         where: { key },
