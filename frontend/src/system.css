@@ -31,6 +31,8 @@
 .map-centered{outline:3px solid var(--c-primary);outline-offset:-3px}
 .settings-jump{margin-bottom:14px}
 .panel + .panel{margin-top:12px}
+.dashboard-showcase > .panel,
+.dashboard-rank-grid > .panel{margin-top:0}
 .logo-upload{background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:var(--radius-sm);padding:10px;display:flex;gap:12px;align-items:center}
 .logo-preview{background:#FFFFFF;border:1px solid var(--c-border);padding:6px 10px;border-radius:var(--radius-sm);display:grid;place-items:center;min-width:68px}
 .logo-preview img{max-width:120px;max-height:56px;object-fit:contain}
