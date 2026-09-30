@@ -10,14 +10,21 @@ import { transformSync } from 'esbuild';
 const source = fs.readFileSync(new URL('../src/main.jsx', import.meta.url), 'utf8');
 const ast = parse(source, { sourceType: 'module', plugins: ['jsx'] });
 
-test('Michelin picker offers extra roles only to the marked collaborator', () => {
+test('Michelin picker separates regular members and extras with independent searches', () => {
   const html = renderToStaticMarkup(React.createElement(component('EmployeePicker'), {
     label: 'Equipe', source: { roles: [], extraRoles: [{ name: 'Bipador' }, { name: 'Apoio' }] },
     value: ['Ana', 'Bia'], extrasValue: ['Bia'], rolesValue: { Bia: ['Apoio'] }
   }));
-  assert.equal((html.match(/Extra — produtividade normal/g) || []).length, 2);
+  assert.doesNotMatch(html, /Extra — produtividade normal/);
+  assert.match(html, /Adicionar extra/);
+  assert.match(html, /Pesquisar colaborador extra pelo nome/);
+  assert.match(html, /Pesquisar colaborador pelo nome/);
   assert.equal((html.match(/Regra especial aplicada automaticamente/g) || []).length, 1);
-  assert.equal((html.match(/Fora do rateio Michelin/g) || []).length, 1);
+  const [regular, extras] = html.split('Adicionar extra');
+  assert.match(regular, /Ana/);
+  assert.doesNotMatch(regular, /Bia|Bipador|Apoio/);
+  assert.match(extras, /Bia/);
+  assert.doesNotMatch(extras, /Ana|Regra especial aplicada automaticamente/);
   assert.match(html, /checked=""\/> Apoio/);
 });
 

@@ -4250,7 +4250,7 @@ function PermissionMatrix({ label, value = {}, environment = currentEnvironment(
   );
 }
 
-function EmployeePicker({ label, source, value = [], rolesValue = {}, extrasValue = [], onChange, onRolesChange, onExtrasChange }) {
+function EmployeePicker({ label, source, value = [], rolesValue = {}, extrasValue = [], excludedValue = [], extra = false, onChange, onRolesChange, onExtrasChange }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -4289,7 +4289,7 @@ function EmployeePicker({ label, source, value = [], rolesValue = {}, extrasValu
       window.clearTimeout(timer);
     };
   }, [query, endpoint, source]);
-  const visibleOptions = results.map((item) => item.name).filter(Boolean).filter((name) => !selected.includes(name)).slice(0, 8);
+  const visibleOptions = results.map((item) => item.name).filter(Boolean).filter((name) => !selected.includes(name) && !excludedValue.includes(name)).slice(0, 8);
   const toggle = (name) => {
     if (!selected.includes(name)) return onChange([...selected, name]);
     onChange(selected.filter((item) => item !== name));
@@ -4307,26 +4307,36 @@ function EmployeePicker({ label, source, value = [], rolesValue = {}, extrasValu
     const next = current.includes(role) ? current.filter((item) => item !== role) : [...current, role];
     onRolesChange?.({ ...(rolesValue || {}), [name]: next });
   };
+  if (extraRoleOptions.length) {
+    const regularMembers = selected.filter((name) => !extrasValue.includes(name));
+    const extraMembers = selected.filter((name) => extrasValue.includes(name));
+    return <>
+      <EmployeePicker label={label} source={{ ...source, extraRoles: [] }} value={regularMembers}
+        excludedValue={extraMembers} rolesValue={rolesValue} onRolesChange={onRolesChange}
+        onChange={(members) => onChange([...members, ...extraMembers])} />
+      <EmployeePicker label="Adicionar extra" source={{ ...source, roles: source.extraRoles, extraRoles: [] }}
+        value={extraMembers} excludedValue={regularMembers} rolesValue={rolesValue} extra
+        onRolesChange={onRolesChange} onChange={(members) => {
+          onChange([...regularMembers, ...members]);
+          onExtrasChange?.(members);
+        }} />
+    </>;
+  }
   return (
     <div className="permissions-grid full">
       <div className="permissions-head">{label}</div>
       <div className="employee-search-picker">
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Pesquisar colaborador pelo nome..." />
+        {extra && <span className="soft">Os extras recebem pela função escolhida e ficam fora do rateio Michelin.</span>}
+        <input aria-label={extra ? 'Pesquisar colaborador extra' : 'Pesquisar integrante da equipe'} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={extra ? 'Pesquisar colaborador extra pelo nome...' : 'Pesquisar colaborador pelo nome...'} />
         <div className="employee-selected employee-selected-list">
           {selected.map((name) => {
-            const isExtra = extraRoleOptions.length > 0 && extrasValue.includes(name);
-            const availableRoles = isExtra ? extraRoleOptions : roleOptions;
+            const availableRoles = roleOptions;
             return <div className="employee-assignment" key={name}>
               <div><b>{name}</b><button type="button" className="selected-chip" onClick={() => toggle(name)}>Remover</button></div>
-              {extraRoleOptions.length > 0 && <label className="role-checks"><input type="checkbox" checked={isExtra} onChange={(event) => {
-                onExtrasChange?.(event.target.checked ? [...extrasValue, name] : extrasValue.filter((item) => item !== name));
-                onRolesChange?.({ ...rolesValue, [name]: [] });
-              }} /> Extra — produtividade normal</label>}
-              {isExtra && <span className="soft">Fora do rateio Michelin. Selecione a função para aplicar o valor padrão.</span>}
               {availableRoles.length ? <div className="role-checks">{availableRoles.map((role) => <label key={role}><input type="checkbox" checked={(rolesValue?.[name] || []).includes(role)} onChange={() => toggleRole(name, role)} /> {role}</label>)}</div> : <span className="soft">Regra especial aplicada automaticamente para esta OS.</span>}
             </div>;
           })}
-          {!selected.length && <span className="soft">Nenhum integrante selecionado.</span>}
+          {!selected.length && <span className="soft">{extra ? 'Nenhum extra adicionado.' : 'Nenhum integrante selecionado.'}</span>}
         </div>
         <div className="employee-results">
           {visibleOptions.map((name) => <button type="button" key={name} onClick={() => add(name)}>{name}</button>)}
