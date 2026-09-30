@@ -202,6 +202,14 @@ function isSpecialBonusOrder(order, rules = defaultProductivityRules) {
   return isMichelinOrder(order, rules) || isDaikinOrder(order, rules);
 }
 
+function teamAssignmentForSave(order, rules) {
+  const members = Array.isArray(order.teamMembers) ? order.teamMembers : [];
+  const teamExtras = isMichelinOrder(order, rules) ? (order.teamExtras || []).filter((name) => members.includes(name)) : [];
+  const teamRoles = Object.fromEntries(Object.entries(order.teamRoles || {}).filter(([name]) =>
+    members.includes(name) && (!isSpecialBonusOrder(order, rules) || teamExtras.includes(name))));
+  return { teamRoles, teamExtras };
+}
+
 function workOrderIdentity(order = {}) {
   return order.id || `${normalizeLabel(order.client)}:${normalizeLabel(order.number)}`;
 }
@@ -268,7 +276,7 @@ function michelinShareForEntry(order, name, employeeByName, rules = defaultProdu
     ? (isTruck ? Number(config.commercialTruck) : Number(config.commercialContainer))
     : (isTruck ? Number(config.afterTruck) : Number(config.afterContainer));
   const members = Array.isArray(order.teamMembers) ? order.teamMembers : Object.keys(order.attendance || {});
-  const payableMembers = members;
+  const payableMembers = members.filter((member) => !order.teamExtras?.includes(member));
   if (!payableMembers.includes(name) || !payableMembers.length) return 0;
   return total / payableMembers.length;
 }
@@ -282,6 +290,7 @@ function daikinShareForEntry(order, name, employeeByName, rules = defaultProduct
 }
 
 function specialBonusForEntry(order, name, employeeByName, rules = defaultProductivityRules) {
+  if (isMichelinOrder(order, rules) && order.teamExtras?.includes(name)) return null;
   const michelinShare = michelinShareForEntry(order, name, employeeByName, rules);
   if (michelinShare !== null) return { key: 'michelin', name: 'MICHELIN', share: michelinShare };
   if (isMichelinOrder(order, rules)) return { key: 'michelin', name: 'MICHELIN', share: 0 };
@@ -2817,8 +2826,8 @@ function Schedules({ notify, editable = true }) {
     const after = Array.isArray(data.teamMembers) ? data.teamMembers : [];
     const changedTeam = before.length !== after.length || before.some((name) => !after.includes(name)) || after.some((name) => !before.includes(name));
     if (changedTeam && absenceCount(operationModal) > 0 && !String(data.teamNote || '').trim()) return notify('Informe a observacao/justificativa para alterar integrantes da equipe');
-    const teamRoles = isSpecialBonusOrder(operationModal, productivityRules) ? {} : Object.fromEntries(Object.entries(data.teamRoles || {}).filter(([name]) => after.includes(name)));
-    return updateOrder(operationModal, { ...data, teamRoles, location: '', correctionRequested: false, correctionApproved: false }, 'Dados operacionais atualizados');
+    const { teamRoles, teamExtras } = teamAssignmentForSave({ ...operationModal, ...data }, productivityRules);
+    return updateOrder(operationModal, { ...data, teamRoles, teamExtras, location: '', correctionRequested: false, correctionApproved: false }, 'Dados operacionais atualizados');
   };
   const leaderActions = (item) => {
     if (!editable) return <span className="soft">Somente leitura</span>;
@@ -2908,7 +2917,7 @@ function Schedules({ notify, editable = true }) {
       </div>
       <LeaderBottomNav active="schedules" />
       <div className="schedule-table-panel"><Panel title="OS direcionadas ao lider" actions={<Pill value={user.name || user.email || 'usuario'} />}><DataTable columns={['OS', 'Cliente', 'Servico', 'Produto', 'Integrantes', 'Data programada', 'Status', 'Inicio', 'Fim', 'Acao']} rows={rows} loading={loading} /></Panel></div>
-      {operationModal && <Editor title="Editar operacao da OS" uppercase className="operation-modal" fields={[['carrier', 'Transportador', 'text', null, null, true], ['product', 'Produto', 'text', null, null, true], ['equipment', 'Equipamento', 'select', equipmentOptions, null, true], ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')], ['trailerPlate', 'Placa', 'text', null, (form) => isPlateEquipment(form.equipment)], ['teamMembers', 'Incluir integrantes da equipe', 'employees', { endpoint: '/api/employees', roles: isSpecialBonusOrder(operationModal, productivityRules) ? [] : productivityRules.standard }], ['teamNote', 'Observacao obrigatoria ao alterar equipe', 'textarea', null, () => absenceCount(operationModal) > 0], ['progress', 'Percentual', 'number', null, null, true]]} initial={operationModal} onCancel={() => setOperationModal(null)} onSave={saveOperationEdit} />}
+      {operationModal && <Editor title="Editar operacao da OS" uppercase className="operation-modal" fields={[['carrier', 'Transportador', 'text', null, null, true], ['product', 'Produto', 'text', null, null, true], ['equipment', 'Equipamento', 'select', equipmentOptions, null, true], ['containerNumber', 'Número do container', 'text', null, (form) => normalize(form.equipment).includes('container')], ['trailerPlate', 'Placa', 'text', null, (form) => isPlateEquipment(form.equipment)], ['teamMembers', 'Incluir integrantes da equipe', 'employees', { endpoint: '/api/employees', roles: isSpecialBonusOrder(operationModal, productivityRules) ? [] : productivityRules.standard, extraRoles: isMichelinOrder(operationModal, productivityRules) ? productivityRules.standard : [] }], ['teamNote', 'Observacao obrigatoria ao alterar equipe', 'textarea', null, () => absenceCount(operationModal) > 0], ['progress', 'Percentual', 'number', null, null, true]]} initial={operationModal} onCancel={() => setOperationModal(null)} onSave={saveOperationEdit} />}
       {occurrenceModal && <Editor title={`Lançar ocorrência · OS ${occurrenceModal.number}`} fields={occurrenceFields} initial={{ workOrder: occurrenceModal.number, type: 'Operacional', status: 'Aberta' }} onCancel={() => setOccurrenceModal(null)} onSave={saveLeaderOccurrence} />}
     </>
   );
@@ -3713,7 +3722,7 @@ function DailyOps({ notify, editable = true }) {
     ['carrier', 'Transportador'],
     ['service', 'Serviço', 'select', ['', ...optionValues(services, 'description', 'code')], null, true],
     ['responsible', 'Responsável', 'select', leaderProfile ? [leaderResponsibleName].filter(Boolean) : ['', ...optionValues(leaders, 'name')], null, true],
-    ['teamMembers', 'Integrantes da equipe', 'employees', { endpoint: '/api/employees', roles: (form) => isSpecialBonusOrder(form, productivityRules) ? [] : productivityRules.standard }],
+    ['teamMembers', 'Integrantes da equipe', 'employees', (form) => ({ endpoint: '/api/employees', roles: isSpecialBonusOrder(form, productivityRules) ? [] : productivityRules.standard, extraRoles: isMichelinOrder(form, productivityRules) ? productivityRules.standard : [] })],
     ['product', 'Produto'],
     ['operationStart', 'Início da operação', 'datetime-local'],
     ['operationEnd', 'Fim da operação', 'datetime-local'],
@@ -3811,9 +3820,8 @@ function DailyOps({ notify, editable = true }) {
   const save = async (data) => {
     if (!editable) return notify('Seu usuario tem acesso somente para visualizar esta tela');
     if (items.some((item) => item.id !== modal?.id && normalize(item.number).trim() === normalize(data.number).trim() && normalizeLabel(item.client) === normalizeLabel(data.client))) return notify('Ja existe uma OS com este numero para este cliente');
-    const members = Array.isArray(data.teamMembers) ? data.teamMembers : [];
-    const teamRoles = isSpecialBonusOrder(data, productivityRules) ? {} : Object.fromEntries(Object.entries(data.teamRoles || {}).filter(([name]) => members.includes(name)));
-    const cleanData = { ...data, responsible: leaderProfile ? leaderResponsibleName : data.responsible, teamRoles, location: '' };
+    const { teamRoles, teamExtras } = teamAssignmentForSave(data, productivityRules);
+    const cleanData = { ...data, responsible: leaderProfile ? leaderResponsibleName : data.responsible, teamRoles, teamExtras, location: '' };
     const payload = modal?.id ? cleanData : { ...cleanData, progress: data.progress || 0, createdBy: data.createdBy || user.name || user.email || 'Administrador SF' };
     await withBusy(() => api(modal?.id ? `/api/workOrders/${modal.id}` : '/api/workOrders', { method: modal?.id ? 'PUT' : 'POST', body: JSON.stringify(payload) }));
     setModal(null); notify('OS salva'); load();
@@ -4153,7 +4161,7 @@ function Editor({ title, fields, initial, onCancel, onSave, uppercase = false, c
   const permissionEnvironment = permissionField?.[3]?.environment || currentEnvironment();
   const [form, setForm] = useState(() => ({
     ...Object.fromEntries(fields.map(([name, , type]) => [name, ['permissions', 'employees'].includes(type) ? (initial?.[name] || (type === 'permissions' ? defaultUserPermissionsForEnvironment(initial?.role, permissionEnvironment) : [])) : initial?.[name] ?? ''])),
-    ...(hasEmployeePicker ? { teamRoles: initial?.teamRoles || {} } : {}),
+    ...(hasEmployeePicker ? { teamRoles: initial?.teamRoles || {}, teamExtras: initial?.teamExtras || [] } : {}),
     ...(automaticOperationStatus ? { status: workOrderStatusFromDates(initial || {}) || 'Programado' } : {})
   }));
   const [submitting, setSubmitting] = useState(false);
@@ -4182,6 +4190,13 @@ function Editor({ title, fields, initial, onCancel, onSave, uppercase = false, c
     if (submitting) return;
     const missing = fields.find(([name, label, , , visible, required]) => isVisible(visible) && isRequired(required) && isEmpty(form[name]));
     if (missing) return alert(`Preencha o campo obrigatorio: ${missing[1]}`);
+    const missingExtraRole = fields.some(([, , type, options]) => {
+      if (type !== 'employees') return false;
+      const source = typeof options === 'function' ? options(form) : options;
+      return source?.extraRoles?.length && (form.teamExtras || []).some((name) =>
+        (form.teamMembers || []).includes(name) && !source.extraRoles.some((rule) => (form.teamRoles?.[name] || []).includes(rule.name)));
+    });
+    if (missingExtraRole) return alert('Selecione a função de cada colaborador extra.');
     const invalidCpf = fields.find(([name, label, type, , visible]) => isVisible(visible) && type === 'cpf' && !isValidCpf(form[name]));
     if (invalidCpf) return alert(`Informe um CPF valido: ${invalidCpf[1]}`);
     try {
@@ -4201,7 +4216,7 @@ function Editor({ title, fields, initial, onCancel, onSave, uppercase = false, c
             if (type === 'permissions') return <PermissionMatrix key={name} label={label} value={form[name]} environment={options?.environment} onChange={(value) => change(name, value, type)} />;
             if (type === 'employees') {
               const employeeSource = typeof options === 'function' ? options(form) : (typeof options?.roles === 'function' ? { ...options, roles: options.roles(form) } : options);
-              return <EmployeePicker key={name} label={`${label}${isRequired(required) ? ' *' : ''}`} source={employeeSource} value={form[name]} rolesValue={form.teamRoles || {}} onChange={(value) => change(name, value, type)} onRolesChange={(value) => change('teamRoles', value)} />;
+              return <EmployeePicker key={name} label={`${label}${isRequired(required) ? ' *' : ''}`} source={employeeSource} value={form[name]} rolesValue={form.teamRoles || {}} extrasValue={form.teamExtras || []} onExtrasChange={(value) => change('teamExtras', value)} onChange={(value) => change(name, value, type)} onRolesChange={(value) => change('teamRoles', value)} />;
             }
             return <div className="form-field" key={name}><label>{label}{isRequired(required) ? ' *' : ''}</label>{type === 'select' ? <select value={form[name]} disabled={automaticOperationStatus && name === 'status' && Boolean(form.operationStart || form.operationEnd)} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)}>{options.map((o) => <option key={o || '-'} value={o}>{o || '-'}</option>)}</select> : type === 'textarea' ? <textarea value={form[name]} required={isRequired(required)} onChange={(e) => change(name, e.target.value, type)} /> : <input type={['cpf', 'personName', 'uppercaseText'].includes(type) ? 'text' : type} value={form[name]} required={isRequired(required)} maxLength={type === 'cpf' ? 14 : undefined} onFocus={(e) => type === 'number' && String(form[name]) === '0' && e.target.select()} onChange={(e) => change(name, e.target.value, type)} />}</div>;
           })}</div>
@@ -4235,13 +4250,14 @@ function PermissionMatrix({ label, value = {}, environment = currentEnvironment(
   );
 }
 
-function EmployeePicker({ label, source, value = [], rolesValue = {}, onChange, onRolesChange }) {
+function EmployeePicker({ label, source, value = [], rolesValue = {}, extrasValue = [], onChange, onRolesChange, onExtrasChange }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const selected = Array.isArray(value) ? value : [];
   const endpoint = typeof source === 'object' && source?.endpoint ? source.endpoint : '';
   const roleOptions = (typeof source === 'object' && Array.isArray(source?.roles) ? source.roles : defaultProductivityRules.standard).map((rule) => rule.name);
+  const extraRoleOptions = (source?.extraRoles || []).map((rule) => rule.name);
   const staticOptions = Array.isArray(source) ? source : [];
   useEffect(() => {
     const q = query.trim();
@@ -4277,6 +4293,7 @@ function EmployeePicker({ label, source, value = [], rolesValue = {}, onChange, 
   const toggle = (name) => {
     if (!selected.includes(name)) return onChange([...selected, name]);
     onChange(selected.filter((item) => item !== name));
+    onExtrasChange?.(extrasValue.filter((item) => item !== name));
     const nextRoles = { ...(rolesValue || {}) };
     delete nextRoles[name];
     onRolesChange?.(nextRoles);
@@ -4296,7 +4313,19 @@ function EmployeePicker({ label, source, value = [], rolesValue = {}, onChange, 
       <div className="employee-search-picker">
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Pesquisar colaborador pelo nome..." />
         <div className="employee-selected employee-selected-list">
-          {selected.map((name) => <div className="employee-assignment" key={name}><div><b>{name}</b><button type="button" className="selected-chip" onClick={() => toggle(name)}>Remover</button></div>{roleOptions.length ? <div className="role-checks">{roleOptions.map((role) => <label key={role}><input type="checkbox" checked={(rolesValue?.[name] || []).includes(role)} onChange={() => toggleRole(name, role)} /> {role}</label>)}</div> : <span className="soft">Regra especial aplicada automaticamente para esta OS.</span>}</div>)}
+          {selected.map((name) => {
+            const isExtra = extraRoleOptions.length > 0 && extrasValue.includes(name);
+            const availableRoles = isExtra ? extraRoleOptions : roleOptions;
+            return <div className="employee-assignment" key={name}>
+              <div><b>{name}</b><button type="button" className="selected-chip" onClick={() => toggle(name)}>Remover</button></div>
+              {extraRoleOptions.length > 0 && <label className="role-checks"><input type="checkbox" checked={isExtra} onChange={(event) => {
+                onExtrasChange?.(event.target.checked ? [...extrasValue, name] : extrasValue.filter((item) => item !== name));
+                onRolesChange?.({ ...rolesValue, [name]: [] });
+              }} /> Extra — produtividade normal</label>}
+              {isExtra && <span className="soft">Fora do rateio Michelin. Selecione a função para aplicar o valor padrão.</span>}
+              {availableRoles.length ? <div className="role-checks">{availableRoles.map((role) => <label key={role}><input type="checkbox" checked={(rolesValue?.[name] || []).includes(role)} onChange={() => toggleRole(name, role)} /> {role}</label>)}</div> : <span className="soft">Regra especial aplicada automaticamente para esta OS.</span>}
+            </div>;
+          })}
           {!selected.length && <span className="soft">Nenhum integrante selecionado.</span>}
         </div>
         <div className="employee-results">

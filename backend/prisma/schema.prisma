@@ -159,6 +159,7 @@ model WorkOrder {
   product             String?
   teamMembers         Json?
   teamRoles           Json?
+  teamExtras          Json?
   attendance          Json?
   teamNote            String?
   operationStart      String?

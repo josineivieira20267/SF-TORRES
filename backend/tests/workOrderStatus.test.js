@@ -16,6 +16,14 @@ function prepare(database, current) {
 }
 
 for (const database of [false, true]) {
+  test(`extra assignments survive edits and reject missing roles (${database ? 'Postgres' : 'JSON'})`, async () => {
+    const order = { id: '1', client: 'MICHELIN', teamMembers: ['Ana'], teamExtras: ['Ana'], teamRoles: { Ana: ['Bipador'] } };
+    assert.equal((await prepare(database)(order)).teamExtras[0], 'Ana');
+    await prepare(database, order)({ carrier: 'Teste' });
+    await assert.rejects(prepare(database, order)({ teamRoles: {} }), { status: 400 });
+    await assert.rejects(prepare(database, order)({ teamMembers: [] }), { status: 400 });
+    await assert.rejects(prepare(database)({ ...order, teamExtras: 'Ana' }), { status: 400 });
+  });
   test(`operation dates determine persisted status (${database ? 'Postgres' : 'JSON'})`, async () => {
     const create = prepare(database);
     assert.equal((await create({ status: 'Programado', operationEnd: '2026-09-22T12:00' })).status, 'Finalizado');

@@ -23,6 +23,30 @@ function dashboard(prisma = {}, database = false, db = {}) {
 const baseOrder = { date: '2026-09-01T10:00:00', client: 'OUTRO', teamMembers: ['Ana'], teamRoles: { Ana: ['Batedores'] } };
 const employees = [{ name: 'Ana', role: 'Batedor', team: 'Equipe' }];
 
+test('Michelin extras receive standard criteria without reducing the regular team share', () => {
+  const { helpers, rules } = dashboard();
+  const report = createProductivityReport({ employees: [], absences: { extra: 1 }, rules, helpers, query: { details: 'true' } });
+  report.add({ ...baseOrder, client: 'MICHELIN', equipment: 'CARRETA',
+    teamMembers: ['Ana', 'Bia', 'Extra'], teamExtras: ['Extra'], teamRoles: { Extra: ['Bipador', 'Apoio'] } });
+  const result = report.finish();
+  assert.equal(result.rows.find((row) => row.name === 'Ana').total, 49.14 / 2);
+  assert.equal(result.rows.find((row) => row.name === 'Bia').total, 49.14 / 2);
+  assert.equal(result.rows.find((row) => row.name === 'Extra').total, (8 + 5) * 0.75);
+  assert.equal(result.details.filter((row) => row.criterion === 'MICHELIN').length, 2);
+});
+
+test('extras use standard rates outside Michelin hours and when the entire team is extra', () => {
+  const { helpers, rules } = dashboard();
+  for (const date of ['2026-09-01T10:00:00', '2026-09-06T02:00:00']) {
+    const report = createProductivityReport({ employees, absences: {}, rules, helpers, query: {} });
+    report.add({ ...baseOrder, date, client: 'MICHELIN', teamExtras: ['Ana'] });
+    assert.equal(report.finish().totals.bonus, 8);
+  }
+  const legacy = { ...baseOrder, client: 'MICHELIN' };
+  assert.equal(helpers.specialBonusForEntry(legacy, 'Ana', {}, rules).share, 49.14);
+  assert.equal(helpers.specialBonusForEntry({ ...legacy, client: 'DAIKIN', teamExtras: ['Ana'] }, 'Ana', {}, rules).share, 12);
+});
+
 test('saved percentages apply to monthly bonuses and OS details with four or more absences', () => {
   const { helpers } = dashboard();
   const rules = helpers.mergeProductivityRules({ absencePercentages: { 1: 90, 2: 65, 3: 40, 4: 20 } });

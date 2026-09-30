@@ -209,7 +209,7 @@ function michelinShareForEntry(order, name, employeeByName, rules = defaultProdu
     ? (isTruck ? Number(config.commercialTruck) : Number(config.commercialContainer))
     : (isTruck ? Number(config.afterTruck) : Number(config.afterContainer));
   const members = Array.isArray(order.teamMembers) ? order.teamMembers : Object.keys(order.attendance || {});
-  const payableMembers = members;
+  const payableMembers = members.filter((member) => !order.teamExtras?.includes(member));
   if (!payableMembers.includes(name) || !payableMembers.length) return 0;
   return total / payableMembers.length;
 }
@@ -223,6 +223,7 @@ function daikinShareForEntry(order, name, employeeByName, rules = defaultProduct
 }
 
 function specialBonusForEntry(order, name, employeeByName, rules = defaultProductivityRules) {
+  if (isMichelinOrder(order, rules) && order.teamExtras?.includes(name)) return null;
   const michelinShare = michelinShareForEntry(order, name, employeeByName, rules);
   if (michelinShare !== null) return { key: 'michelin', name: 'MICHELIN', share: michelinShare };
   if (isMichelinOrder(order, rules)) return { key: 'michelin', name: 'MICHELIN', share: 0 };
@@ -605,7 +606,7 @@ router.get('/productivity', async (req, res, next) => {
         const batch = await prisma.workOrder.findMany({
           where, take: 500, orderBy: [{ date: 'desc' }, { id: 'desc' }],
           ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-          select: { id: true, number: true, date: true, client: true, service: true, equipment: true, product: true, responsible: true, teamMembers: true, teamRoles: true }
+          select: { id: true, number: true, date: true, client: true, service: true, equipment: true, product: true, responsible: true, teamMembers: true, teamRoles: true, teamExtras: true }
         });
         batch.forEach((order) => report.add(order));
         if (batch.length < 500) break;

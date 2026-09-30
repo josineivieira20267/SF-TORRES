@@ -9,6 +9,30 @@ import { transformSync } from 'esbuild';
 
 const source = fs.readFileSync(new URL('../src/main.jsx', import.meta.url), 'utf8');
 const ast = parse(source, { sourceType: 'module', plugins: ['jsx'] });
+
+test('Michelin picker offers extra roles only to the marked collaborator', () => {
+  const html = renderToStaticMarkup(React.createElement(component('EmployeePicker'), {
+    label: 'Equipe', source: { roles: [], extraRoles: [{ name: 'Bipador' }, { name: 'Apoio' }] },
+    value: ['Ana', 'Bia'], extrasValue: ['Bia'], rolesValue: { Bia: ['Apoio'] }
+  }));
+  assert.equal((html.match(/Extra — produtividade normal/g) || []).length, 2);
+  assert.equal((html.match(/Regra especial aplicada automaticamente/g) || []).length, 1);
+  assert.equal((html.match(/Fora do rateio Michelin/g) || []).length, 1);
+  assert.match(html, /checked=""\/> Apoio/);
+});
+
+test('saving Michelin assignments preserves extras and removes stale members', () => {
+  const sandbox = {};
+  for (const name of ['normalize', 'isMichelinOrder', 'isDaikinOrder', 'isSpecialBonusOrder', 'teamAssignmentForSave']) {
+    const node = ast.program.body.find((node) => node.type === 'FunctionDeclaration' && node.id.name === name);
+    vm.runInNewContext(source.slice(node.start, node.end), sandbox);
+  }
+  const rules = { michelin: { enabled: true, client: 'MICHELIN' }, daikin: { enabled: true, client: 'DAIKIN' } };
+  const order = { client: 'MICHELIN', teamMembers: ['Ana', 'Bia'], teamExtras: ['Bia', 'Removed'], teamRoles: { Ana: ['Apoio'], Bia: ['Bipador'], Removed: ['Apoio'] } };
+  const result = sandbox.teamAssignmentForSave(order, rules);
+  assert.equal(JSON.stringify(result), JSON.stringify({ teamRoles: { Bia: ['Bipador'] }, teamExtras: ['Bia'] }));
+  assert.equal(sandbox.teamAssignmentForSave({ ...order, client: 'OUTRO' }, rules).teamExtras.length, 0);
+});
 function component(name, states = new Map()) {
   const node = ast.program.body.find((node) => node.type === 'FunctionDeclaration' && node.id.name === name);
   const code = transformSync(`${source.slice(node.start, node.end)}; module.exports = ${name};`, { loader: 'jsx' }).code;

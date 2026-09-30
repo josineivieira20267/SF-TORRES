@@ -190,6 +190,16 @@ async function ensureUniqueWorkOrderByClient(data, req) {
   const status = workOrderStatusFromDates(candidate);
   if (status !== undefined) data = { ...data, status };
   validateWorkOrderContainer(candidate);
+  if (candidate.teamExtras != null) {
+    const extras = candidate.teamExtras;
+    if (!Array.isArray(extras) || extras.some((name) => typeof name !== 'string'
+      || !candidate.teamMembers?.includes(name)
+      || !Array.isArray(candidate.teamRoles?.[name]) || !candidate.teamRoles[name].length)) {
+      const error = new Error('Cada colaborador extra deve integrar a equipe e ter uma funcao selecionada');
+      error.status = 400;
+      throw error;
+    }
+  }
 
   const number = normalizedUniqueValue(candidate.number);
   const client = normalizedUniqueValue(candidate.client);
