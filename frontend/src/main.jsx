@@ -1497,6 +1497,7 @@ function Login({ settings, onLogin }) {
             <button className="btn btn-primary" disabled={loading}>{loading ? <LoadingSpinner small /> : 'Entrar no sistema'}</button>
           </form>
           <div className="login-foot">{message}</div>
+          <a className="btn" href="#inicio" style={{ marginTop: 16 }}>Voltar ao site institucional</a>
         </div>
       </main>
     </div>
@@ -1556,7 +1557,7 @@ function PublicJobs({ settings }) {
     <div className="public-jobs-page">
       <header className="public-jobs-head">
         <div className="brand"><div className="brand-emblem"><img src={stLogoTransparent} alt="SF Torres" /></div><div className="brand-text"><strong>{settings.fantasyName}</strong><span>Trabalhe Conosco</span></div></div>
-        <a className="btn" href="#/login">Acesso interno</a>
+        <div className="row"><a className="btn" href="#inicio">Site institucional</a><a className="btn" href="#/login">Acesso interno</a></div>
       </header>
       <main className="public-jobs-main">
         <section className="public-jobs-intro">
