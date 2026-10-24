@@ -448,13 +448,7 @@ img { max-width: 100%; display: block; }
 .st-founder-history .st-disclosure-body { max-width: 920px; padding-bottom: 30px; }
 .st-contact-secondary-phone { display: flex; align-items: center; gap: 23px; font-size: 20px; color: #4e5f78; margin-top: 8px; letter-spacing: -.5px; }
 .st-contact-secondary-phone svg { width: 16px; height: 16px; color: var(--st-red); }
-.st-portfolio { padding-block: 70px; }
-.st-portfolio-heading { display: flex; justify-content: space-between; align-items: end; gap: 50px; }
-.st-portfolio-heading .st-kicker { color: var(--st-red); font-size: 9px; margin-bottom: 20px; }
-.st-portfolio h2 { font-size: clamp(32px, 3.3vw, 49px); }
-.st-portfolio-heading > .st-button { flex-shrink: 0; margin-bottom: 5px; }
-.st-portfolio-format { font-size: 10px; color: var(--st-muted); margin-top: 17px !important; }
-.st-references { margin-top: 35px; }
+.st-references { margin-top: 0; }
 .st-reference-list { list-style: none; padding: 0; margin: 0 0 15px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px 40px; }
 .st-reference-list li > * { display: block; }
 .st-reference-list strong { font-weight: 550; font-size: 13px; color: var(--st-blue); }
@@ -477,8 +471,6 @@ img { max-width: 100%; display: block; }
   .st-benefit-list { grid-template-columns: 1fr 1fr; }
   .st-training-layout, .st-team-layout, .st-methodology { gap: 35px; }
   .st-role-list { grid-template-columns: 1fr; }
-  .st-portfolio-heading { gap: 30px; }
-  .st-portfolio-heading > .st-button { font-size: 10px; padding-inline: 17px; gap: 15px; }
 }
 @media (max-width: 700px) {
   .st-nav-secondary { display: flex; }
@@ -514,10 +506,6 @@ img { max-width: 100%; display: block; }
   .st-founder:has(.st-founder-history) { row-gap: 30px; }
   .st-founder-history .st-disclosure > summary { font-size: 12px; }
   .st-contact-secondary-phone { font-size: 19px; }
-  .st-portfolio { padding-block: 50px; }
-  .st-portfolio-heading { flex-direction: column; align-items: start; gap: 27px; }
-  .st-portfolio h2 { font-size: 32px; }
-  .st-portfolio-heading > .st-button { font-size: 11px; padding-inline: 20px; }
   .st-reference-list { grid-template-columns: 1fr 1fr; gap: 25px 20px; }
   .st-reference-list span { font-size: 11px; }
   .st-footer-links { flex-wrap: wrap; justify-content: start; gap: 13px 20px; }

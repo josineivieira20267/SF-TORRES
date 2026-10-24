@@ -1,5 +1,7 @@
 # Conferência do portfólio ST — revisão 01
 
+Atualização solicitada pelo usuário: removido da página o bloco “Negócios preparados. Resultados conquistados.”, o botão de download e a identificação do PowerPoint. “Referências comerciais” foi preservado e integrado à seção de clientes, abaixo da relação completa de empresas. A apresentação pública permanece somente como arquivo estático no pacote, sem link na página.
+
 Fonte: `PORTFÓLIO DE SERVIÇOS ATUAL REV.01.pptx`, 16 slides. Conteúdo adaptado para linguagem comercial no site, com edição pública dos 16 slides disponível em `/downloads/portfolio-st-servicos-rev01.pptx`. Os nomes e telefones pessoais das referências foram substituídos pelo contato comercial da ST. O arquivo original fornecido pelo usuário permanece inalterado em Downloads e não integra o envio ao repositório.
 
 | Slide | Conteúdo do documento | Local no site |
