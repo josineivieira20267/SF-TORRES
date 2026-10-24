@@ -48,17 +48,13 @@ function Brand({ footer = false }) {
 }
 
 function ClientMarquee() {
-  const [paused, setPaused] = useState(false);
   return <section className="st-clients" id="clientes" aria-labelledby="st-clients-title">
     <div className="st-container st-clients-heading">
       <div><span className="st-kicker">NOSSOS CLIENTES</span><h2 id="st-clients-title">Confiança construída<br /><em>na operação.</em></h2></div>
       <div className="st-clients-controls"><p>Grandes empresas.<br />Parcerias que fazem parte da nossa história.</p>
-        <button type="button" className="st-motion-toggle" aria-label={paused ? 'Retomar faixa de clientes' : 'Pausar faixa de clientes'} aria-pressed={paused} onClick={() => setPaused(!paused)}>
-          {paused ? <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 9 6-9 6z" fill="currentColor" /></svg> : <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4v12M13 4v12" stroke="currentColor" strokeWidth="2" /></svg>}
-        </button>
       </div>
     </div>
-    <div className={`st-marquee${paused ? ' st-marquee-paused' : ''}`}>
+    <div className="st-marquee">
       <div className="st-marquee-track">{[0, 1].map(copy => <ul className="st-marquee-group" key={copy} aria-hidden={copy === 1 ? true : undefined}>
         {clients.map(client => <li key={client.name}><img src={`/images/clients/${client.file}`} alt={copy === 0 ? client.name : ''} width="180" height="65" loading="eager" draggable="false" /></li>)}
       </ul>)}</div>

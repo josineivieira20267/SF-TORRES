@@ -32,7 +32,7 @@ URLs de origem: `https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d` e
 
 A revisão visual usa o azul institucional da ST, azul-marinho e vermelho nas ações comerciais. Referências de apresentação: GXO (`https://gxo.com/`) e Kuehne+Nagel (`https://www.kuehne-nagel.com/`). Cabeçalho único e compacto, abertura fotográfica, serviços em abas e textos voltados ao cliente.
 
-A faixa de clientes usa SVGs locais em `public/images/clients/`. São dois grupos idênticos, com a cópia visual oculta para leitores de tela. A animação pode ser pausada pelo botão e ao passar o mouse; respeita `prefers-reduced-motion`. Os grupos cobrem a largura da tela para evitar espaços vazios no fechamento do ciclo, inclusive em monitores largos.
+A faixa de clientes usa SVGs locais em `public/images/clients/`. São dois grupos idênticos, com a cópia visual oculta para leitores de tela. A animação automática pausa ao passar o mouse e respeita `prefers-reduced-motion`. Os grupos cobrem a largura da tela para evitar espaços vazios no fechamento do ciclo, inclusive em monitores largos. O controle visual de reprodução foi removido a pedido do usuário.
 
 Fontes dos arquivos de marca:
 
