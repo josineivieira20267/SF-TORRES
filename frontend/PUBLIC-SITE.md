@@ -15,7 +15,7 @@ Execute `npm ci` e `npm run dev` na pasta `frontend`. Para produção, execute `
 
 ## Conteúdo e contato
 
-Textos, trajetória, clientes referenciais, serviços, endereço e contatos foram adaptados do arquivo fornecido `PORTFÓLIO DE SERVIÇOS ATUAL REV.01.pptx`. Não são publicados os contatos pessoais das referências comerciais. Os nomes de clientes refletem o portfólio, sem afirmar contratos atuais ou reproduzir depoimentos.
+Textos, trajetória, clientes, serviços, endereço e contatos foram adaptados do arquivo fornecido `PORTFÓLIO DE SERVIÇOS ATUAL REV.01.pptx`. A página apresenta as seis referências comerciais por empresa e cargo e direciona consultas à ST. A edição pública para download preserva os 16 slides e substitui os nomes e telefones pessoais dessas referências pelo contato comercial da ST. O original permanece inalterado em Downloads e não é enviado ao repositório. Os nomes de clientes refletem o portfólio, sem afirmar contratos atuais ou reproduzir depoimentos. A cobertura dos 16 slides está registrada em `PORTFOLIO-COVERAGE.md`.
 
 O formulário abre uma conversa no WhatsApp com os campos preenchidos. Não há envio silencioso nem gravação dos dados comerciais na API. Telefone e e-mail também possuem links diretos. O recrutamento usa a API e as telas já existentes no sistema.
 
